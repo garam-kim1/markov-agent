@@ -1,0 +1,68 @@
+import asyncio
+
+import pytest
+
+from markov_agent.core.state import BaseState
+from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
+from markov_agent.engine.ppu import ProbabilisticNode
+from markov_agent.engine.sampler import execute_parallel_sampling
+
+
+# --- Test Data ---
+class StateForTest(BaseState):
+    query: str
+    response: str = ""
+
+
+# --- Tests ---
+
+
+@pytest.mark.asyncio
+async def test_adk_controller_mock():
+    config = ADKConfig(model_name="mock-model")
+    retry = RetryPolicy()
+    controller = ADKController(config, retry)
+
+    response = await controller.generate("Hello")
+    assert "Mock response" in response
+
+
+@pytest.mark.asyncio
+async def test_parallel_sampling():
+    count = 0
+
+    async def task():
+        nonlocal count
+        count += 1
+        await asyncio.sleep(0.01)
+        return count
+
+    # Run 5 times
+    results = await execute_parallel_sampling(task, k=5, selector_func=lambda x: x)
+    assert len(results) == 5
+    # Since we are not strictly parallel in this mock (asyncio runs on one thread),
+    # but gather allows concurrency. The counter might be sequential or not
+    # depending on context switching, but we just want to ensure it ran 5 times.
+    assert count == 5
+
+
+@pytest.mark.asyncio
+async def test_probabilistic_node():
+    config = ADKConfig(model_name="mock-model")
+    node = ProbabilisticNode(
+        name="test_node",
+        adk_config=config,
+        prompt_template="User said: {query}",
+        samples=2,
+    )
+
+    # Custom parser for test
+    def custom_parser(state, result):
+        return state.update(response=result)
+
+    node.parse_result = custom_parser
+
+    state = StateForTest(query="Hello World")
+    new_state = await node.execute(state)
+
+    assert "Mock response" in new_state.response
