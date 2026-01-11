@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from pydantic import BaseModel
 
 from markov_agent.core.state import BaseState
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
@@ -66,3 +67,31 @@ async def test_probabilistic_node():
     new_state = await node.execute(state)
 
     assert "Mock response" in new_state.response
+
+
+@pytest.mark.asyncio
+async def test_structured_output():
+    class OutputModel(BaseModel):
+        answer: str
+        confidence: float
+
+    # Mock responder that returns JSON
+    def json_mock(prompt):
+        return '{"answer": "yes", "confidence": 0.95}'
+
+    config = ADKConfig(model_name="mock-model")
+    node = ProbabilisticNode(
+        name="structure_node",
+        adk_config=config,
+        prompt_template="Answer {query}",
+        output_schema=OutputModel,
+        mock_responder=json_mock,
+    )
+
+    state = StateForTest(query="Is this real?")
+    new_state = await node.execute(state)
+
+    # Check that output in history is a dict (parsed from model)
+    last_step = new_state.history[-1]
+    assert last_step["node"] == "structure_node"
+    assert last_step["output"] == {"answer": "yes", "confidence": 0.95}

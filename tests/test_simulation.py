@@ -30,9 +30,11 @@ async def test_monte_carlo_runner():
     assert len(results) == 10  # 5 items * 2 runs
 
     metrics = calculate_metrics(results)
-    assert metrics["total"] == 10
+    assert metrics["total_runs"] == 10
     # Success if value > 0.
     # Inputs: 0, 1, 2, 3, 4.
     # After increment: 1, 2, 3, 4, 5. All > 0.
-    assert metrics["successes"] == 10
+    # Accuracy = 1.0
     assert metrics["accuracy"] == 1.0
+    assert metrics["consistency"] == 1.0
+    assert metrics["total_cases"] == 5

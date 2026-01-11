@@ -40,7 +40,9 @@ class ADKController:
     Manages configuration, retries, and interaction with the underlying model.
     """
 
-    def __init__(self, config: ADKConfig, retry_policy: RetryPolicy, mock_responder=None):
+    def __init__(
+        self, config: ADKConfig, retry_policy: RetryPolicy, mock_responder=None
+    ):
         self.config = config
         self.retry_policy = retry_policy
         self.mock_responder = mock_responder
@@ -48,30 +50,67 @@ class ADKController:
             model_name=config.model_name, safety_settings=config.safety_settings
         )
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(
+        self, prompt: str, output_schema: type[BaseModel] | None = None
+    ) -> Any:
         """
         Generates content with retry logic.
+        If output_schema is provided, attempts to generate and parse JSON.
         """
+
+        async def run_attempt():
+            if self.mock_responder:
+                return self.mock_responder(prompt)
+
+            final_prompt = prompt
+            if output_schema:
+                # Basic prompt engineering to force JSON if the API doesn't support
+                # strict mode
+                final_prompt = (
+                    f"{prompt}\n\nReturn valid JSON matching this schema: "
+                    f"{output_schema.model_json_schema()}"
+                )
+
+            response = await self.model.generate(final_prompt)
+
+            if hasattr(response, "text"):
+                return response.text
+            return str(response)
+
+        # Retry Loop
         attempt = 0
         current_delay = self.retry_policy.initial_delay
         last_error = None
 
-        if self.mock_responder:
-            # Bypass retry logic for mocks, or keep it if we want to test retries with mocks
-            return self.mock_responder(prompt)
-
         while attempt < self.retry_policy.max_attempts:
             try:
-                # Assuming the mock/wrapper returns a string or a response object
-                response = await self.model.generate(prompt)
+                raw_text = await run_attempt()
 
-                # specific handling if the real ADK returns an object
-                if hasattr(response, "text"):
-                    return response.text
-                return str(response)
+                # Parsing Logic
+                if output_schema:
+                    # simplistic extraction of JSON from markdown
+                    cleaned_text = raw_text.strip()
+                    if cleaned_text.startswith("```json"):
+                        cleaned_text = cleaned_text.replace("```json", "").replace(
+                            "```", ""
+                        )
+                    elif cleaned_text.startswith("```"):
+                        cleaned_text = cleaned_text.replace("```", "")
+
+                    return output_schema.model_validate_json(cleaned_text.strip())
+
+                return raw_text
 
             except Exception as e:
+                # If using mock, don't retry unless we want to simulate flaky mocks?
+                # For now let's assume if mock fails (or parsing fails) we retry
+                # if it's not a mock-specific error?
+                # Actually, if parsing fails, we might want to retry (self-correction).
+
                 last_error = e
+                # If mock, maybe fail immediately? Or respect retry policy?
+                # Let's respect retry policy for parsing errors even with mocks.
+
                 attempt += 1
                 if attempt < self.retry_policy.max_attempts:
                     await asyncio.sleep(current_delay)

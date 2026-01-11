@@ -1,4 +1,6 @@
-from typing import TypeVar
+from typing import Any, TypeVar
+
+from pydantic import BaseModel
 
 from markov_agent.core.state import BaseState
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
@@ -19,6 +21,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         name: str,
         adk_config: ADKConfig,
         prompt_template: str,
+        output_schema: type[BaseModel] | None = None,
         samples: int = 1,
         retry_policy: RetryPolicy = None,
         mock_responder=None,
@@ -26,6 +29,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         super().__init__(name)
         self.adk_config = adk_config
         self.prompt_template = prompt_template
+        self.output_schema = output_schema
         self.samples = samples
         self.retry_policy = retry_policy or RetryPolicy()
 
@@ -46,15 +50,17 @@ class ProbabilisticNode(BaseNode[StateT]):
 
         # 2. Define the generation function for the sampler
         async def generate_task():
-            return await self.controller.generate(prompt)
+            return await self.controller.generate(
+                prompt, output_schema=self.output_schema
+            )
 
         # 3. Execute Parallel Sampling
-        result_text = await execute_parallel_sampling(
+        result = await execute_parallel_sampling(
             generate_func=generate_task, k=self.samples
         )
 
         # 4. Update State
-        return self.parse_result(state, result_text)
+        return self.parse_result(state, result)
 
     def _render_prompt(self, state: StateT) -> str:
         # Simple format
@@ -64,9 +70,13 @@ class ProbabilisticNode(BaseNode[StateT]):
             # Fallback if state format fails
             return self.prompt_template
 
-    def parse_result(self, state: StateT, result: str) -> StateT:
+    def parse_result(self, state: StateT, result: Any) -> StateT:
         """
         Default parser: appends result to history.
         """
-        state.record_step({"node": self.name, "output": result})
+        output_payload = result
+        if isinstance(result, BaseModel):
+            output_payload = result.model_dump()
+
+        state.record_step({"node": self.name, "output": output_payload})
         return state

@@ -1,8 +1,5 @@
 import asyncio
 import re
-from typing import Optional
-
-from pydantic import Field
 
 from markov_agent.core.state import BaseState
 from markov_agent.engine.adk_wrapper import ADKConfig
@@ -15,10 +12,10 @@ from markov_agent.topology.graph import Graph
 
 class CodeState(BaseState):
     original_code: str
-    analysis: Optional[str] = None
-    plan: Optional[str] = None
-    current_code: Optional[str] = None
-    review_feedback: Optional[str] = None
+    analysis: str | None = None
+    plan: str | None = None
+    current_code: str | None = None
+    review_feedback: str | None = None
     quality_score: int = 0
     iteration: int = 0
 
@@ -61,13 +58,14 @@ class ReviewerNode(ProbabilisticNode[CodeState]):
             state.quality_score = int(score_match.group(1))
         else:
             state.quality_score = 0  # Default to low score if parsing fails
-        
+
         state.review_feedback = result
         state.record_step({"node": self.name, "score": state.quality_score})
         return state
 
 
 # --- 3. Mock LLM Logic ---
+
 
 class MockLLM:
     def __init__(self):
@@ -77,15 +75,15 @@ class MockLLM:
         """Simulates different agents based on the prompt."""
         if "Analyze the following code" in prompt:
             return "The code has a bug in the loop condition and lacks type hints."
-        
+
         elif "Create a plan" in prompt:
             return "1. Fix the loop.\n2. Add type hints.\n3. Add docstrings."
-        
+
         elif "Generate Python code" in prompt:
             self.attempts += 1
             if self.attempts == 1:
-                 # First attempt: Generate slightly wrong code (missing type hints)
-                 return """Here is the code:
+                # First attempt: Generate slightly wrong code (missing type hints)
+                return """Here is the code:
 ```python
 def factorial(n):
     if n == 0: return 1
@@ -112,70 +110,75 @@ def factorial(n: int) -> int:
                 return "Score: 5\nFeedback: Missing type hints. Please add them."
             else:
                 return "Score: 9\nFeedback: Great job, strict typing is present."
-        
+
         return "I don't know how to respond to that."
 
 
 # --- 4. Topology ---
 
+
 async def main():
     # Configuration
     config = ADKConfig(model_name="gemini-1.5-pro")
-    
+
     # Mock
     mock_llm = MockLLM()
-    
+
     # Nodes
     analyzer = AnalyzerNode(
         name="analyzer",
         adk_config=config,
         prompt_template="Analyze the following code for bugs:\n{original_code}",
-        mock_responder=mock_llm
+        mock_responder=mock_llm,
     )
-    
+
     planner = PlannerNode(
         name="planner",
         adk_config=config,
         prompt_template="Create a plan to fix these issues:\n{analysis}",
-        mock_responder=mock_llm
+        mock_responder=mock_llm,
     )
-    
+
     coder = CoderNode(
         name="coder",
         adk_config=config,
-        prompt_template="Generate Python code based on plan:\n{plan}\n\nFeedback: {review_feedback}",
-        mock_responder=mock_llm
+        prompt_template=(
+            "Generate Python code based on plan:\n{plan}\n\nFeedback: {review_feedback}"
+        ),
+        mock_responder=mock_llm,
     )
-    
+
     reviewer = ReviewerNode(
         name="reviewer",
         adk_config=config,
         prompt_template="Review the following code:\n{current_code}",
-        mock_responder=mock_llm
+        mock_responder=mock_llm,
     )
-    
+
     # Edges
     # analyzer -> planner -> coder -> reviewer
     # reviewer -> coder (if score < 8)
     # reviewer -> END (if score >= 8)
-    
+
     edges = [
         Edge(source="analyzer", target_func=lambda s: "planner"),
         Edge(source="planner", target_func=lambda s: "coder"),
         Edge(source="coder", target_func=lambda s: "reviewer"),
         Edge(
             source="reviewer",
-            target_func=lambda s: "coder" if s.quality_score < 8 and s.iteration < 3 else None
-        )
+            target_func=lambda s: (
+                "coder" if s.quality_score < 8 and s.iteration < 3 else None
+            ),
+        ),
     ]
-    
+
     graph = Graph(
         nodes={n.name: n for n in [analyzer, planner, coder, reviewer]},
         edges=edges,
         entry_point="analyzer",
-        max_steps=10
+        max_steps=10,
     )
-    
+
     # Initial State
     initial_code = """
 def fact(n):
@@ -187,10 +190,10 @@ def fact(n):
     return res
 """
     state = CodeState(original_code=initial_code)
-    
+
     # Execution
     final_state = await graph.run(state)
-    
+
     print("\n--- Final Result ---")
     print(f"Final Code:\n{final_state.current_code}")
     print(f"Final Score: {final_state.quality_score}")
