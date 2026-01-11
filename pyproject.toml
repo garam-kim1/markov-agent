@@ -11,6 +11,7 @@ dependencies = [
     "jinja2>=3.1.0",               # Prompt Templating
     "numpy>=1.26.0",               # Math/Stats for simulation
     "rich>=13.0.0",                # Terminal visualization
+    "litellm>=1.80.13",
 ]
 
 [build-system]

@@ -70,7 +70,8 @@ def calculate_metrics(results: list[SimulationResult]):
     Calculates:
     - Accuracy (Global pass rate, effectively pass@1 averaged)
     - Consistency (pass^k): Probability that all samples in a budget k are correct.
-    - Reliability (pass@k): Probability that at least one sample in a budget k is correct.
+    - Reliability (pass@k): Probability that at least one sample in a budget k is
+      correct.
     """
     if not results:
         return {
@@ -91,7 +92,7 @@ def calculate_metrics(results: list[SimulationResult]):
     total_successes = sum(1 for r in results if r.success)
 
     consistent_cases = 0  # 100% success for all n_runs
-    reliable_cases = 0    # at least one success in n_runs
+    reliable_cases = 0  # at least one success in n_runs
 
     for _case_id, case_results in cases.items():
         case_runs = len(case_results)
@@ -111,7 +112,7 @@ def calculate_metrics(results: list[SimulationResult]):
     # Calculate pass@k and pass^k estimates for various k
     pass_at_k_scores = {}
     pass_pow_k_scores = {}
-    
+
     if cases:
         max_runs = max(len(results) for results in cases.values())
         k_values_to_test = [k for k in [1, 2, 5, 10, 20] if k <= max_runs]
@@ -126,9 +127,13 @@ def calculate_metrics(results: list[SimulationResult]):
             c = sum(1 for r in case_results if r.success)
             sum_at_k += calculate_pass_at_k_estimator(n, c, k)
             sum_pow_k += calculate_pass_pow_k_estimator(n, c, k)
-        
-        pass_at_k_scores[f"pass@{k}"] = sum_at_k / total_cases if total_cases > 0 else 0.0
-        pass_pow_k_scores[f"pass^{k}"] = sum_pow_k / total_cases if total_cases > 0 else 0.0
+
+        pass_at_k_scores[f"pass@{k}"] = (
+            sum_at_k / total_cases if total_cases > 0 else 0.0
+        )
+        pass_pow_k_scores[f"pass^{k}"] = (
+            sum_pow_k / total_cases if total_cases > 0 else 0.0
+        )
 
     return {
         "accuracy": accuracy,
@@ -140,4 +145,3 @@ def calculate_metrics(results: list[SimulationResult]):
         "total_runs": total_runs,
         "consistent_cases": consistent_cases,
     }
-

@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -6,6 +7,11 @@ from pydantic import BaseModel, Field
 # Mocking google_adk for structure compliance
 try:
     import google_adk
+
+    try:
+        from google.adk.models.lite_llm import LiteLlm
+    except ImportError:
+        LiteLlm = None
 except ImportError:
     # Minimal mock for scaffolding purposes
     class google_adk:
@@ -21,11 +27,33 @@ except ImportError:
         class SafetySetting:
             BLOCK_NONE = "BLOCK_NONE"
 
+    # Mock LiteLlm if google_adk is missing
+    class LiteLlm:
+        def __init__(self, model, **kwargs):
+            self.model_name = model
+
+        async def generate(self, prompt: str):
+            await asyncio.sleep(0.01)
+            # If the prompt asks for JSON (which our controller does),
+            # return a minimal valid JSON
+            prompt_up = prompt.upper()
+            if "RETURN VALID JSON" in prompt_up or "JSON" in prompt_up:
+                if "SUMMARY" in prompt_up:
+                    return '{"summary": "Mocked summary of results"}'
+                if "STEPS" in prompt_up:
+                    return '{"steps": ["step 1", "step 2", "step 3"]}'
+                if "ANSWER" in prompt_up:
+                    return '{"answer": "Mocked answer content", "confidence": 0.95}'
+                return "{}"
+            return f"Mock LiteLLM response for: {prompt[:20]}..."
+
 
 class ADKConfig(BaseModel):
     model_name: str
     temperature: float = 0.7
     safety_settings: list[Any] = Field(default_factory=list)
+    api_base: str | None = None
+    api_key: str | None = None
 
 
 class RetryPolicy(BaseModel):
@@ -46,9 +74,25 @@ class ADKController:
         self.config = config
         self.retry_policy = retry_policy
         self.mock_responder = mock_responder
-        self.model = google_adk.Model(
-            model_name=config.model_name, safety_settings=config.safety_settings
-        )
+
+        if self.config.api_base or (LiteLlm and "openai/" in self.config.model_name):
+            # Configure environment for LiteLLM if needed
+            if self.config.api_base:
+                os.environ["OPENAI_API_BASE"] = self.config.api_base
+            if self.config.api_key:
+                os.environ["OPENAI_API_KEY"] = self.config.api_key
+
+            # Initialize LiteLlm
+            # Ensure model name includes provider prefix if not present,
+            # though usually handled by user
+            self.model = LiteLlm(
+                model=self.config.model_name,
+                safety_settings=self.config.safety_settings,
+            )
+        else:
+            self.model = google_adk.Model(
+                model_name=config.model_name, safety_settings=config.safety_settings
+            )
 
     async def generate(
         self, prompt: str, output_schema: type[BaseModel] | None = None
