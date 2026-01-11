@@ -40,9 +40,10 @@ class ADKController:
     Manages configuration, retries, and interaction with the underlying model.
     """
 
-    def __init__(self, config: ADKConfig, retry_policy: RetryPolicy):
+    def __init__(self, config: ADKConfig, retry_policy: RetryPolicy, mock_responder=None):
         self.config = config
         self.retry_policy = retry_policy
+        self.mock_responder = mock_responder
         self.model = google_adk.Model(
             model_name=config.model_name, safety_settings=config.safety_settings
         )
@@ -54,6 +55,10 @@ class ADKController:
         attempt = 0
         current_delay = self.retry_policy.initial_delay
         last_error = None
+
+        if self.mock_responder:
+            # Bypass retry logic for mocks, or keep it if we want to test retries with mocks
+            return self.mock_responder(prompt)
 
         while attempt < self.retry_policy.max_attempts:
             try:

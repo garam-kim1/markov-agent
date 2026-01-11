@@ -21,6 +21,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         prompt_template: str,
         samples: int = 1,
         retry_policy: RetryPolicy = None,
+        mock_responder=None,
     ):
         super().__init__(name)
         self.adk_config = adk_config
@@ -28,7 +29,9 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.samples = samples
         self.retry_policy = retry_policy or RetryPolicy()
 
-        self.controller = ADKController(self.adk_config, self.retry_policy)
+        self.controller = ADKController(
+            self.adk_config, self.retry_policy, mock_responder=mock_responder
+        )
 
     async def execute(self, state: StateT) -> StateT:
         """
