@@ -25,6 +25,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         samples: int = 1,
         retry_policy: RetryPolicy = None,
         mock_responder=None,
+        state_updater=None,
     ):
         super().__init__(name)
         self.adk_config = adk_config
@@ -32,6 +33,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.output_schema = output_schema
         self.samples = samples
         self.retry_policy = retry_policy or RetryPolicy()
+        self.state_updater = state_updater
 
         self.controller = ADKController(
             self.adk_config, self.retry_policy, mock_responder=mock_responder
@@ -72,8 +74,15 @@ class ProbabilisticNode(BaseNode[StateT]):
 
     def parse_result(self, state: StateT, result: Any) -> StateT:
         """
-        Default parser: appends result to history.
+        Parses result. If state_updater is provided, uses it.
+        Otherwise, default parser appends result to history.
         """
+        # If a custom updater is provided, use it
+        if self.state_updater:
+            # The updater should return a NEW state instance (immutability)
+            return self.state_updater(state, result)
+
+        # Default behavior
         output_payload = result
         if isinstance(result, BaseModel):
             output_payload = result.model_dump()
