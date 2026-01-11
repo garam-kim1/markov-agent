@@ -76,10 +76,32 @@ def calculate_metrics(results: list[SimulationResult]):
     consistency = consistent_cases / total_cases if total_cases > 0 else 0.0
     reliability = reliable_cases / total_cases if total_cases > 0 else 0.0
 
+    # Calculate pass@k estimates
+    # We estimate pass@k for k in [1, 2, 5, 10] if n_runs >= k
+    # We average the estimator across all cases
+    pass_at_k_scores = {}
+    
+    # Determine max runs per case (assuming uniform n_runs but handling variation)
+    if cases:
+        max_runs = max(len(results) for results in cases.values())
+        k_values_to_test = [k for k in [1, 5, 10, 20, 50, 100] if k <= max_runs]
+    else:
+        k_values_to_test = []
+
+    for k in k_values_to_test:
+        sum_estimator = 0.0
+        for _case_id, case_results in cases.items():
+            n = len(case_results)
+            c = sum(1 for r in case_results if r.success)
+            sum_estimator += calculate_pass_at_k_estimator(n, c, k)
+        
+        pass_at_k_scores[f"pass@{k}"] = sum_estimator / total_cases if total_cases > 0 else 0.0
+
     return {
-        "accuracy": accuracy,  # pass@1
-        "consistency": consistency,  # pass^k (Strict Consistency)
-        "reliability": reliability,  # At least one success
+        "accuracy": accuracy,  # mean pass rate
+        "consistency": consistency,  # pass^k (Strict Consistency - 100% success)
+        "reliability": reliability,  # At least one success (pass@n)
+        "pass_at_k": pass_at_k_scores, # Unbiased estimators
         "total_cases": total_cases,
         "total_runs": total_runs,
         "consistent_cases": consistent_cases,
