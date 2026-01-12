@@ -27,6 +27,19 @@ Define your application logic as a Graph. Nodes perform work (deterministically 
 ### 3. Simulation Workbench
 Don't guess if your prompt works. Run it 50 times. The built-in `MonteCarloRunner` executes your graph against a dataset to calculate **Accuracy** and **Consistency** metrics before you deploy.
 
+## 🔌 Deep ADK Integration
+
+We leverage **Google ADK** deeply to support complex enterprise use cases.
+
+### 🛠️ Standard Tools
+The `markov_agent.tools` package provides production-ready tools:
+
+*   **`DatabaseTool`**: Securely query SQL databases using `sqlalchemy`.
+*   **`MCPTool`**: Connect to **Model Context Protocol (MCP)** servers to discover and use external tools dynamically.
+
+### 🏗️ Native Structured Output
+The `ProbabilisticNode` now automatically configures the underlying Google GenAI model for **JSON mode** when an `output_schema` is provided, ensuring significantly higher adherence to your data contracts.
+
 ## 📦 Installation
 
 This project is managed by `uv`, a distinctively fast Python package manager.

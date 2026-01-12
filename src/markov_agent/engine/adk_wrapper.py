@@ -21,6 +21,7 @@ class ADKConfig(BaseModel):
     tools: list[Any] = Field(default_factory=list)
     instruction: str | None = None
     description: str | None = None
+    generation_config: dict[str, Any] | None = None
 
 
 class RetryPolicy(BaseModel):
@@ -36,7 +37,11 @@ class ADKController:
     """
 
     def __init__(
-        self, config: ADKConfig, retry_policy: RetryPolicy, mock_responder=None
+        self,
+        config: ADKConfig,
+        retry_policy: RetryPolicy,
+        mock_responder=None,
+        output_schema: Any | None = None,
     ):
         self.config = config
         self.retry_policy = retry_policy
@@ -46,6 +51,19 @@ class ADKController:
         # Configure environment if needed
         if self.config.api_key:
             os.environ["GOOGLE_API_KEY"] = self.config.api_key
+
+        # Prepare model_config from generation_config and temperature
+        model_config = self.config.generation_config or {}
+        if "temperature" not in model_config:
+            model_config["temperature"] = self.config.temperature
+            
+        # If response_schema made it into model_config (via PPU init), remove it
+        # and use the explicit output_schema argument or the one from config
+        if "response_schema" in model_config:
+            if output_schema is None:
+                output_schema = model_config.pop("response_schema")
+            else:
+                model_config.pop("response_schema")
 
         self.agent = Agent(
             name="markov_ppu_agent",
@@ -58,6 +76,8 @@ class ADKController:
             description=self.config.description
             or "Markov Agent PPU for stochastic processing.",
             tools=self.config.tools,
+            generate_content_config=model_config,
+            output_schema=output_schema,
         )
 
         self.runner = Runner(

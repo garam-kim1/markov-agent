@@ -35,8 +35,21 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.retry_policy = retry_policy or RetryPolicy()
         self.state_updater = state_updater
 
+        # Inject native JSON support if schema is provided
+        if self.output_schema:
+            if self.adk_config.generation_config is None:
+                self.adk_config.generation_config = {}
+
+            # Configure native structured output
+            self.adk_config.generation_config["response_mime_type"] = "application/json"
+            # google-adk/genai often accepts the pydantic class or its schema
+            self.adk_config.generation_config["response_schema"] = self.output_schema
+
         self.controller = ADKController(
-            self.adk_config, self.retry_policy, mock_responder=mock_responder
+            self.adk_config,
+            self.retry_policy,
+            mock_responder=mock_responder,
+            output_schema=self.output_schema,
         )
 
     async def execute(self, state: StateT) -> StateT:
