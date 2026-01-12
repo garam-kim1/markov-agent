@@ -22,7 +22,11 @@ class StateForTest(BaseState):
 async def test_adk_controller_mock():
     config = ADKConfig(model_name="mock-model")
     retry = RetryPolicy()
-    controller = ADKController(config, retry)
+
+    def mock_resp(p):
+        return "Mock response for test"
+
+    controller = ADKController(config, retry, mock_responder=mock_resp)
 
     response = await controller.generate("Hello")
     assert "Mock response" in response
@@ -41,27 +45,29 @@ async def test_parallel_sampling():
     # Run 5 times
     results = await execute_parallel_sampling(task, k=5, selector_func=lambda x: x)
     assert len(results) == 5
-    # Since we are not strictly parallel in this mock (asyncio runs on one thread),
-    # but gather allows concurrency. The counter might be sequential or not
-    # depending on context switching, but we just want to ensure it ran 5 times.
     assert count == 5
 
 
 @pytest.mark.asyncio
 async def test_probabilistic_node():
     config = ADKConfig(model_name="mock-model")
+
+    def mock_resp(p):
+        return "Mock response for node test"
+
     node = ProbabilisticNode(
         name="test_node",
         adk_config=config,
         prompt_template="User said: {query}",
         samples=2,
+        mock_responder=mock_resp,
     )
 
     # Custom parser for test
     def custom_parser(state, result):
         return state.update(response=result)
 
-    node.parse_result = custom_parser
+    node.state_updater = custom_parser
 
     state = StateForTest(query="Hello World")
     new_state = await node.execute(state)

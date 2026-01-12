@@ -1,51 +1,15 @@
 import asyncio
 import os
-from typing import Any
+import uuid
+from typing import Any, TypeVar
 
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
 from pydantic import BaseModel, Field
 
-# Mocking google_adk for structure compliance
-try:
-    import google_adk
-
-    try:
-        from google.adk.models.lite_llm import LiteLlm
-    except ImportError:
-        LiteLlm = None
-except ImportError:
-    # Minimal mock for scaffolding purposes
-    class google_adk:
-        class Model:
-            def __init__(self, model_name, safety_settings=None):
-                self.model_name = model_name
-
-            async def generate(self, prompt: str):
-                # Simulate network delay
-                await asyncio.sleep(0.01)
-                return f"Mock response for: {prompt[:20]}..."
-
-        class SafetySetting:
-            BLOCK_NONE = "BLOCK_NONE"
-
-    # Mock LiteLlm if google_adk is missing
-    class LiteLlm:
-        def __init__(self, model, **kwargs):
-            self.model_name = model
-
-        async def generate(self, prompt: str):
-            await asyncio.sleep(0.01)
-            # If the prompt asks for JSON (which our controller does),
-            # return a minimal valid JSON
-            prompt_up = prompt.upper()
-            if "RETURN VALID JSON" in prompt_up or "JSON" in prompt_up:
-                if "SUMMARY" in prompt_up:
-                    return '{"summary": "Mocked summary of results"}'
-                if "STEPS" in prompt_up:
-                    return '{"steps": ["step 1", "step 2", "step 3"]}'
-                if "ANSWER" in prompt_up:
-                    return '{"answer": "Mocked answer content", "confidence": 0.95}'
-                return "{}"
-            return f"Mock LiteLLM response for: {prompt[:20]}..."
+T = TypeVar("T", bound=BaseModel)
 
 
 class ADKConfig(BaseModel):
@@ -54,6 +18,9 @@ class ADKConfig(BaseModel):
     safety_settings: list[Any] = Field(default_factory=list)
     api_base: str | None = None
     api_key: str | None = None
+    tools: list[Any] = Field(default_factory=list)
+    instruction: str | None = None
+    description: str | None = None
 
 
 class RetryPolicy(BaseModel):
@@ -64,7 +31,7 @@ class RetryPolicy(BaseModel):
 
 class ADKController:
     """
-    Wrapper around google_adk.Model (The PPU).
+    Wrapper around google_adk.Agent and Runner.
     Manages configuration, retries, and interaction with the underlying model.
     """
 
@@ -74,31 +41,34 @@ class ADKController:
         self.config = config
         self.retry_policy = retry_policy
         self.mock_responder = mock_responder
+        self.session_service = InMemorySessionService()
 
-        if self.config.api_base or (LiteLlm and "openai/" in self.config.model_name):
-            # Configure environment for LiteLLM if needed
-            if self.config.api_base:
-                os.environ["OPENAI_API_BASE"] = self.config.api_base
-            if self.config.api_key:
-                os.environ["OPENAI_API_KEY"] = self.config.api_key
+        # Configure environment if needed
+        if self.config.api_key:
+            os.environ["GOOGLE_API_KEY"] = self.config.api_key
 
-            # Initialize LiteLlm
-            # Ensure model name includes provider prefix if not present,
-            # though usually handled by user
-            self.model = LiteLlm(
-                model=self.config.model_name,
-                safety_settings=self.config.safety_settings,
-            )
-        else:
-            self.model = google_adk.Model(
-                model_name=config.model_name, safety_settings=config.safety_settings
-            )
+        self.agent = Agent(
+            name="markov_ppu_agent",
+            model=self.config.model_name,
+            instruction=self.config.instruction
+            or (
+                "You are a probabilistic processing unit in a Markov Engine. "
+                "Execute the requested task accurately."
+            ),
+            description=self.config.description
+            or "Markov Agent PPU for stochastic processing.",
+            tools=self.config.tools,
+        )
 
-    async def generate(
-        self, prompt: str, output_schema: type[BaseModel] | None = None
-    ) -> Any:
+        self.runner = Runner(
+            app_name="markov_agent",
+            agent=self.agent,
+            session_service=self.session_service,
+        )
+
+    async def generate(self, prompt: str, output_schema: type[T] | None = None) -> Any:
         """
-        Generates content with retry logic.
+        Generates content with retry logic using the ADK Runner.
         If output_schema is provided, attempts to generate and parse JSON.
         """
 
@@ -108,18 +78,30 @@ class ADKController:
 
             final_prompt = prompt
             if output_schema:
-                # Basic prompt engineering to force JSON if the API doesn't support
-                # strict mode
                 final_prompt = (
                     f"{prompt}\n\nReturn valid JSON matching this schema: "
                     f"{output_schema.model_json_schema()}"
                 )
 
-            response = await self.model.generate(final_prompt)
+            session_id = f"gen_{uuid.uuid4().hex[:8]}"
+            await self.session_service.create_session(
+                app_name="markov_agent", user_id="system", session_id=session_id
+            )
 
-            if hasattr(response, "text"):
-                return response.text
-            return str(response)
+            content = types.Content(role="user", parts=[types.Part(text=final_prompt)])
+
+            final_text = ""
+            async for event in self.runner.run_async(
+                user_id="system", session_id=session_id, new_message=content
+            ):
+                if event.is_final_response():
+                    if event.content and event.content.parts:
+                        final_text = "".join(
+                            p.text for p in event.content.parts if p.text
+                        )
+                    break
+
+            return final_text
 
         # Retry Loop
         attempt = 0
@@ -132,7 +114,6 @@ class ADKController:
 
                 # Parsing Logic
                 if output_schema:
-                    # simplistic extraction of JSON from markdown
                     cleaned_text = raw_text.strip()
                     if cleaned_text.startswith("```json"):
                         cleaned_text = cleaned_text.replace("```json", "").replace(
@@ -146,15 +127,7 @@ class ADKController:
                 return raw_text
 
             except Exception as e:
-                # If using mock, don't retry unless we want to simulate flaky mocks?
-                # For now let's assume if mock fails (or parsing fails) we retry
-                # if it's not a mock-specific error?
-                # Actually, if parsing fails, we might want to retry (self-correction).
-
                 last_error = e
-                # If mock, maybe fail immediately? Or respect retry policy?
-                # Let's respect retry policy for parsing errors even with mocks.
-
                 attempt += 1
                 if attempt < self.retry_policy.max_attempts:
                     await asyncio.sleep(current_delay)
