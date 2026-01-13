@@ -9,6 +9,8 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel, Field
 
+from markov_agent.engine.telemetry_plugin import MarkovBridgePlugin
+
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -84,6 +86,7 @@ class ADKController:
             app_name="markov_agent",
             agent=self.agent,
             session_service=self.session_service,
+            plugins=[MarkovBridgePlugin()],
         )
 
     async def generate(self, prompt: str, output_schema: type[T] | None = None) -> Any:
@@ -97,11 +100,9 @@ class ADKController:
                 return self.mock_responder(prompt)
 
             final_prompt = prompt
-            if output_schema:
-                final_prompt = (
-                    f"{prompt}\n\nReturn valid JSON matching this schema: "
-                    f"{output_schema.model_json_schema()}"
-                )
+            # Note: We do NOT manually inject the JSON schema into the prompt here.
+            # The Agent is configured with output_schema, so the underlying model
+            # should natively enforce the structure.
 
             session_id = f"gen_{uuid.uuid4().hex[:8]}"
             await self.session_service.create_session(
@@ -135,13 +136,17 @@ class ADKController:
                 # Parsing Logic
                 if output_schema:
                     cleaned_text = raw_text.strip()
+                    # Some models might still wrap in markdown
+                    # even with structured output enforced
                     if cleaned_text.startswith("```json"):
-                        cleaned_text = cleaned_text.replace("```json", "").replace(
-                            "```", ""
-                        )
+                        cleaned_text = cleaned_text.replace("```json", "", 1)
+                        if cleaned_text.endswith("```"):
+                            cleaned_text = cleaned_text[:-3]
                     elif cleaned_text.startswith("```"):
-                        cleaned_text = cleaned_text.replace("```", "")
-
+                        cleaned_text = cleaned_text.replace("```", "", 1)
+                        if cleaned_text.endswith("```"):
+                            cleaned_text = cleaned_text[:-3]
+                    
                     return output_schema.model_validate_json(cleaned_text.strip())
 
                 return raw_text

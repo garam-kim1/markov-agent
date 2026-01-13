@@ -1,5 +1,4 @@
 from google.adk.tools.google_search_tool import GoogleSearchTool as AdkGoogleSearchTool
-from pydantic import BaseModel
 
 
 class GoogleSearchTool:

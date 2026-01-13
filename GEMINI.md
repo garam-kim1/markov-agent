@@ -15,7 +15,7 @@ You must adhere to these constraints without deviation.
 ### 2.1 The Toolchain
 * **Language:** Python 3.12+ (Strict Type Hinting required).
 * **Package Manager:** `uv` (by Astral).
-    * *Constraint:* All dependencies are managed via `pyproject.toml`. Do not use `pip` or `poetry` commands directly; use `uv add`, `uv run`, etc.
+    * *Constraint:* All dependencies are managed via `pyproject.toml`. Do not use `pip` or `poetry` commands directly. **Never use `python` directly.** Always use `uv run python` to ensure execution within the managed virtual environment.
 * **Agent Engine:** `google-adk` (Google Agent Development Kit).
     * *Source:* `https://github.com/google/adk-python`
     * *Usage:* Use the ADK primitives (`Model`, `Tool`, `Agent`) but constrain them within our proprietary Topology. Do not rely on "magic" orchestration; we define the flow.
@@ -55,9 +55,14 @@ markov_agent/
         │   └── edge.py          # Transition logic (Router)
         ├── engine/              # The "Cognitive Kernel"
         │   ├── ppu.py           # ProbabilisticNode implementation
+        │   ├── nodes.py         # Specialized Nodes (e.g. SearchNode)
         │   ├── adk_wrapper.py   # Wrapper around google_adk.Model
+        │   ├── telemetry_plugin.py # ADK <-> Markov Event Bus Bridge
         │   ├── sampler.py       # Implementation of pass@k logic
         │   └── prompt.py        # Jinja2-based structured prompting
+        ├── tools/               # Native ADK Tool Wrappers
+        │   ├── search.py        # Google Search Tool wrapper
+        │   └── database.py
         ├── containers/          # Standard patterns
         │   ├── chain.py         # Linear A->B->C
         │   └── swarm.py         # Supervisor/Worker pattern
@@ -148,6 +153,7 @@ When generating code, explain your logic using these variables:
 3.  **No Global Mutable State.** All state must be passed explicitly through the `Graph.run(state=...)` method.
 4.  **No Sync LLM Calls.** You will block the event loop and destroy the performance of the simulation engine.
 5.  **No `black` or `isort`.** All formatting commands must use `uv run ruff`.
+6.  **No Direct `python` Execution.** Always use `uv run python` to ensure the correct virtual environment and dependencies are used.
 
 ---
 
