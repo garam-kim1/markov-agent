@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from pydantic import BaseModel, Field
 from rich.console import Console
@@ -78,7 +79,32 @@ class ReportOutput(BaseModel):
     summary: str
 
 
-# --- 4. Define Nodes ---
+# --- 4. Mock Logic ---
+
+class MockLLM:
+    def __call__(self, prompt: str) -> str:
+        if "research planner" in prompt:
+            return json.dumps({
+                "steps": [
+                    "What are the basics of quantum computing?",
+                    "How does quantum computing affect encryption?",
+                    "What are post-quantum cryptographic methods?"
+                ]
+            })
+        elif "Answer the following question" in prompt:
+            return json.dumps({
+                "answer": "Quantum computers can factor large integers efficiently using Shor's algorithm, threatening RSA.",
+                "confidence": 0.95
+            })
+        elif "Create a final answer" in prompt:
+            return json.dumps({
+                "summary": "Quantum computing poses a significant threat to classical cryptography like RSA. However, post-quantum cryptography is being developed to mitigate these risks."
+            })
+        return "{}"
+
+mock_llm = MockLLM()
+
+# --- 5. Define Nodes ---
 
 # Node 1: Planner
 planner = ProbabilisticNode(
@@ -95,6 +121,7 @@ planner = ProbabilisticNode(
     output_schema=PlanOutput,
     retry_policy=RETRY_POLICY,
     state_updater=lambda s, r: s.set_plan(r.steps),
+    mock_responder=mock_llm,
 )
 
 # Node 2: Executor
@@ -111,6 +138,7 @@ executor = ProbabilisticNode(
     output_schema=AnswerOutput,
     retry_policy=RETRY_POLICY,
     state_updater=lambda s, r: s.update_step_answer(r.answer),
+    mock_responder=mock_llm,
 )
 
 # Node 3: Synthesizer
@@ -133,9 +161,10 @@ synthesizer = ProbabilisticNode(
     output_schema=ReportOutput,
     retry_policy=RETRY_POLICY,
     state_updater=lambda s, r: s.set_report(r.summary),
+    mock_responder=mock_llm,
 )
 
-# --- 5. Topology (The Graph) ---
+# --- 6. Topology (The Graph) ---
 
 
 def router(state: ResearchState) -> str | None:
@@ -171,7 +200,7 @@ graph = Graph(
     edges=[edge_planner, edge_executor, edge_synthesizer],
 )
 
-# --- 6. Execution ---
+# --- 7. Execution ---
 
 
 async def main():

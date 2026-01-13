@@ -11,7 +11,7 @@ class MarkovBridgePlugin(BasePlugin):
     """
 
     def __init__(self):
-        super().__init__(name="markov_bridge")
+        super().__init__(name="markov_telemetry")
 
     async def before_agent_callback(self, *args, **kwargs) -> None:
         await event_bus.emit(Event(name="adk.agent.start", payload={"args": str(args)}))
