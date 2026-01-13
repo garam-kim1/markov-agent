@@ -2,7 +2,7 @@
 
 > **From Prompt Engineering to Markov Engineering.**
 
-**Markov Engine** is a **Probabilistic Control System** that treats Large Language Models (LLMs) not as chatbots, but as **Probabilistic Processing Units (PPUs)** within a deterministic topology. 
+**Markov Engine** (`markov-agent`) is a **Probabilistic Control System** that treats Large Language Models (LLMs) not as chatbots, but as **Probabilistic Processing Units (PPUs)** within a deterministic topology.
 
 It provides the mathematical and architectural scaffolding to build reliable, self-correcting AI systems by constraining the stochastic nature of LLMs within rigorous state machines.
 
@@ -42,14 +42,19 @@ The `ProbabilisticNode` now automatically configures the underlying Google GenAI
 
 ## 📦 Installation
 
-This project is managed by `uv`, a distinctively fast Python package manager.
+### Prerequisites
+
+*   **Python 3.12+**
+*   **`uv`**: A fast Python package manager. Install it via `curl -LsSf https://astral.sh/uv/install.sh | sh` (or `pip install uv`).
+
+### Setup
 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/markov_agent.git
 cd markov_agent
 
-# Install dependencies
+# Install dependencies and set up the virtual environment
 uv sync
 ```
 
@@ -86,6 +91,16 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+## 📂 Examples
+
+Check out the `examples/` directory for more complex usage patterns:
+
+*   **`examples/deep_research_agent.py`**: A complex agent that iteratively researches a topic, drafts an article, and critiques its own work in a loop. It demonstrates:
+    *   Cyclic Graphs (Looping logic)
+    *   Structured Output (JSON) with Pydantic
+    *   State Management and Updates
+    *   Mocking LLM responses for testing
+
 ## 🏗️ Architecture
 
 *   **`core/`**: The immutable `State` registry and `EventBus` for observability.
@@ -96,7 +111,9 @@ if __name__ == "__main__":
 
 ## 🛠️ Development
 
-We enforce strict typing and code quality standards.
+We enforce strict typing and code quality standards using `ruff`.
+
+### Testing & Formatting
 
 ```bash
 # Run tests
