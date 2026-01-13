@@ -144,6 +144,7 @@ async def main():
         ),
         output_schema=ResearchOutput,
         state_updater=update_research,
+        mock_responder=mock_llm_router,
     )
 
     # Writer Node
@@ -156,6 +157,7 @@ async def main():
         ),
         output_schema=DraftOutput,
         state_updater=update_draft,
+        mock_responder=mock_llm_router,
     )
 
     # Critic Node
@@ -167,6 +169,7 @@ async def main():
         ),
         output_schema=CritiqueOutput,
         state_updater=update_critique,
+        mock_responder=mock_llm_router,
     )
 
     # Edges & Routing Logic
