@@ -9,7 +9,7 @@ class Chain(Graph):
     Automatically creates edges between the provided list of nodes.
     """
 
-    def __init__(self, nodes: list[BaseNode], **kwargs):
+    def __init__(self, nodes: list[BaseNode], name: str = "Chain", **kwargs):
         node_dict = {node.name: node for node in nodes}
         edges = []
 
@@ -22,5 +22,5 @@ class Chain(Graph):
         entry_point = nodes[0].name if nodes else ""
 
         super().__init__(
-            nodes=node_dict, edges=edges, entry_point=entry_point, **kwargs
+            name=name, nodes=node_dict, edges=edges, entry_point=entry_point, **kwargs
         )

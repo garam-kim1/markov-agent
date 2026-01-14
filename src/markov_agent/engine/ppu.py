@@ -52,30 +52,93 @@ class ProbabilisticNode(BaseNode[StateT]):
             output_schema=self.output_schema,
         )
 
+    async def _run_async_impl(self, context: Any) -> Any:
+        """
+        Executes the PPU logic within the ADK runtime.
+        """
+        from google.adk.events import Event, EventActions
+        
+        # 1. Access State (Dict)
+        # context.session.state is a dict
+        state_dict = context.session.state
+        
+        # 2. Render Prompt
+        # We need to render the prompt using the dictionary state
+        try:
+            prompt = self.prompt_template.format(**state_dict)
+        except Exception:
+            prompt = self.prompt_template
+
+        # 3. Define generation task
+        async def generate_task():
+            return await self.controller.generate(
+                prompt, output_schema=self.output_schema
+            )
+            
+        # 4. Execute Parallel Sampling
+        # This returns the best result (type depends on output_schema)
+        result = await execute_parallel_sampling(
+            generate_func=generate_task, k=self.samples
+        )
+        
+        # 5. Update State
+        # If result is a Pydantic model, dump it.
+        output_payload = result
+        if isinstance(result, BaseModel):
+            output_payload = result.model_dump()
+            
+        # If we have a custom state_updater, it usually expects (StateT, Result) -> StateT
+        # This is tricky because we only have a dict here. 
+        # For now, we assume standard behavior: update keys in state based on output_key?
+        # Or we rely on the user to provide a dict-compatible updater?
+        # Let's support the 'state_updater' if it can handle dicts, otherwise fallback.
+        
+        if self.state_updater:
+             # Attempt to invoke updater. If it expects StateT, this might fail or require Proxy.
+             # We'll assume the updater for the "Wrapper" version of the lib handles dicts.
+             updated_state = self.state_updater(state_dict, result)
+             # Update session state with the new dictionary
+             if isinstance(updated_state, BaseModel):
+                 context.session.state.update(updated_state.model_dump())
+             elif isinstance(updated_state, dict):
+                 context.session.state.update(updated_state)
+        else:
+             # Default: append to history if exists, or set output key if we had one (we don't have output_key field yet)
+             # But BaseState has 'history'.
+             if "history" not in context.session.state:
+                 context.session.state["history"] = []
+             context.session.state["history"].append({"node": self.name, "output": output_payload})
+             
+             # Also merge the result into state if it's a dict/model?
+             if isinstance(output_payload, dict):
+                 context.session.state.update(output_payload)
+
+        # 6. Emit Event
+        yield Event(
+            author=self.name,
+            actions=EventActions(), # No special actions
+            payload={"output": output_payload} # Optional payload usage
+        )
+
     async def execute(self, state: StateT) -> StateT:
         """
-        Executes the PPU logic:
-        1. Render prompt from state.
-        2. Sample k trajectories.
-        3. Select best result (defaulting to first valid for now).
-        4. Update state.
+        Legacy/Convenience wrapper. 
+        Warning: This bypasses the ADK Runner mechanics and runs logic directly on the State object.
         """
-        # 1. Render Prompt
+        # Mimic the logic for standalone usage
         prompt = self._render_prompt(state)
-
-        # 2. Define the generation function for the sampler
+        
         async def generate_task():
             return await self.controller.generate(
                 prompt, output_schema=self.output_schema
             )
 
-        # 3. Execute Parallel Sampling
         result = await execute_parallel_sampling(
             generate_func=generate_task, k=self.samples
         )
-
-        # 4. Update State
+        
         return self.parse_result(state, result)
+
 
     def _render_prompt(self, state: StateT) -> str:
         # Simple format
