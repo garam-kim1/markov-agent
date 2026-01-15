@@ -95,11 +95,21 @@ if __name__ == "__main__":
 
 Check out the `examples/` directory for more complex usage patterns:
 
+*   **`examples/code_improver_agent.py`**: A dedicated **Coding Agent** that fixes bugs and improves code quality. It demonstrates:
+    *   **Iterative Refinement**: Analyze -> Plan -> Code -> Review loop.
+    *   **Regex Parsing**: Extracting code blocks from LLM responses.
+    *   **Feedback Loops**: Retrying code generation based on reviewer score.
 *   **`examples/deep_research_agent.py`**: A complex agent that iteratively researches a topic, drafts an article, and critiques its own work in a loop. It demonstrates:
     *   Cyclic Graphs (Looping logic)
     *   Structured Output (JSON) with Pydantic
     *   State Management and Updates
     *   Mocking LLM responses for testing
+
+## 📚 Documentation
+
+*   [**Building Coding Agents**](docs/guides/building_coding_agents.md): A guide on constructing reliable software engineering agents.
+*   [**Google ADK Deep Dive**](docs/adk_deep_dive/google_adk_overview.md)
+*   [**Architecture Overview**](docs/architecture/overview.md)
 
 ## 🏗️ Architecture
 
