@@ -132,6 +132,7 @@ async def main():
         output_schema=PlanOutput,
         state_updater=update_plan,
         mock_responder=mock_llm_router,
+        state_type=ResearchState,
     )
 
     # Researcher Node
@@ -145,6 +146,7 @@ async def main():
         output_schema=ResearchOutput,
         state_updater=update_research,
         mock_responder=mock_llm_router,
+        state_type=ResearchState,
     )
 
     # Writer Node
@@ -158,6 +160,7 @@ async def main():
         output_schema=DraftOutput,
         state_updater=update_draft,
         mock_responder=mock_llm_router,
+        state_type=ResearchState,
     )
 
     # Critic Node
@@ -170,6 +173,7 @@ async def main():
         output_schema=CritiqueOutput,
         state_updater=update_critique,
         mock_responder=mock_llm_router,
+        state_type=ResearchState,
     )
 
     # Edges & Routing Logic
@@ -191,6 +195,7 @@ async def main():
 
     # Graph
     graph = Graph(
+        name="deep_research_graph",
         nodes={
             "planner": planner,
             "researcher": researcher,
@@ -200,6 +205,7 @@ async def main():
         edges=edges,
         entry_point="planner",
         max_steps=20,
+        state_type=ResearchState,
     )
 
     # Initial State

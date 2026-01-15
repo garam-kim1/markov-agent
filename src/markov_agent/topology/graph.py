@@ -46,12 +46,14 @@ class Graph(BaseAgent):
     edges: list[Edge] = Field(default_factory=list)
     entry_point: str = ""
     max_steps: int = 50
+    state_type: type[StateT] | None = None
 
-    def __init__(self, name: str, nodes: dict[str, BaseNode], edges: list[Edge], entry_point: str, **kwargs):
+    def __init__(self, name: str, nodes: dict[str, BaseNode], edges: list[Edge], entry_point: str, state_type: type[StateT] | None = None, **kwargs):
         super().__init__(name=name, **kwargs)
         self.nodes = nodes
         self.edges = edges
         self.entry_point = entry_point
+        self.state_type = state_type
         # Register sub_agents for ADK hierarchy if needed
         # self.sub_agents = list(nodes.values()) 
 
@@ -89,26 +91,31 @@ class Graph(BaseAgent):
                 yield event
 
             # Transition Logic
-            # We construct a temporary BaseState-like object for the router
-            # This is a 'best effort' to support the Pydantic-based router functions
-            # In a pure ADK world, routers would check the dict directly.
+            # We construct the typed state object for the router if possible
             
-            # We create a dummy object that has attributes matching the dict keys
-            class StateProxy:
-                def __init__(self, data):
-                    self.__dict__ = data
-                def __getattr__(self, name):
-                    return self.__dict__.get(name)
-            
-            state_proxy = StateProxy(context.session.state)
+            state_obj = context.session.state
+            if self.state_type:
+                try:
+                    state_obj = self.state_type.model_validate(context.session.state)
+                except Exception:
+                    # Best effort construct
+                    state_obj = self.state_type.construct(**context.session.state)
+            else:
+                # Fallback Proxy
+                class StateProxy:
+                    def __init__(self, data):
+                        self.__dict__ = data
+                    def __getattr__(self, name):
+                        return self.__dict__.get(name)
+                state_obj = StateProxy(context.session.state)
             
             # Find next node
             next_node_id = None
             for edge in self.edges:
                 if edge.source == current_node_id:
                     try:
-                        # Try passing the proxy (behaves like object)
-                        next_node_id = edge.target_func(state_proxy)
+                        # Try passing the typed object
+                        next_node_id = edge.target_func(state_obj)
                     except Exception:
                         # Fallback: pass the dict directly
                         next_node_id = edge.target_func(context.session.state)

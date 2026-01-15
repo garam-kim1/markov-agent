@@ -19,7 +19,7 @@ class IncrementNode(BaseNode[SimState]):
 @pytest.mark.asyncio
 async def test_monte_carlo_runner():
     node = IncrementNode(name="inc")
-    graph = Graph(nodes={"inc": node}, edges=[], entry_point="inc")
+    graph = Graph(name="test_sim", nodes={"inc": node}, edges=[], entry_point="inc")
 
     dataset = [SimState(value=i) for i in range(5)]
     runner = MonteCarloRunner(

@@ -38,9 +38,10 @@ async def test_simple_graph_execution():
     edge_a = Edge(source="A", target_func=route_a_to_b)
 
     # Setup graph
-    graph = Graph(nodes={"A": node_a, "B": node_b}, edges=[edge_a], entry_point="A")
+    graph = Graph(name="test_graph", nodes={"A": node_a, "B": node_b}, edges=[edge_a], entry_point="A")
 
-    initial_state = StateForTest()
+    # Run graph
+    initial_state = StateForTest(value=0)
     final_state = await graph.run(initial_state)
 
     assert final_state.value == 3  # 0 + 1 + 2
@@ -61,6 +62,7 @@ async def test_graph_cycle_limit():
     edge_a = Edge(source="A", target_func=route_a_to_a)
 
     graph = Graph(
+        name="test_graph",
         nodes={"A": node_a},
         edges=[edge_a],
         entry_point="A",
@@ -87,7 +89,7 @@ async def test_conditional_routing():
 
     edge_a = Edge(source="A", target_func=router)
 
-    graph = Graph(nodes={"A": node_a}, edges=[edge_a], entry_point="A", max_steps=10)
+    graph = Graph(name="test_graph", nodes={"A": node_a}, edges=[edge_a], entry_point="A", max_steps=10)
 
     initial_state = StateForTest()
     final_state = await graph.run(initial_state)

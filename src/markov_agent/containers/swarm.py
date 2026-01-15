@@ -17,6 +17,7 @@ class Swarm(Graph):
         workers: list[BaseNode],
         router_func: Callable[[BaseState], str],
         name: str = "Swarm",
+        state_type: type | None = None,
         **kwargs,
     ):
         nodes = {node.name: node for node in [supervisor] + workers}
@@ -30,5 +31,5 @@ class Swarm(Graph):
             )
 
         super().__init__(
-            name=name, nodes=nodes, edges=edges, entry_point=supervisor.name, **kwargs
+            name=name, nodes=nodes, edges=edges, entry_point=supervisor.name, state_type=state_type, **kwargs
         )

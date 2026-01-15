@@ -26,8 +26,9 @@ class ProbabilisticNode(BaseNode[StateT]):
         retry_policy: RetryPolicy = None,
         mock_responder=None,
         state_updater=None,
+        state_type: type[StateT] | None = None,
     ):
-        super().__init__(name)
+        super().__init__(name, state_type=state_type)
         self.adk_config = adk_config
         self.prompt_template = prompt_template
         self.output_schema = output_schema
@@ -58,14 +59,26 @@ class ProbabilisticNode(BaseNode[StateT]):
         """
         from google.adk.events import Event, EventActions
         
-        # 1. Access State (Dict)
+        # 1. Access State (Dict or Typed)
         # context.session.state is a dict
         state_dict = context.session.state
         
+        # We try to use the typed state for prompt rendering if available
+        state_obj = state_dict
+        if self.state_type:
+            try:
+                state_obj = self.state_type.model_validate(state_dict)
+            except Exception:
+                # Fallback to dict if validation fails
+                pass
+
         # 2. Render Prompt
-        # We need to render the prompt using the dictionary state
+        # We need to render the prompt
         try:
-            prompt = self.prompt_template.format(**state_dict)
+            if isinstance(state_obj, BaseModel):
+                prompt = self.prompt_template.format(**state_obj.model_dump())
+            else:
+                prompt = self.prompt_template.format(**state_dict)
         except Exception:
             prompt = self.prompt_template
 
@@ -82,42 +95,57 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
         
         # 5. Update State
-        # If result is a Pydantic model, dump it.
         output_payload = result
         if isinstance(result, BaseModel):
             output_payload = result.model_dump()
             
-        # If we have a custom state_updater, it usually expects (StateT, Result) -> StateT
-        # This is tricky because we only have a dict here. 
-        # For now, we assume standard behavior: update keys in state based on output_key?
-        # Or we rely on the user to provide a dict-compatible updater?
-        # Let's support the 'state_updater' if it can handle dicts, otherwise fallback.
-        
         if self.state_updater:
-             # Attempt to invoke updater. If it expects StateT, this might fail or require Proxy.
-             # We'll assume the updater for the "Wrapper" version of the lib handles dicts.
-             updated_state = self.state_updater(state_dict, result)
-             # Update session state with the new dictionary
-             if isinstance(updated_state, BaseModel):
-                 context.session.state.update(updated_state.model_dump())
-             elif isinstance(updated_state, dict):
-                 context.session.state.update(updated_state)
+             # Use state_updater. It usually expects (StateT, Result) -> StateT
+             # If we have a typed state object, use it.
+             if self.state_type and isinstance(state_obj, BaseModel):
+                  updated_state = self.state_updater(state_obj, result)
+                  if isinstance(updated_state, BaseModel):
+                       context.session.state.update(updated_state.model_dump())
+                  elif isinstance(updated_state, dict):
+                       context.session.state.update(updated_state)
+             else:
+                  # Fallback for dict
+                  updated_state = self.state_updater(state_dict, result)
+                  if isinstance(updated_state, dict):
+                       context.session.state.update(updated_state)
+                  elif isinstance(updated_state, BaseModel):
+                       context.session.state.update(updated_state.model_dump())
         else:
-             # Default: append to history if exists, or set output key if we had one (we don't have output_key field yet)
-             # But BaseState has 'history'.
-             if "history" not in context.session.state:
-                 context.session.state["history"] = []
-             context.session.state["history"].append({"node": self.name, "output": output_payload})
+             # Try parse_result (for subclasses overriding it)
+             # We only do this if we can form a valid state object, or if parse_result handles dicts?
+             # Standard parse_result in ProbabilisticNode expects StateT.
              
-             # Also merge the result into state if it's a dict/model?
-             if isinstance(output_payload, dict):
-                 context.session.state.update(output_payload)
+             used_parse_result = False
+             if self.state_type and isinstance(state_obj, BaseModel):
+                  try:
+                      updated_state = self.parse_result(state_obj, result)
+                      if isinstance(updated_state, BaseModel):
+                           context.session.state.update(updated_state.model_dump())
+                           used_parse_result = True
+                  except Exception:
+                      # If parse_result fails (e.g. not implemented or type mismatch), fall through
+                      pass
+             
+             if not used_parse_result:
+                 # Default: append to history if exists
+                 if "history" not in context.session.state:
+                     context.session.state["history"] = []
+                 context.session.state["history"].append({"node": self.name, "output": output_payload})
+                 
+                 # Also merge the result into state if it's a dict/model
+                 if isinstance(output_payload, dict):
+                     context.session.state.update(output_payload)
 
         # 6. Emit Event
         yield Event(
             author=self.name,
-            actions=EventActions(), # No special actions
-            payload={"output": output_payload} # Optional payload usage
+            actions=EventActions(), 
+            # payload={"output": output_payload}  # ADK Event does not support payload
         )
 
     async def execute(self, state: StateT) -> StateT:

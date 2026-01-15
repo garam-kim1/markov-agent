@@ -13,9 +13,16 @@ class NestedGraphNode(BaseNode[StateT]):
     Allows for recursive/nested graph structures.
     """
 
-    def __init__(self, name: str, graph: Graph):
-        super().__init__(name=name)
+    def __init__(self, name: str, graph: Graph, state_type: type[StateT] | None = None, **kwargs):
+        super().__init__(name=name, state_type=state_type, **kwargs)
         self.graph = graph
+
+    async def _run_async_impl(self, context: Any) -> Any:
+        """
+        Delegates execution to the wrapped Graph's ADK implementation.
+        """
+        async for event in self.graph._run_async_impl(context):
+            yield event
 
     async def execute(self, state: StateT) -> StateT:
         """

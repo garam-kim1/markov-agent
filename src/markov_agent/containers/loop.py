@@ -19,6 +19,7 @@ class LoopNode(BaseNode[StateT]):
         body: BaseNode,
         condition: Callable[[StateT], bool],
         max_iterations: int = 10,
+        state_type: type[StateT] | None = None,
         **kwargs,
     ):
         """
@@ -27,14 +28,15 @@ class LoopNode(BaseNode[StateT]):
             body: The node to execute in the loop.
             condition: A function that returns True if the loop should STOP.
             max_iterations: Maximum number of iterations.
+            state_type: The Pydantic model class for the state.
         """
-        super().__init__(name=name)
+        super().__init__(name=name, state_type=state_type)
         self.body = body
         self.condition = condition
         self.max_iterations = max_iterations
 
     async def _run_async_impl(self, context: Any) -> Any:
-        # Create a proxy for condition checking
+        # Create a proxy for condition checking or use typed state
         class StateProxy:
             def __init__(self, data):
                 self.__dict__ = data
@@ -43,8 +45,15 @@ class LoopNode(BaseNode[StateT]):
 
         for _ in range(self.max_iterations):
             # Check condition on current state
-            proxy = StateProxy(context.session.state)
-            if self.condition(proxy):
+            if self.state_type:
+                try:
+                    state_obj = self.state_type.model_validate(context.session.state)
+                except Exception:
+                    state_obj = self.state_type.construct(**context.session.state)
+            else:
+                state_obj = StateProxy(context.session.state)
+
+            if self.condition(state_obj):
                 break
                 
             async for event in self.body._run_async_impl(context):

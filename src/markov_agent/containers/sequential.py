@@ -12,8 +12,8 @@ class SequentialNode(BaseNode[StateT]):
     Lighter weight alternative to creating a full Chain Graph.
     """
 
-    def __init__(self, name: str, nodes: list[BaseNode], **kwargs):
-        super().__init__(name=name)
+    def __init__(self, name: str, nodes: list[BaseNode], state_type: type[StateT] | None = None, **kwargs):
+        super().__init__(name=name, state_type=state_type)
         self.nodes = nodes
 
     async def _run_async_impl(self, context: Any) -> Any:

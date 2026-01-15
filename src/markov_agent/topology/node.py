@@ -21,10 +21,11 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
     # Allow extra fields so subclasses can set attributes in __init__ without declaring fields
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='allow')
 
-    def __init__(self, name: str, description: str = "", **kwargs):
+    def __init__(self, name: str, description: str = "", state_type: type[StateT] | None = None, **kwargs):
         # BaseAgent expects name, description, sub_agents (list), prompt_config, etc.
         # We pass minimal args here and let subclasses handle specifics
         super().__init__(name=name, description=description, **kwargs)
+        self.state_type = state_type
 
     async def execute(self, state: StateT) -> StateT:
         """
@@ -60,33 +61,33 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
         # Bridge to 'execute' for legacy/wrapper support
         
         # 1. Reconstruct State from session (Best effort)
-        # We need to know the State class. We can't know it easily here without Generic inspection
-        # or assuming the user kept 'state' as a dict if they didn't provide a Pydantic model.
-        # But 'execute' expects StateT.
+        # We use explicit conversion if state_type is provided.
         
-        # HACK: We assume the user creates nodes that handle the state they are given.
-        # If 'execute' expects a Pydantic model, we attempt to convert.
-        # But we don't have the class ref.
-        
-        # We will try to pass a proxy object that mimics the Pydantic model
-        class StateProxy:
-            def __init__(self, data):
-                self.__dict__ = data
-            def __getattr__(self, name):
-                return self.__dict__.get(name)
-            def update(self, **kwargs):
-                # Mimic Pydantic update: return NEW dict (or proxy)
-                new_data = self.__dict__.copy()
-                new_data.update(kwargs)
-                return StateProxy(new_data)
-            def model_dump(self):
-                return self.__dict__
-        
-        # Use proxy or raw dict depending on strictness
-        # For our AppendNode test, it does `getattr(state, field)`. Proxy works.
-        # It does `state.update`. Proxy works.
-        
-        state_input = StateProxy(context.session.state)
+        if self.state_type:
+            try:
+                state_input = self.state_type.model_validate(context.session.state)
+            except Exception:
+                # Fallback if validation fails (e.g. partial state)
+                # We might log a warning here in a real system
+                state_input = self.state_type.construct(**context.session.state)
+        else:
+             # If no type provided, we assume the user's execute method handles dicts
+             # or we use the legacy proxy approach if absolutely necessary, 
+             # but strictly we should pass the dict if no type is known.
+             # However, existing nodes might expect dot-notation.
+             class StateProxy:
+                def __init__(self, data):
+                    self.__dict__ = data
+                def __getattr__(self, name):
+                    return self.__dict__.get(name)
+                def update(self, **kwargs):
+                    new_data = self.__dict__.copy()
+                    new_data.update(kwargs)
+                    return StateProxy(new_data)
+                def model_dump(self):
+                    return self.__dict__
+             
+             state_input = StateProxy(context.session.state)
         
         # 2. Call execute
         try:
@@ -103,8 +104,8 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
                 context.session.state.update(new_state.model_dump())
             elif isinstance(new_state, dict):
                 context.session.state.update(new_state)
-            elif isinstance(new_state, StateProxy):
-                context.session.state.update(new_state.__dict__)
+            elif hasattr(new_state, '__dict__'):
+                 context.session.state.update(new_state.__dict__)
 
         # Default behavior: generic event
         yield Event(

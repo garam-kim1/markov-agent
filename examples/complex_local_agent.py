@@ -122,6 +122,7 @@ planner = ProbabilisticNode(
     retry_policy=RETRY_POLICY,
     state_updater=lambda s, r: s.set_plan(r.steps),
     mock_responder=mock_llm,
+    state_type=ResearchState,
 )
 
 # Node 2: Executor
@@ -139,6 +140,7 @@ executor = ProbabilisticNode(
     retry_policy=RETRY_POLICY,
     state_updater=lambda s, r: s.update_step_answer(r.answer),
     mock_responder=mock_llm,
+    state_type=ResearchState,
 )
 
 # Node 3: Synthesizer
@@ -162,6 +164,7 @@ synthesizer = ProbabilisticNode(
     retry_policy=RETRY_POLICY,
     state_updater=lambda s, r: s.set_report(r.summary),
     mock_responder=mock_llm,
+    state_type=ResearchState,
 )
 
 # --- 6. Topology (The Graph) ---
@@ -195,9 +198,11 @@ edge_synthesizer = Edge(source="synthesizer", target_func=lambda s: None)  # End
 
 # Graph Construction
 graph = Graph(
+    name="complex_research_graph",
     entry_point="planner",
     nodes={"planner": planner, "executor": executor, "synthesizer": synthesizer},
     edges=[edge_planner, edge_executor, edge_synthesizer],
+    state_type=ResearchState,
 )
 
 # --- 7. Execution ---

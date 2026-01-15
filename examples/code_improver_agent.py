@@ -130,6 +130,7 @@ async def main():
         adk_config=config,
         prompt_template="Analyze the following code for bugs:\n{original_code}",
         mock_responder=mock_llm,
+        state_type=CodeState,
     )
 
     planner = PlannerNode(
@@ -137,6 +138,7 @@ async def main():
         adk_config=config,
         prompt_template="Create a plan to fix these issues:\n{analysis}",
         mock_responder=mock_llm,
+        state_type=CodeState,
     )
 
     coder = CoderNode(
@@ -146,6 +148,7 @@ async def main():
             "Generate Python code based on plan:\n{plan}\n\nFeedback: {review_feedback}"
         ),
         mock_responder=mock_llm,
+        state_type=CodeState,
     )
 
     reviewer = ReviewerNode(
@@ -153,6 +156,7 @@ async def main():
         adk_config=config,
         prompt_template="Review the following code:\n{current_code}",
         mock_responder=mock_llm,
+        state_type=CodeState,
     )
 
     # Edges
@@ -173,10 +177,12 @@ async def main():
     ]
 
     graph = Graph(
+        name="code_improver_graph",
         nodes={n.name: n for n in [analyzer, planner, coder, reviewer]},
         edges=edges,
         entry_point="analyzer",
         max_steps=10,
+        state_type=CodeState,
     )
 
     # Initial State
