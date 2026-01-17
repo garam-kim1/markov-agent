@@ -19,35 +19,60 @@ class ParallelNode(BaseNode[StateT]):
 
     async def _run_async_impl(self, context: Any) -> Any:
         """
-        Executes sub-nodes in parallel.
-        Note: ADK's ParallelAgent handles this more robustly with branching.
-        Here we do a simple gather and merge on the shared session state.
-        This is risky for race conditions on the dictionary!
+        Executes sub-nodes in parallel with state isolation.
+        We snapshot the state, run each node in its own isolated context,
+        and then merge the updates back to the main session.
         """
         import asyncio
+        import copy
+        from google.adk.sessions import Session
+        from google.adk.agents.invocation_context import InvocationContext
         
-        # We need to capture initial state to merge later?
-        # Or we let them fight over the dict (standard Python dict is thread-safe for single ops but not logic)
-        # Since we are async, we are in one thread.
-        # But if they read-then-write, we have race conditions.
+        # 1. Snapshot State
+        initial_state = copy.deepcopy(context.session.state)
         
-        # For this wrapper, we'll run them sequentially? No, ParallelNode implies parallel.
-        # We will run them, collecting their events.
-        
-        # We can't easily merge generator streams in a simple gathering without a helper.
-        # We'll use a helper to consume a generator.
-        
-        async def run_node(node):
+        async def run_node_isolated(node):
+            # Create isolated session/context
+            # Note: We share session_service but use a distinct session ID logic or just a transient session object
+            isolated_session = Session(
+                id=f"{context.session.id}_{node.name}",
+                appName=context.session.appName,
+                userId=context.session.userId,
+                state=copy.deepcopy(initial_state)
+            )
+            
+            isolated_context = InvocationContext(
+                session=isolated_session,
+                session_service=context.session_service,
+                invocation_id=context.invocation_id,
+                agent=node
+            )
+            
             events = []
-            async for event in node._run_async_impl(context):
+            async for event in node._run_async_impl(isolated_context):
                 events.append(event)
-            return events
+            
+            return events, isolated_session.state
 
-        results = await asyncio.gather(*(run_node(node) for node in self.nodes))
+        # 2. Run in parallel
+        results = await asyncio.gather(*(run_node_isolated(node) for node in self.nodes))
         
-        for event_list in results:
-            for event in event_list:
+        # 3. Process Results and Merge
+        merged_updates = {}
+        for events, final_node_state in results:
+            # Yield events
+            for event in events:
                 yield event
+            
+            # Identify changes
+            for key, value in final_node_state.items():
+                if value != initial_state.get(key):
+                    # Last writer wins logic for conflicts, but with parallel branches usually touching different keys
+                    # In a real conflict, we might need a better strategy, but this mimics 'execute' logic.
+                    merged_updates[key] = value
+
+        # 4. Update Main State
+        context.session.state.update(merged_updates)
 
     async def execute(self, state: StateT) -> StateT:
         """

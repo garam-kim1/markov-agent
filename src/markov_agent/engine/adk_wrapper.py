@@ -24,6 +24,7 @@ class ADKConfig(BaseModel):
     instruction: str | None = None
     description: str | None = None
     generation_config: dict[str, Any] | None = None
+    plugins: list[Any] = Field(default_factory=list)
 
 
 class RetryPolicy(BaseModel):
@@ -86,7 +87,7 @@ class ADKController:
             app_name="markov_agent",
             agent=self.agent,
             session_service=self.session_service,
-            plugins=[MarkovBridgePlugin()],
+            plugins=[MarkovBridgePlugin()] + self.config.plugins,
         )
 
     async def generate(self, prompt: str, output_schema: type[T] | None = None) -> Any:

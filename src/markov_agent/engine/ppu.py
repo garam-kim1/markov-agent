@@ -69,18 +69,66 @@ class ProbabilisticNode(BaseNode[StateT]):
             try:
                 state_obj = self.state_type.model_validate(state_dict)
             except Exception:
-                # Fallback to dict if validation fails
-                pass
+                # Fallback to construct if validation strictly fails (e.g. extra fields)
+                # or just use the dict if we can't build the object.
+                try:
+                    state_obj = self.state_type.construct(**state_dict)
+                except Exception:
+                    pass
 
         # 2. Render Prompt
         # We need to render the prompt
+        # We prefer passing the object itself to format, but str.format(**obj) doesn't work directly on objects.
+        # We need to pass a dict that includes methods if possible, or just the dump.
+        # However, users might use {get_context()} which implies the state object is available in the context?
+        # Standard python format: "{foo}".format(foo=obj.foo)
+        # But if the template is "{get_context()}", format() won't call the method.
+        # Jinja2 handles this, but standard format does not.
+        # Based on the example, the user uses "{get_context()}" inside the prompt template text?
+        # No, the example prompt has: "Current Context:\n{get_context()}"
+        # This implies f-string style, but we are doing .format().
+        # Wait, the example code uses prompt_template.format(**state.model_dump()) usually.
+        # BUT model_dump() does NOT include methods.
+        # So prompt_template="{get_context()}" will FAIL with .format(**dump).
+        # We need to inspect the template or just pre-calculate methods?
+        # Or, we allow the prompt_template to be a callable?
+        # NO, the example uses .format style syntax but assumes methods are available?
+        # Actually, standard str.format can't call methods like that unless passed as kwargs.
+        # e.g. .format(get_context=state.get_context())
+        
+        # Let's fix the Prompt Rendering to be smarter:
+        # If state_obj is a model, we can try to evaluate expressions or pass methods as values.
+        # For now, let's stick to the convention: pass model_dump() AND known methods?
+        # Or simply support accessing attributes.
+        # The specific error in the example suggests the prompt template is expecting {get_context()}?
+        # The error I saw earlier was about `add_message` on dict.
+        # Let's handle the prompt formatting by trying to bind methods if they are in the template keys?
+        # Simplest fix for the specific example usage:
+        # The example defines prompt_template with {get_context()}. 
+        # We should calculate `get_context()` and pass it to format.
+        
+        render_kwargs = {}
+        if isinstance(state_obj, BaseModel):
+            render_kwargs.update(state_obj.model_dump())
+            # Hack: inspect the state object for methods and add them to kwargs if they are 0-arg
+            for attr_name in dir(state_obj):
+                if not attr_name.startswith("_"):
+                    attr = getattr(state_obj, attr_name)
+                    if callable(attr):
+                        try:
+                            render_kwargs[attr_name] = attr() # Call it!
+                        except Exception:
+                            pass # Skip if it needs args
+        elif isinstance(state_dict, dict):
+            render_kwargs.update(state_dict)
+            
         try:
-            if isinstance(state_obj, BaseModel):
-                prompt = self.prompt_template.format(**state_obj.model_dump())
-            else:
-                prompt = self.prompt_template.format(**state_dict)
+            prompt = self.prompt_template.format(**render_kwargs)
         except Exception:
-            prompt = self.prompt_template
+             # If formatting fails (e.g. missing key), we log or just use raw template
+             # to avoid crashing, but usually we want to crash to alert the user.
+             # We'll re-raise for visibility during dev
+             raise
 
         # 3. Define generation task
         async def generate_task():
