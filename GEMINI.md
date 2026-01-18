@@ -61,10 +61,17 @@ markov_agent/
         │   ├── sampler.py       # Implementation of pass@k logic
         │   └── prompt.py        # Jinja2-based structured prompting
         ├── tools/               # Native ADK Tool Wrappers
-        │   ├── search.py        # Google Search Tool wrapper
-        │   └── database.py
+        │   ├── __init__.py
+        │   ├── agent_tool.py    # AgentAsTool wrapper
+        │   ├── database.py      # DatabaseTool
+        │   ├── mcp.py           # Model Context Protocol
+        │   └── search.py        # Google Search Tool wrapper
         ├── containers/          # Standard patterns
         │   ├── chain.py         # Linear A->B->C
+        │   ├── loop.py          # Iterative execution
+        │   ├── nested.py        # Graph-in-Node embedding
+        │   ├── parallel.py      # Concurrent execution
+        │   ├── sequential.py    # Ordered execution
         │   └── swarm.py         # Supervisor/Worker pattern
         └── simulation/          # The Reliability Workbench
             ├── runner.py        # MonteCarloRunner (runs N times)

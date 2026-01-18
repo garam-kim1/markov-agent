@@ -36,6 +36,7 @@ The `markov_agent.tools` package provides production-ready tools:
 
 *   **`DatabaseTool`**: Securely query SQL databases using `sqlalchemy`.
 *   **`MCPTool`**: Connect to **Model Context Protocol (MCP)** servers to discover and use external tools dynamically.
+*   **`AgentAsTool`**: Wrap any Markov Node/Agent as a tool, enabling **Hierarchical Task Decomposition**.
 
 ### 🏗️ Native Structured Output
 The `ProbabilisticNode` now automatically configures the underlying Google GenAI model for **JSON mode** when an `output_schema` is provided, ensuring significantly higher adherence to your data contracts.
@@ -116,7 +117,13 @@ Check out the `examples/` directory for more complex usage patterns:
 *   **`core/`**: The immutable `State` registry and `EventBus` for observability.
 *   **`topology/`**: The graph engine (`Graph`, `Node`, `Edge`). It handles routing and cyclic safeguards.
 *   **`engine/`**: The "Cognitive Kernel". Wraps the ADK and implements the $pass@k$ parallel sampler.
-*   **`containers/`**: High-level patterns like `Chain` (Linear) and `Swarm` (Supervisor/Worker).
+*   **`containers/`**: High-level structural patterns:
+    *   **`Chain`**: Simple linear $A \to B \to C$ execution.
+    *   **`Sequential`**: Strict ordered execution of nodes.
+    *   **`Parallel`**: Concurrent execution with state merging.
+    *   **`Loop`**: Iterative execution until a condition is met.
+    *   **`Swarm`**: Supervisor/Worker multi-agent patterns.
+    *   **`Nested`**: Embedding graphs within nodes for modularity.
 *   **`simulation/`**: The reliability lab. Contains `MonteCarloRunner` and metric calculators.
 
 ## 🛠️ Development
