@@ -104,7 +104,32 @@ graph = Graph(
 )
 ```
 
-## 4. Best Practices for Coding Agents
+## 5. Advanced: Hierarchical Agents
+
+For complex tasks, a single graph becomes unmanageable. Use **`AgentAsTool`** to decompose tasks.
+
+**Example:** A "Feature Agent" that delegates unit testing to a separate "Test Agent".
+
+```python
+from markov_agent.tools.agent_tool import AgentAsTool
+
+# 1. Create the Sub-Agent (The Expert)
+tester_chain = Chain(nodes=[write_test_node, run_test_node], name="TestRunner")
+
+# 2. Wrap it as a Tool
+tester_tool = AgentAsTool(tester_chain).as_tool_list()
+
+# 3. Give it to the Main Agent
+feature_node = ProbabilisticNode(
+    name="feature_engineer",
+    adk_config=ADKConfig(
+        model_name="gemini-1.5-pro",
+        tools=tester_tool  # <--- The Agent can now call "TestRunner"
+    )
+)
+```
+
+## 6. Best Practices for Coding Agents
 
 *   **Temperature Control:**
     *   **Analyzer/Planner:** High temperature (0.7-0.9) for creativity and broad thinking.

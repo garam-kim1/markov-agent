@@ -31,6 +31,21 @@ Our goal is to build reliable control systems where:
 *   **Monte Carlo Runner:** A workbench for running a topology $N$ times to statistically verify its reliability.
 *   **Metrics:** Tools to calculate Pass@1 and Pass@k accuracy.
 
+### 5. Containers (`src/markov_agent/containers`)
+High-level architectural patterns that compose Nodes into common structures:
+*   **`Chain`:** A linear sequence of nodes ($A \to B \to C$) where state is passed forward.
+*   **`Sequential`:** Strict ordered execution, similar to Chain but with more rigid control.
+*   **`Parallel`:** Executes multiple nodes concurrently, merging their state updates (Map-Reduce pattern).
+*   **`Loop`:** Iterates a node or subgraph until a condition is met (e.g., "Reviewer score > 8").
+*   **`Nested`:** Encapsulates an entire `Graph` as a single `Node`, allowing for fractal architectures.
+*   **`Swarm`:** A Supervisor/Worker pattern for multi-agent delegation.
+
+### 6. Tools (`src/markov_agent/tools`)
+Production-ready integrations for real-world capabilities:
+*   **`AgentAsTool`:** The recursive primitive. Wraps any Markov Node/Agent as a tool, allowing agents to call other agents.
+*   **`DatabaseTool`:** Safe SQL execution via SQLAlchemy.
+*   **`MCPTool`:** Integration with Model Context Protocol servers for dynamic tool discovery.
+
 ## Data Flow
 
 1.  **Initialization:** A `Graph` is instantiated with a set of `Nodes` and `Edges`.

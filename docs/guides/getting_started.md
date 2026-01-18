@@ -41,5 +41,11 @@ uv run examples/code_improver_agent.py
 
 1.  **Define State:** Subclass `BaseState` in `src/markov_agent/core/state.py` (or your own file) to define your agent's memory.
 2.  **Create Nodes:** Subclass `ProbabilisticNode` or `Node` to implement specific steps (e.g., "Draft", "Review").
-3.  **Build Graph:** Use `Graph` to connect your nodes with edges.
+3.  **Compose Topology:**
+    *   **Option A (Manual):** Use `Graph` to connect your nodes with edges.
+    *   **Option B (Containers):** Use high-level patterns like `Chain`, `Loop`, or `Parallel` for rapid assembly.
+    ```python
+    from markov_agent.containers.chain import Chain
+    agent = Chain(nodes=[draft_node, review_node])
+    ```
 4.  **Simulate:** Use `MonteCarloRunner` to verify your agent's reliability before deployment.
