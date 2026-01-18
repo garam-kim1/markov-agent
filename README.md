@@ -109,6 +109,8 @@ Check out the `examples/` directory for more complex usage patterns:
 ## 📚 Documentation
 
 *   [**Building Coding Agents**](docs/guides/building_coding_agents.md): A guide on constructing reliable software engineering agents.
+*   [**Compositional Patterns**](docs/guides/compositional_patterns.md): Learn how to use Chains, Swarms, Loops, and Parallel nodes.
+*   [**Reliability Engineering**](docs/guides/reliability_engineering.md): Quantify uncertainty with Monte Carlo simulations.
 *   [**Google ADK Deep Dive**](docs/adk_deep_dive/google_adk_overview.md)
 *   [**Architecture Overview**](docs/architecture/overview.md)
 
