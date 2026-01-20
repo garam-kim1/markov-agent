@@ -19,6 +19,7 @@ You must adhere to these constraints without deviation.
 * **Agent Engine:** `google-adk` (Google Agent Development Kit).
     * *Source:* `https://github.com/google/adk-python`
     * *Usage:* Use the ADK primitives (`Model`, `Tool`, `Agent`) but constrain them within our proprietary Topology. Do not rely on "magic" orchestration; we define the flow.
+    * *LiteLLM Support:* To use non-Gemini models (OpenAI, Anthropic, Local), enable `use_litellm=True` in `ADKConfig`.
 * **Validation:** `pydantic` v2.x.
     * *Constraint:* **No unstructured dictionaries.** Every Node input/output and State change must be a Pydantic Model.
 * **Linting & Formatting:** `ruff`.
@@ -123,7 +124,7 @@ Never rely on default model parameters for logic. Explicitly define configuratio
 node = Node(name="search") # What model? What temperature?
 ```
 
-**Good:**
+**Good (Gemini):**
 ```python
 from markov_agent.engine.adk_wrapper import ADKConfig, RetryPolicy
 from markov_agent.engine.ppu import ProbabilisticNode
@@ -137,6 +138,20 @@ node = ProbabilisticNode(
     ),
     retry_policy=RetryPolicy(max_attempts=3),
     prompt_template="Search for {query}"
+)
+```
+
+**Good (Local/LiteLLM):**
+```python
+node = ProbabilisticNode(
+    name="local_reasoner",
+    adk_config=ADKConfig(
+        model_name="openai/Qwen3-0.6B-Q4_K_M.gguf",
+        api_base="http://192.168.1.213:8080/v1",
+        use_litellm=True,
+        temperature=0.7
+    ),
+    prompt_template="{query}"
 )
 ```
 

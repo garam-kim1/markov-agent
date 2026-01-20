@@ -25,6 +25,7 @@ class ADKConfig(BaseModel):
     description: str | None = None
     generation_config: dict[str, Any] | None = None
     plugins: list[Any] = Field(default_factory=list)
+    use_litellm: bool = False
 
 
 class RetryPolicy(BaseModel):
@@ -55,11 +56,28 @@ class ADKController:
         if self.config.api_key:
             os.environ["GOOGLE_API_KEY"] = self.config.api_key
 
+        # Model Initialization Logic
+        model_instance = self.config.model_name
+        if self.config.use_litellm:
+            from google.adk.models.lite_llm import LiteLlm
+
+            # Setup environment for LiteLLM if api_base provided
+            if self.config.api_base:
+                # Assuming OpenAI-compatible local server if using openai/ prefix
+                if self.config.model_name.startswith("openai/"):
+                    os.environ["OPENAI_API_BASE"] = self.config.api_base
+                    if self.config.api_key:
+                        os.environ["OPENAI_API_KEY"] = self.config.api_key
+                    elif "OPENAI_API_KEY" not in os.environ:
+                        os.environ["OPENAI_API_KEY"] = "dummy"
+
+            model_instance = LiteLlm(model=self.config.model_name)
+
         # Prepare model_config from generation_config and temperature
         model_config = self.config.generation_config or {}
         if "temperature" not in model_config:
             model_config["temperature"] = self.config.temperature
-            
+
         # If response_schema made it into model_config (via PPU init), remove it
         # and use the explicit output_schema argument or the one from config
         if "response_schema" in model_config:
@@ -70,7 +88,7 @@ class ADKController:
 
         self.agent = Agent(
             name="markov_ppu_agent",
-            model=self.config.model_name,
+            model=model_instance,
             instruction=self.config.instruction
             or (
                 "You are a probabilistic processing unit in a Markov Engine. "

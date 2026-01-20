@@ -27,6 +27,9 @@ Define your application logic as a Graph. Nodes perform work (deterministically 
 ### 3. Simulation Workbench
 Don't guess if your prompt works. Run it 50 times. The built-in `MonteCarloRunner` executes your graph against a dataset to calculate **Accuracy** and **Consistency** metrics before you deploy.
 
+### 4. Multi-Provider Support (LiteLLM)
+We support **LiteLLM** to allow the use of virtually any LLM provider (OpenAI, Anthropic, Mistral) or local models (via vLLM/llama.cpp) within the same rigorous topology. Simply set `use_litellm=True` in your configuration.
+
 ## 🔌 Deep ADK Integration
 
 We leverage **Google ADK** deeply to support complex enterprise use cases.
@@ -105,6 +108,7 @@ Check out the `examples/` directory for more complex usage patterns:
     *   Structured Output (JSON) with Pydantic
     *   State Management and Updates
     *   Mocking LLM responses for testing
+*   **`examples/local_llm_test.py`**: A minimal example demonstrating how to connect to a **Local LLM** (e.g., Qwen/Llama via llama.cpp server) using the `use_litellm` flag.
 
 ## 📚 Documentation
 
