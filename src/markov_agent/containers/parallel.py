@@ -13,7 +13,13 @@ class ParallelNode(BaseNode[StateT]):
     Merges the resulting state updates.
     """
 
-    def __init__(self, name: str, nodes: list[BaseNode], state_type: type[StateT] | None = None, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        nodes: list[BaseNode],
+        state_type: type[StateT] | None = None,
+        **kwargs,
+    ):
         super().__init__(name=name, state_type=state_type)
         self.nodes = nodes
 
@@ -25,12 +31,13 @@ class ParallelNode(BaseNode[StateT]):
         """
         import asyncio
         import copy
-        from google.adk.sessions import Session
+
         from google.adk.agents.invocation_context import InvocationContext
-        
+        from google.adk.sessions import Session
+
         # 1. Snapshot State
         initial_state = copy.deepcopy(context.session.state)
-        
+
         async def run_node_isolated(node):
             # Create isolated session/context
             # Note: We share session_service but use a distinct session ID logic or just a transient session object
@@ -38,32 +45,34 @@ class ParallelNode(BaseNode[StateT]):
                 id=f"{context.session.id}_{node.name}",
                 appName=context.session.appName,
                 userId=context.session.userId,
-                state=copy.deepcopy(initial_state)
+                state=copy.deepcopy(initial_state),
             )
-            
+
             isolated_context = InvocationContext(
                 session=isolated_session,
                 session_service=context.session_service,
                 invocation_id=context.invocation_id,
-                agent=node
+                agent=node,
             )
-            
+
             events = []
             async for event in node._run_async_impl(isolated_context):
                 events.append(event)
-            
+
             return events, isolated_session.state
 
         # 2. Run in parallel
-        results = await asyncio.gather(*(run_node_isolated(node) for node in self.nodes))
-        
+        results = await asyncio.gather(
+            *(run_node_isolated(node) for node in self.nodes)
+        )
+
         # 3. Process Results and Merge
         merged_updates = {}
         for events, final_node_state in results:
             # Yield events
             for event in events:
                 yield event
-            
+
             # Identify changes
             for key, value in final_node_state.items():
                 if value != initial_state.get(key):

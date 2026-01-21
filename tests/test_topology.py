@@ -38,7 +38,12 @@ async def test_simple_graph_execution():
     edge_a = Edge(source="A", target_func=route_a_to_b)
 
     # Setup graph
-    graph = Graph(name="test_graph", nodes={"A": node_a, "B": node_b}, edges=[edge_a], entry_point="A")
+    graph = Graph(
+        name="test_graph",
+        nodes={"A": node_a, "B": node_b},
+        edges=[edge_a],
+        entry_point="A",
+    )
 
     # Run graph
     initial_state = StateForTest(value=0)
@@ -89,7 +94,13 @@ async def test_conditional_routing():
 
     edge_a = Edge(source="A", target_func=router)
 
-    graph = Graph(name="test_graph", nodes={"A": node_a}, edges=[edge_a], entry_point="A", max_steps=10)
+    graph = Graph(
+        name="test_graph",
+        nodes={"A": node_a},
+        edges=[edge_a],
+        entry_point="A",
+        max_steps=10,
+    )
 
     initial_state = StateForTest()
     final_state = await graph.run(initial_state)

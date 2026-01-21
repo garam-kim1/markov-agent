@@ -1,12 +1,11 @@
-from typing import TypeVar, AsyncGenerator, Any
-
-from pydantic import ConfigDict, Field
+from collections.abc import AsyncGenerator
+from typing import TypeVar
 
 from google.adk.agents import BaseAgent
-from google.adk.events import Event, EventActions
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event, EventActions
+from pydantic import ConfigDict, Field
 
-from markov_agent.core.events import Event as MarkovEvent, event_bus
 from markov_agent.core.state import BaseState
 from markov_agent.topology.edge import Edge
 from markov_agent.topology.node import BaseNode
@@ -48,26 +47,36 @@ class Graph(BaseAgent):
     max_steps: int = 50
     state_type: type[StateT] | None = None
 
-    def __init__(self, name: str, nodes: dict[str, BaseNode], edges: list[Edge], entry_point: str, state_type: type[StateT] | None = None, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        nodes: dict[str, BaseNode],
+        edges: list[Edge],
+        entry_point: str,
+        state_type: type[StateT] | None = None,
+        **kwargs,
+    ):
         super().__init__(name=name, **kwargs)
         self.nodes = nodes
         self.edges = edges
         self.entry_point = entry_point
         self.state_type = state_type
         # Register sub_agents for ADK hierarchy if needed
-        # self.sub_agents = list(nodes.values()) 
+        # self.sub_agents = list(nodes.values())
 
-    async def _run_async_impl(self, context: InvocationContext) -> AsyncGenerator[Event, None]:
+    async def _run_async_impl(
+        self, context: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
         """
         Executes the graph topology within the ADK runtime.
         """
         current_node_id = self.entry_point
         steps = 0
-        
+
         console.log(
             f"[bold green]Starting Graph Execution[/bold green] at {self.entry_point}"
         )
-        
+
         # We need to ensure we are working with the latest state from the session
         # context.session.state is a MutableMapping (dict-like)
 
@@ -77,13 +86,13 @@ class Graph(BaseAgent):
                 break
 
             current_node = self.nodes[current_node_id]
-            
+
             console.log(
                 Panel(
                     f"Executing Node: [cyan]{current_node_id}[/cyan]", title="Step info"
                 )
             )
-            
+
             # Execute Node
             # We call the node's ADK implementation directly
             # This allows the node to read/write to context.session.state
@@ -92,7 +101,7 @@ class Graph(BaseAgent):
 
             # Transition Logic
             # We construct the typed state object for the router if possible
-            
+
             state_obj = context.session.state
             if self.state_type:
                 try:
@@ -105,10 +114,12 @@ class Graph(BaseAgent):
                 class StateProxy:
                     def __init__(self, data):
                         self.__dict__ = data
+
                     def __getattr__(self, name):
                         return self.__dict__.get(name)
+
                 state_obj = StateProxy(context.session.state)
-            
+
             # Find next node
             next_node_id = None
             for edge in self.edges:
@@ -119,7 +130,7 @@ class Graph(BaseAgent):
                     except Exception:
                         # Fallback: pass the dict directly
                         next_node_id = edge.target_func(context.session.state)
-                        
+
                     console.log(f"Transition: {current_node_id} -> {next_node_id}")
                     break
 
@@ -132,9 +143,9 @@ class Graph(BaseAgent):
 
             current_node_id = next_node_id
             steps += 1
-            
+
         if steps >= self.max_steps:
-             console.log(f"[bold red]Max steps ({self.max_steps}) reached.[/bold red]")
+            console.log(f"[bold red]Max steps ({self.max_steps}) reached.[/bold red]")
 
     async def run(self, state: StateT) -> StateT:
         """
@@ -144,31 +155,32 @@ class Graph(BaseAgent):
         # Create a mock Session and Context
         # We can't easily import 'Session' if it's not exposed, but we can try to mimic it
         # or use the one from adk_wrapper if available.
-        
+
         # For this wrapper, we'll create a simple dict-holding class if ADK imports fail,
         # but since we inherit BaseAgent, we assume ADK is present.
-        
-        from google.adk.sessions import Session, InMemorySessionService
+
         import uuid
-        
+
+        from google.adk.sessions import InMemorySessionService, Session
+
         # Initialize session with the Pydantic state dumped as dict
         session = Session(
             id="local_run",
             appName="markov-agent",
             userId="test-user",
-            state=state.model_dump()
+            state=state.model_dump(),
         )
-        
+
         context = InvocationContext(
             session=session,
             session_service=InMemorySessionService(),
             invocation_id=str(uuid.uuid4()),
-            agent=self
+            agent=self,
         )
-        
+
         # Run the generator
         async for _ in self._run_async_impl(context):
-            pass # We just consume events, the work happens in session.state
-            
+            pass  # We just consume events, the work happens in session.state
+
         # Update the original state object with results from session
         return state.update(**session.state)

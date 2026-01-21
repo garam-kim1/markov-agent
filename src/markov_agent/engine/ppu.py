@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -23,6 +24,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         prompt_template: str,
         output_schema: type[BaseModel] | None = None,
         samples: int = 1,
+        selector: Callable[[list[Any]], Any] = None,
         retry_policy: RetryPolicy = None,
         mock_responder=None,
         state_updater=None,
@@ -33,6 +35,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.prompt_template = prompt_template
         self.output_schema = output_schema
         self.samples = samples
+        self.selector = selector
         self.retry_policy = retry_policy or RetryPolicy()
         self.state_updater = state_updater
 
@@ -58,11 +61,11 @@ class ProbabilisticNode(BaseNode[StateT]):
         Executes the PPU logic within the ADK runtime.
         """
         from google.adk.events import Event, EventActions
-        
+
         # 1. Access State (Dict or Typed)
         # context.session.state is a dict
         state_dict = context.session.state
-        
+
         # We try to use the typed state for prompt rendering if available
         state_obj = state_dict
         if self.state_type:
@@ -95,7 +98,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         # NO, the example uses .format style syntax but assumes methods are available?
         # Actually, standard str.format can't call methods like that unless passed as kwargs.
         # e.g. .format(get_context=state.get_context())
-        
+
         # Let's fix the Prompt Rendering to be smarter:
         # If state_obj is a model, we can try to evaluate expressions or pass methods as values.
         # For now, let's stick to the convention: pass model_dump() AND known methods?
@@ -104,9 +107,9 @@ class ProbabilisticNode(BaseNode[StateT]):
         # The error I saw earlier was about `add_message` on dict.
         # Let's handle the prompt formatting by trying to bind methods if they are in the template keys?
         # Simplest fix for the specific example usage:
-        # The example defines prompt_template with {get_context()}. 
+        # The example defines prompt_template with {get_context()}.
         # We should calculate `get_context()` and pass it to format.
-        
+
         render_kwargs = {}
         if isinstance(state_obj, BaseModel):
             render_kwargs.update(state_obj.model_dump())
@@ -116,105 +119,106 @@ class ProbabilisticNode(BaseNode[StateT]):
                     attr = getattr(state_obj, attr_name)
                     if callable(attr):
                         try:
-                            render_kwargs[attr_name] = attr() # Call it!
+                            render_kwargs[attr_name] = attr()  # Call it!
                         except Exception:
-                            pass # Skip if it needs args
+                            pass  # Skip if it needs args
         elif isinstance(state_dict, dict):
             render_kwargs.update(state_dict)
-            
+
         try:
             prompt = self.prompt_template.format(**render_kwargs)
         except Exception:
-             # If formatting fails (e.g. missing key), we log or just use raw template
-             # to avoid crashing, but usually we want to crash to alert the user.
-             # We'll re-raise for visibility during dev
-             raise
+            # If formatting fails (e.g. missing key), we log or just use raw template
+            # to avoid crashing, but usually we want to crash to alert the user.
+            # We'll re-raise for visibility during dev
+            raise
 
         # 3. Define generation task
         async def generate_task():
             return await self.controller.generate(
                 prompt, output_schema=self.output_schema
             )
-            
+
         # 4. Execute Parallel Sampling
         # This returns the best result (type depends on output_schema)
         result = await execute_parallel_sampling(
-            generate_func=generate_task, k=self.samples
+            generate_func=generate_task, k=self.samples, selector_func=self.selector
         )
-        
+
         # 5. Update State
         output_payload = result
         if isinstance(result, BaseModel):
             output_payload = result.model_dump()
-            
+
         if self.state_updater:
-             # Use state_updater. It usually expects (StateT, Result) -> StateT
-             # If we have a typed state object, use it.
-             if self.state_type and isinstance(state_obj, BaseModel):
-                  updated_state = self.state_updater(state_obj, result)
-                  if isinstance(updated_state, BaseModel):
-                       context.session.state.update(updated_state.model_dump())
-                  elif isinstance(updated_state, dict):
-                       context.session.state.update(updated_state)
-             else:
-                  # Fallback for dict
-                  updated_state = self.state_updater(state_dict, result)
-                  if isinstance(updated_state, dict):
-                       context.session.state.update(updated_state)
-                  elif isinstance(updated_state, BaseModel):
-                       context.session.state.update(updated_state.model_dump())
+            # Use state_updater. It usually expects (StateT, Result) -> StateT
+            # If we have a typed state object, use it.
+            if self.state_type and isinstance(state_obj, BaseModel):
+                updated_state = self.state_updater(state_obj, result)
+                if isinstance(updated_state, BaseModel):
+                    context.session.state.update(updated_state.model_dump())
+                elif isinstance(updated_state, dict):
+                    context.session.state.update(updated_state)
+            else:
+                # Fallback for dict
+                updated_state = self.state_updater(state_dict, result)
+                if isinstance(updated_state, dict):
+                    context.session.state.update(updated_state)
+                elif isinstance(updated_state, BaseModel):
+                    context.session.state.update(updated_state.model_dump())
         else:
-             # Try parse_result (for subclasses overriding it)
-             # We only do this if we can form a valid state object, or if parse_result handles dicts?
-             # Standard parse_result in ProbabilisticNode expects StateT.
-             
-             used_parse_result = False
-             if self.state_type and isinstance(state_obj, BaseModel):
-                  try:
-                      updated_state = self.parse_result(state_obj, result)
-                      if isinstance(updated_state, BaseModel):
-                           context.session.state.update(updated_state.model_dump())
-                           used_parse_result = True
-                  except Exception:
-                      # If parse_result fails (e.g. not implemented or type mismatch), fall through
-                      pass
-             
-             if not used_parse_result:
-                 # Default: append to history if exists
-                 if "history" not in context.session.state:
-                     context.session.state["history"] = []
-                 context.session.state["history"].append({"node": self.name, "output": output_payload})
-                 
-                 # Also merge the result into state if it's a dict/model
-                 if isinstance(output_payload, dict):
-                     context.session.state.update(output_payload)
+            # Try parse_result (for subclasses overriding it)
+            # We only do this if we can form a valid state object, or if parse_result handles dicts?
+            # Standard parse_result in ProbabilisticNode expects StateT.
+
+            used_parse_result = False
+            if self.state_type and isinstance(state_obj, BaseModel):
+                try:
+                    updated_state = self.parse_result(state_obj, result)
+                    if isinstance(updated_state, BaseModel):
+                        context.session.state.update(updated_state.model_dump())
+                        used_parse_result = True
+                except Exception:
+                    # If parse_result fails (e.g. not implemented or type mismatch), fall through
+                    pass
+
+            if not used_parse_result:
+                # Default: append to history if exists
+                if "history" not in context.session.state:
+                    context.session.state["history"] = []
+                context.session.state["history"].append(
+                    {"node": self.name, "output": output_payload}
+                )
+
+                # Also merge the result into state if it's a dict/model
+                if isinstance(output_payload, dict):
+                    context.session.state.update(output_payload)
 
         # 6. Emit Event
         yield Event(
             author=self.name,
-            actions=EventActions(), 
+            actions=EventActions(),
             # payload={"output": output_payload}  # ADK Event does not support payload
         )
 
     async def execute(self, state: StateT) -> StateT:
         """
-        Legacy/Convenience wrapper. 
+        Legacy/Convenience wrapper.
         Warning: This bypasses the ADK Runner mechanics and runs logic directly on the State object.
         """
         # Mimic the logic for standalone usage
         prompt = self._render_prompt(state)
-        
+
         async def generate_task():
             return await self.controller.generate(
                 prompt, output_schema=self.output_schema
             )
 
         result = await execute_parallel_sampling(
-            generate_func=generate_task, k=self.samples
+            generate_func=generate_task, k=self.samples, selector_func=self.selector
         )
-        
-        return self.parse_result(state, result)
 
+        return self.parse_result(state, result)
 
     def _render_prompt(self, state: StateT) -> str:
         # Simple format

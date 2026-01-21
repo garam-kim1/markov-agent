@@ -35,6 +35,4 @@ class MarkovBridgePlugin(BasePlugin):
         )
 
     async def on_model_error_callback(self, error: Exception, *args, **kwargs) -> None:
-        await event_bus.emit(
-            Event(name="adk.error", payload={"error": str(error)})
-        )
+        await event_bus.emit(Event(name="adk.error", payload={"error": str(error)}))

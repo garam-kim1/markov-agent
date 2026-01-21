@@ -31,5 +31,10 @@ class Swarm(Graph):
             )
 
         super().__init__(
-            name=name, nodes=nodes, edges=edges, entry_point=supervisor.name, state_type=state_type, **kwargs
+            name=name,
+            nodes=nodes,
+            edges=edges,
+            entry_point=supervisor.name,
+            state_type=state_type,
+            **kwargs,
         )

@@ -81,26 +81,34 @@ class ReportOutput(BaseModel):
 
 # --- 4. Mock Logic ---
 
+
 class MockLLM:
     def __call__(self, prompt: str) -> str:
         if "research planner" in prompt:
-            return json.dumps({
-                "steps": [
-                    "What are the basics of quantum computing?",
-                    "How does quantum computing affect encryption?",
-                    "What are post-quantum cryptographic methods?"
-                ]
-            })
+            return json.dumps(
+                {
+                    "steps": [
+                        "What are the basics of quantum computing?",
+                        "How does quantum computing affect encryption?",
+                        "What are post-quantum cryptographic methods?",
+                    ]
+                }
+            )
         elif "Answer the following question" in prompt:
-            return json.dumps({
-                "answer": "Quantum computers can factor large integers efficiently using Shor's algorithm, threatening RSA.",
-                "confidence": 0.95
-            })
+            return json.dumps(
+                {
+                    "answer": "Quantum computers can factor large integers efficiently using Shor's algorithm, threatening RSA.",
+                    "confidence": 0.95,
+                }
+            )
         elif "Create a final answer" in prompt:
-            return json.dumps({
-                "summary": "Quantum computing poses a significant threat to classical cryptography like RSA. However, post-quantum cryptography is being developed to mitigate these risks."
-            })
+            return json.dumps(
+                {
+                    "summary": "Quantum computing poses a significant threat to classical cryptography like RSA. However, post-quantum cryptography is being developed to mitigate these risks."
+                }
+            )
         return "{}"
+
 
 mock_llm = MockLLM()
 

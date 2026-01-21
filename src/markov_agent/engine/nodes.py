@@ -10,16 +10,12 @@ class SearchNode(ProbabilisticNode):
     """
 
     def __init__(
-        self,
-        name: str,
-        adk_config: ADKConfig,
-        prompt_template: str,
-        **kwargs
+        self, name: str, adk_config: ADKConfig, prompt_template: str, **kwargs
     ):
         # Ensure tools list exists
         if adk_config.tools is None:
             adk_config.tools = []
-        
+
         # Add Google Search Tool if not present
         # Note: We instantiate the wrapper from markov_agent.tools.search
         # which returns the native tool via as_tool_list()
@@ -27,8 +23,5 @@ class SearchNode(ProbabilisticNode):
         adk_config.tools.extend(search_tool_wrapper.as_tool_list())
 
         super().__init__(
-            name=name,
-            adk_config=adk_config,
-            prompt_template=prompt_template,
-            **kwargs
+            name=name, adk_config=adk_config, prompt_template=prompt_template, **kwargs
         )

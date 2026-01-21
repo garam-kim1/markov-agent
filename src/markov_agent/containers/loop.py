@@ -40,6 +40,7 @@ class LoopNode(BaseNode[StateT]):
         class StateProxy:
             def __init__(self, data):
                 self.__dict__ = data
+
             def __getattr__(self, name):
                 return self.__dict__.get(name)
 
@@ -55,7 +56,7 @@ class LoopNode(BaseNode[StateT]):
 
             if self.condition(state_obj):
                 break
-                
+
             async for event in self.body._run_async_impl(context):
                 yield event
 
@@ -64,8 +65,8 @@ class LoopNode(BaseNode[StateT]):
             if self.condition(state):
                 break
             state = await self.body.execute(state)
-            
+
             # Check immediately after execution as well to exit early?
             # No, let the loop structure handle it.
-            
+
         return state

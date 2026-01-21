@@ -13,7 +13,9 @@ class NestedGraphNode(BaseNode[StateT]):
     Allows for recursive/nested graph structures.
     """
 
-    def __init__(self, name: str, graph: Graph, state_type: type[StateT] | None = None, **kwargs):
+    def __init__(
+        self, name: str, graph: Graph, state_type: type[StateT] | None = None, **kwargs
+    ):
         super().__init__(name=name, state_type=state_type, **kwargs)
         self.graph = graph
 

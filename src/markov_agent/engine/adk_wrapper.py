@@ -165,7 +165,7 @@ class ADKController:
                         cleaned_text = cleaned_text.replace("```", "", 1)
                         if cleaned_text.endswith("```"):
                             cleaned_text = cleaned_text[:-3]
-                    
+
                     return output_schema.model_validate_json(cleaned_text.strip())
 
                 return raw_text

@@ -10,17 +10,18 @@ class MCPServerConfig(BaseModel):
     Configuration for an MCP Server connection.
     Supports both STDIO (local) and HTTP (remote) connections.
     """
+
     type: Literal["stdio", "http", "sse"] = "stdio"
-    
+
     # For STDIO
     command: str | None = None
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] | None = None
-    
+
     # For HTTP/SSE
     url: str | None = None
     headers: dict[str, str] | None = None
-    
+
     # Common
     tool_filter: list[str] | None = None
 
@@ -43,26 +44,23 @@ class MCPTool:
             if not self.config.command:
                 raise ValueError("Command is required for stdio MCP server.")
             connection_params = StdioServerParameters(
-                command=self.config.command,
-                args=self.config.args,
-                env=self.config.env
+                command=self.config.command, args=self.config.args, env=self.config.env
             )
         elif self.config.type == "http" or self.config.type == "sse":
             # Note: At runtime, we need to import the correct params class
             # This relies on google-adk's internal dependencies or mcp-python
             from mcp.client.sse import SseConnectionParams
+
             # Assuming basic HTTP/SSE params structure
             connection_params = SseConnectionParams(
-                url=self.config.url,
-                headers=self.config.headers or {}
+                url=self.config.url, headers=self.config.headers or {}
             )
-        
+
         if not connection_params:
             raise ValueError(f"Unsupported MCP type: {self.config.type}")
 
         self._toolset = McpToolset(
-            connection_params=connection_params,
-            tool_filter=self.config.tool_filter
+            connection_params=connection_params, tool_filter=self.config.tool_filter
         )
 
     def as_tool_list(self) -> list[Any]:
