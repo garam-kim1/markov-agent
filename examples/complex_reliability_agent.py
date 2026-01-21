@@ -9,6 +9,7 @@ from markov_agent.engine.adk_wrapper import ADKConfig
 from markov_agent.engine.ppu import ProbabilisticNode
 from markov_agent.simulation.metrics import calculate_metrics
 from markov_agent.simulation.runner import MonteCarloRunner
+from markov_agent.topology.edge import Edge
 from markov_agent.topology.graph import Graph
 
 console = Console()
@@ -99,11 +100,16 @@ def build_math_agent(samples: int = 1, use_selector: bool = False) -> Graph:
     )
 
     # Simple 1-node graph
-    graph = Graph(start_node="solver", state_type=MathState)
-    graph.add_node(solver_node)
+    nodes = {"solver": solver_node}
+    edges = [Edge(source="solver", target_func=lambda s: None)]
 
-    # Edge: Done
-    graph.add_edge("solver", lambda s: None)  # End
+    graph = Graph(
+        name="math_agent",
+        nodes=nodes,
+        edges=edges,
+        entry_point="solver",
+        state_type=MathState,
+    )
 
     return graph
 

@@ -128,7 +128,7 @@ async def main():
     analyzer = AnalyzerNode(
         name="analyzer",
         adk_config=config,
-        prompt_template="Analyze the following code for bugs:\n{original_code}",
+        prompt_template="Analyze the following code for bugs:\n{{ original_code }}",
         mock_responder=mock_llm,
         state_type=CodeState,
     )
@@ -136,7 +136,7 @@ async def main():
     planner = PlannerNode(
         name="planner",
         adk_config=config,
-        prompt_template="Create a plan to fix these issues:\n{analysis}",
+        prompt_template="Create a plan to fix these issues:\n{{ analysis }}",
         mock_responder=mock_llm,
         state_type=CodeState,
     )
@@ -145,7 +145,7 @@ async def main():
         name="coder",
         adk_config=config,
         prompt_template=(
-            "Generate Python code based on plan:\n{plan}\n\nFeedback: {review_feedback}"
+            "Generate Python code based on plan:\n{{ plan }}\n\nFeedback: {{ review_feedback }}"
         ),
         mock_responder=mock_llm,
         state_type=CodeState,
@@ -154,7 +154,7 @@ async def main():
     reviewer = ReviewerNode(
         name="reviewer",
         adk_config=config,
-        prompt_template="Review the following code:\n{current_code}",
+        prompt_template="Review the following code:\n{{ current_code }}",
         mock_responder=mock_llm,
         state_type=CodeState,
     )

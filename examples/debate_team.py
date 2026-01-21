@@ -203,10 +203,10 @@ visionary = ProbabilisticNode(
     name="visionary",
     adk_config=COMMON_CONFIG,
     prompt_template="""
-    You are a Visionary. Propose innovative solutions for the topic: {topic}.
+    You are a Visionary. Propose innovative solutions for the topic: {{ topic }}.
     
     Current Context:
-    {get_context}
+    {{ state.get_context() }}
     
     Respond with a JSON object containing 'thought' and 'proposal'.
     """,
@@ -225,7 +225,7 @@ pragmatist = ProbabilisticNode(
     You are a Pragmatist. Critique the Visionary's ideas based on feasibility and cost.
     
     Current Context:
-    {get_context}
+    {{ state.get_context() }}
     
     Respond with a JSON object containing 'thought' and 'critique'.
     """,
@@ -242,11 +242,11 @@ moderator = ProbabilisticNode(
     adk_config=COMMON_CONFIG,
     prompt_template="""
     You are the Moderator. Analyze the debate.
-    Topic: {topic}
-    Round: {round}
+    Topic: {{ topic }}
+    Round: {{ round }}
     
     History:
-    {get_context}
+    {{ state.get_context() }}
     
     Decide who speaks next: 'visionary' or 'pragmatist'.
     If they have reached agreement or if it's round 3, decide 'consensus'.

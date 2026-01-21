@@ -128,7 +128,7 @@ async def main():
     planner = ProbabilisticNode(
         name="planner",
         adk_config=config,
-        prompt_template="Plan research for: {topic}. Output JSON.",
+        prompt_template="Plan research for: {{ topic }}. Output JSON.",
         output_schema=PlanOutput,
         state_updater=update_plan,
         mock_responder=mock_llm_router,
@@ -140,7 +140,7 @@ async def main():
         name="researcher",
         adk_config=config,
         prompt_template=(
-            "Research these questions: {plan}. Previous notes: {research_notes}. "
+            "Research these questions: {{ plan }}. Previous notes: {{ research_notes }}. "
             "Output JSON."
         ),
         output_schema=ResearchOutput,
@@ -154,8 +154,8 @@ async def main():
         name="writer",
         adk_config=config,
         prompt_template=(
-            "Write a comprehensive article on {topic} using these notes: "
-            "{research_notes}. Output JSON."
+            "Write a comprehensive article on {{ topic }} using these notes: "
+            "{{ research_notes }}. Output JSON."
         ),
         output_schema=DraftOutput,
         state_updater=update_draft,
@@ -168,7 +168,7 @@ async def main():
         name="critic",
         adk_config=config,
         prompt_template=(
-            "Review the following draft: {draft}. Iteration: {iteration}. Output JSON."
+            "Review the following draft: {{ draft }}. Iteration: {{ iteration }}. Output JSON."
         ),
         output_schema=CritiqueOutput,
         state_updater=update_critique,

@@ -122,7 +122,7 @@ planner = ProbabilisticNode(
     You are a research planner.
     Break down the user's query into 3 distinct, logical research questions.
     
-    User Query: {query}
+    User Query: {{ query }}
     
     Return JSON format with a 'steps' list of strings.
     """,
@@ -140,7 +140,7 @@ executor = ProbabilisticNode(
     prompt_template="""
     Answer the following question concisely based on general knowledge.
     
-    Question: {plan[current_step_index].question}
+    Question: {{ plan[current_step_index].question }}
     
     Return JSON with 'answer' and 'confidence' (0.0 to 1.0).
     """,
@@ -158,7 +158,7 @@ synthesizer = ProbabilisticNode(
     prompt_template="""
     Create a final answer for the original query based on the research steps.
     
-    Original Query: {query}
+    Original Query: {{ query }}
     
     Research Findings:
     {% for step in plan %}

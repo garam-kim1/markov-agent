@@ -80,7 +80,7 @@ async def run_demo():
     coder = ProbabilisticNode(
         name="code_generator",
         adk_config=ADKConfig(model_name="mock-coder", temperature=0.8),
-        prompt_template="Generate code for: {task}. COMPLEXITY: {complexity}",
+        prompt_template="Generate code for: {{ problem_id }}. COMPLEXITY: {{ complexity }}",
         mock_responder=code_gen_mock_responder,
         state_updater=update_code_state,
         samples=1,  # 1 sample per node execution, multiple runs per case in simulation
@@ -95,7 +95,10 @@ async def run_demo():
 
     edge = Edge(source=coder.name, target_func=lambda s: "END")
     graph = Graph(
-        nodes={coder.name: coder, "END": end}, edges=[edge], entry_point=coder.name
+        name="metrics_graph",
+        nodes={coder.name: coder, "END": end},
+        edges=[edge],
+        entry_point=coder.name,
     )
 
     # Dataset: Various complexities
