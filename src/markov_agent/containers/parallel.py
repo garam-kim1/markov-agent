@@ -1,5 +1,9 @@
 import asyncio
-from typing import TypeVar
+from collections.abc import AsyncGenerator
+from typing import Any, TypeVar
+
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event
 
 from markov_agent.core.state import BaseState
 from markov_agent.topology.node import BaseNode
@@ -23,7 +27,9 @@ class ParallelNode(BaseNode[StateT]):
         super().__init__(name=name, state_type=state_type)
         self.nodes = nodes
 
-    async def _run_async_impl(self, context: Any) -> Any:
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
         """
         Executes sub-nodes in parallel with state isolation.
         We snapshot the state, run each node in its own isolated context,
@@ -32,26 +38,25 @@ class ParallelNode(BaseNode[StateT]):
         import asyncio
         import copy
 
-        from google.adk.agents.invocation_context import InvocationContext
         from google.adk.sessions import Session
 
         # 1. Snapshot State
-        initial_state = copy.deepcopy(context.session.state)
+        initial_state = copy.deepcopy(ctx.session.state)
 
         async def run_node_isolated(node):
             # Create isolated session/context
             # Note: We share session_service but use a distinct session ID logic or just a transient session object
             isolated_session = Session(
-                id=f"{context.session.id}_{node.name}",
-                appName=context.session.appName,
-                userId=context.session.userId,
+                id=f"{ctx.session.id}_{node.name}",
+                app_name=ctx.session.app_name,
+                user_id=ctx.session.user_id,
                 state=copy.deepcopy(initial_state),
             )
 
             isolated_context = InvocationContext(
                 session=isolated_session,
-                session_service=context.session_service,
-                invocation_id=context.invocation_id,
+                session_service=ctx.session_service,
+                invocation_id=ctx.invocation_id,
                 agent=node,
             )
 
@@ -81,7 +86,7 @@ class ParallelNode(BaseNode[StateT]):
                     merged_updates[key] = value
 
         # 4. Update Main State
-        context.session.state.update(merged_updates)
+        ctx.session.state.update(merged_updates)
 
     async def execute(self, state: StateT) -> StateT:
         """

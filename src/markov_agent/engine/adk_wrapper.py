@@ -100,7 +100,7 @@ class ADKController:
             description=self.config.description
             or "Markov Agent PPU for stochastic processing.",
             tools=self.config.tools,
-            generate_content_config=model_config,
+            generate_content_config=types.GenerateContentConfig(**model_config),
             output_schema=output_schema,
             output_key=self.config.output_key,
         )

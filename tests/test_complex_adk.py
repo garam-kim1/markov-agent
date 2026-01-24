@@ -29,8 +29,8 @@ class AppendNode(BaseNode[ParallelState]):
 
 @pytest.mark.asyncio
 async def test_nested_graph_node():
-    node_a = AppendNode("A", "branch_a", "A")
-    node_b = AppendNode("B", "branch_a", "B")
+    node_a = AppendNode(name="A", field="branch_a", value="A")
+    node_b = AppendNode(name="B", field="branch_a", value="B")
 
     # Chain is a Graph
     chain = Chain(nodes=[node_a, node_b])
@@ -46,8 +46,8 @@ async def test_nested_graph_node():
 
 @pytest.mark.asyncio
 async def test_sequential_node():
-    node_a = AppendNode("A", "branch_a", "A")
-    node_b = AppendNode("B", "branch_a", "B")
+    node_a = AppendNode(name="A", field="branch_a", value="A")
+    node_b = AppendNode(name="B", field="branch_a", value="B")
 
     seq = SequentialNode(name="Seq", nodes=[node_a, node_b])
 
@@ -59,8 +59,8 @@ async def test_sequential_node():
 
 @pytest.mark.asyncio
 async def test_parallel_node():
-    node_a = AppendNode("A", "branch_a", "A")
-    node_b = AppendNode("B", "branch_b", "B")
+    node_a = AppendNode(name="A", field="branch_a", value="A")
+    node_b = AppendNode(name="B", field="branch_b", value="B")
 
     # Both run on the same initial state
     parallel = ParallelNode(name="Parallel", nodes=[node_a, node_b])
@@ -82,7 +82,7 @@ async def test_loop_node():
         async def execute(self, state: LoopState) -> LoopState:
             return state.update(count=state.count + 1)
 
-    increment = IncrementNode("Inc")
+    increment = IncrementNode(name="Inc")
 
     # Loop until count >= 5
     loop = LoopNode(
@@ -107,7 +107,7 @@ async def test_loop_max_iterations():
         async def execute(self, state: LoopState) -> LoopState:
             return state.update(count=state.count + 1)
 
-    increment = IncrementNode("Inc")
+    increment = IncrementNode(name="Inc")
 
     # Loop max 3 times, condition never met
     loop = LoopNode(

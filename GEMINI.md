@@ -24,6 +24,8 @@ You must adhere to these constraints without deviation.
     * *Constraint:* **No unstructured dictionaries.** Every Node input/output and State change must be a Pydantic Model.
 * **Linting & Formatting:** `ruff`.
     * *Constraint:* Use `uv run ruff check` and `uv run ruff format`. Replace `black`, `isort`, and `flake8` entirely with Ruff.
+* **Type Checking:** `ty`.
+    * *Constraint:* Use `uvx ty check` for type checking.
 * **Async Runtime:** `asyncio`.
     * *Constraint:* All I/O must be asynchronous to support **Parallel Trajectory Generation** ($pass@k$).
 
@@ -179,7 +181,7 @@ When generating code, explain your logic using these variables:
 2.  **No Magic Strings.** All prompts must be in template files or defined as clear constants, not hardcoded deep in logic.
 3.  **No Global Mutable State.** All state must be passed explicitly through the `Graph.run(state=...)` method.
 4.  **No Sync LLM Calls.** You will block the event loop and destroy the performance of the simulation engine.
-5.  **No `black` or `isort`.** All formatting commands must use `uv run ruff`.
+5.  **No `black` or `isort`.** All formatting commands must use `uv run ruff`. Use `uvx ty check` for type checking.
 6.  **No Direct `python` Execution.** Always use `uv run xxx.py` to ensure the correct virtual environment and dependencies are used.
 
 ---

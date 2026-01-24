@@ -1,11 +1,11 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from markov_agent.core.state import BaseState
 
@@ -22,6 +22,8 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
     # Allow extra fields so subclasses can set attributes in __init__ without declaring fields
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
+    state_type: Any = Field(default=None, exclude=True)
+
     def __init__(
         self,
         name: str,
@@ -34,33 +36,18 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
         super().__init__(name=name, description=description, **kwargs)
         self.state_type = state_type
 
+    @abstractmethod
     async def execute(self, state: StateT) -> StateT:
         """
         Public API for Markov Agent users.
         Bridges the Pydantic State to ADK's InvocationContext/Session.
         """
-        # 1. Create a dummy InvocationContext/Session for the execution
-        # (In a real full ADK app, this comes from the Runner)
-        # For 'wrapper' usage, we might need to mock this or use InMemorySessionService
-        # But wait, if we are just a wrapper, maybe we shouldn't define 'execute' like this?
-        # We should encourage using the ADK Runner.
-        # However, to maintain backward compatibility with the 'markov-agent' style:
-
-        # We'll use a local shim to run the agent's logic
-        # This is a bit hacky but allows 'node.execute(state)' to work
-        # by calling '_run_async_impl' directly or similar.
-
-        # NOTE: Properly mocking the context is complex.
-        # For now, we will assume this method is used for unit testing or simple execution
-        # where we manually invoke the logic.
-
-        # Ideally: Create context -> run_async -> collect events -> return updated state
         pass
 
     # We must implement _run_async_impl from BaseAgent (or run_async_impl per SDK)
     # Python SDK usually uses _run_async_impl
     async def _run_async_impl(
-        self, context: InvocationContext
+        self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
         """
         The ADK execution entry point.
@@ -74,11 +61,11 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
 
         if self.state_type:
             try:
-                state_input = self.state_type.model_validate(context.session.state)
+                state_input = self.state_type.model_validate(ctx.session.state)
             except Exception:
                 # Fallback if validation fails (e.g. partial state)
                 # We might log a warning here in a real system
-                state_input = self.state_type.construct(**context.session.state)
+                state_input = self.state_type.construct(**ctx.session.state)
         else:
             # If no type provided, we assume the user's execute method handles dicts
             # or we use the legacy proxy approach if absolutely necessary,
@@ -99,11 +86,11 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
                 def model_dump(self):
                     return self.__dict__
 
-            state_input = StateProxy(context.session.state)
+            state_input = StateProxy(ctx.session.state)
 
         # 2. Call execute
         try:
-            new_state = await self.execute(state_input)
+            new_state = await self.execute(cast(StateT, state_input))
         except Exception:
             # If execute fails (maybe type check), we might yield error
             # But for now let it raise to debug
@@ -113,11 +100,11 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
         if new_state:
             # Merge updates back
             if hasattr(new_state, "model_dump"):
-                context.session.state.update(new_state.model_dump())
+                ctx.session.state.update(new_state.model_dump())
             elif isinstance(new_state, dict):
-                context.session.state.update(new_state)
+                ctx.session.state.update(new_state)
             elif hasattr(new_state, "__dict__"):
-                context.session.state.update(new_state.__dict__)
+                ctx.session.state.update(new_state.__dict__)
 
         # Default behavior: generic event
         yield Event(author=self.name, actions=EventActions())

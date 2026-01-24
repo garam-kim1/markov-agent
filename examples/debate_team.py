@@ -28,7 +28,7 @@ class DebateState(BaseState):
     topic: str
     history: list[DialogueMessage] = Field(default_factory=list)
     round: int = 0
-    status: Literal["ongoing", "consensus", "deadlock"] = "ongoing"
+    status: Literal["ongoing", "consensus", "deadlock", "visionary", "pragmatist"] = "ongoing"
     final_summary: str | None = None
 
     def add_message(self, sender: str, content: str) -> "DebateState":
@@ -41,7 +41,11 @@ class DebateState(BaseState):
         new_state.round += 1
         return new_state
 
-    def update_status(self, status: str, summary: str | None = None) -> "DebateState":
+    def update_status(
+        self,
+        status: Literal["ongoing", "consensus", "deadlock", "visionary", "pragmatist"],
+        summary: str | None = None,
+    ) -> "DebateState":
         new_state = self.model_copy(deep=True)
         new_state.status = status
         if summary:

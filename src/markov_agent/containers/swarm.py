@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from markov_agent.core.state import BaseState
 from markov_agent.topology.edge import Edge
@@ -15,7 +16,7 @@ class Swarm(Graph):
         self,
         supervisor: BaseNode,
         workers: list[BaseNode],
-        router_func: Callable[[BaseState], str],
+        router_func: Callable[[Any], str],
         name: str = "Swarm",
         state_type: type | None = None,
         **kwargs,

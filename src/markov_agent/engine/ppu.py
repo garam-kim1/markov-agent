@@ -4,7 +4,7 @@ from typing import Any, TypeVar
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 from google.genai import types
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from markov_agent.core.state import BaseState
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
@@ -21,6 +21,15 @@ class ProbabilisticNode(BaseNode[StateT]):
     to determine the next state.
     """
 
+    adk_config: Any = Field(default=None)
+    prompt_template: Any = Field(default="")
+    output_schema: Any = Field(default=None)
+    samples: Any = Field(default=1)
+    selector: Any = Field(default=None)
+    retry_policy: Any = Field(default=None)
+    mock_responder: Any = Field(default=None)
+    state_updater: Any = Field(default=None)
+
     def __init__(
         self,
         name: str,
@@ -28,8 +37,8 @@ class ProbabilisticNode(BaseNode[StateT]):
         prompt_template: str,
         output_schema: type[BaseModel] | None = None,
         samples: int = 1,
-        selector: Callable[[list[Any]], Any] = None,
-        retry_policy: RetryPolicy = None,
+        selector: Callable[[list[Any]], Any] | None = None,
+        retry_policy: RetryPolicy | None = None,
         mock_responder=None,
         state_updater=None,
         state_type: type[StateT] | None = None,
@@ -62,15 +71,15 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
 
     async def _run_async_impl(
-        self, context: InvocationContext
+        self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
         """
         Executes the PPU logic within the ADK runtime.
         """
 
         # 1. Access State (Dict or Typed)
-        # context.session.state is a dict
-        state_dict = context.session.state
+        # ctx.session.state is a dict
+        state_dict = ctx.session.state
 
         # We try to use the typed state for prompt rendering if available
         state_obj = state_dict
@@ -129,12 +138,12 @@ class ProbabilisticNode(BaseNode[StateT]):
         # If we have k=1, we could have gotten the state. 
         # For simplicity and to support all ADK features, we'll assume the state
         # is managed by the session service if it's persistent, 
-        # but here we manually update context.session.state.
+        # but here we manually update ctx.session.state.
         # Since we might have missed state updates from the sampler, 
         # we can do one final update if output_key was used.
         if self.adk_config.output_key and isinstance(result, (str, BaseModel)):
             val = result if isinstance(result, str) else result.model_dump_json()
-            context.session.state[self.adk_config.output_key] = val
+            ctx.session.state[self.adk_config.output_key] = val
 
         output_payload = result
         if isinstance(result, BaseModel):
@@ -146,16 +155,16 @@ class ProbabilisticNode(BaseNode[StateT]):
             if self.state_type and isinstance(state_obj, BaseModel):
                 updated_state = self.state_updater(state_obj, result)
                 if isinstance(updated_state, BaseModel):
-                    context.session.state.update(updated_state.model_dump())
+                    ctx.session.state.update(updated_state.model_dump())
                 elif isinstance(updated_state, dict):
-                    context.session.state.update(updated_state)
+                    ctx.session.state.update(updated_state)
             else:
                 # Fallback for dict
                 updated_state = self.state_updater(state_dict, result)
                 if isinstance(updated_state, dict):
-                    context.session.state.update(updated_state)
+                    ctx.session.state.update(updated_state)
                 elif isinstance(updated_state, BaseModel):
-                    context.session.state.update(updated_state.model_dump())
+                    ctx.session.state.update(updated_state.model_dump())
         else:
             # Try parse_result (for subclasses overriding it)
             # We only do this if we can form a valid state object, or if parse_result handles dicts?
@@ -166,7 +175,7 @@ class ProbabilisticNode(BaseNode[StateT]):
                 try:
                     updated_state = self.parse_result(state_obj, result)
                     if isinstance(updated_state, BaseModel):
-                        context.session.state.update(updated_state.model_dump())
+                        ctx.session.state.update(updated_state.model_dump())
                         used_parse_result = True
                 except Exception:
                     # If parse_result fails (e.g. not implemented or type mismatch), fall through
@@ -174,15 +183,15 @@ class ProbabilisticNode(BaseNode[StateT]):
 
             if not used_parse_result:
                 # Default: append to history if exists
-                if "history" not in context.session.state:
-                    context.session.state["history"] = []
-                context.session.state["history"].append(
+                if "history" not in ctx.session.state:
+                    ctx.session.state["history"] = []
+                ctx.session.state["history"].append(
                     {"node": self.name, "output": output_payload}
                 )
 
                 # Also merge the result into state if it's a dict/model
                 if isinstance(output_payload, dict):
-                    context.session.state.update(output_payload)
+                    ctx.session.state.update(output_payload)
 
         # 6. Emit Event
         # Populate content for ADK API Server compatibility

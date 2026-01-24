@@ -20,7 +20,7 @@ class ErrorNode(BaseNode[SimState]):
 
 @pytest.mark.asyncio
 async def test_monte_carlo_errors():
-    node = ErrorNode("err")
+    node = ErrorNode(name="err")
     graph = Graph(name="sim_err", nodes={"err": node}, edges=[], entry_point="err")
 
     # Dataset: one safe case, one error case
@@ -46,7 +46,7 @@ async def test_monte_carlo_errors():
 
 @pytest.mark.asyncio
 async def test_monte_carlo_metrics_failure():
-    node = ErrorNode("inc")
+    node = ErrorNode(name="inc")
     graph = Graph(name="sim_fail", nodes={"inc": node}, edges=[], entry_point="inc")
 
     # Dataset: 2 items

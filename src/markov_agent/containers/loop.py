@@ -1,5 +1,8 @@
-from collections.abc import Callable
-from typing import TypeVar
+from collections.abc import AsyncGenerator, Callable
+from typing import Any, TypeVar, cast
+
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event
 
 from markov_agent.core.state import BaseState
 from markov_agent.topology.node import BaseNode
@@ -35,7 +38,9 @@ class LoopNode(BaseNode[StateT]):
         self.condition = condition
         self.max_iterations = max_iterations
 
-    async def _run_async_impl(self, context: Any) -> Any:
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
         # Create a proxy for condition checking or use typed state
         class StateProxy:
             def __init__(self, data):
@@ -46,18 +51,19 @@ class LoopNode(BaseNode[StateT]):
 
         for _ in range(self.max_iterations):
             # Check condition on current state
+            state_obj: Any
             if self.state_type:
                 try:
-                    state_obj = self.state_type.model_validate(context.session.state)
+                    state_obj = self.state_type.model_validate(ctx.session.state)
                 except Exception:
-                    state_obj = self.state_type.construct(**context.session.state)
+                    state_obj = self.state_type.construct(**ctx.session.state)
             else:
-                state_obj = StateProxy(context.session.state)
+                state_obj = StateProxy(ctx.session.state)
 
-            if self.condition(state_obj):
+            if self.condition(cast(StateT, state_obj)):
                 break
 
-            async for event in self.body._run_async_impl(context):
+            async for event in self.body._run_async_impl(ctx):
                 yield event
 
     async def execute(self, state: StateT) -> StateT:

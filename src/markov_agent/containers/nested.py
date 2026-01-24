@@ -1,4 +1,8 @@
-from typing import TypeVar
+from collections.abc import AsyncGenerator
+from typing import Any, TypeVar
+
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event
 
 from markov_agent.core.state import BaseState
 from markov_agent.topology.graph import Graph
@@ -19,11 +23,13 @@ class NestedGraphNode(BaseNode[StateT]):
         super().__init__(name=name, state_type=state_type, **kwargs)
         self.graph = graph
 
-    async def _run_async_impl(self, context: Any) -> Any:
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
         """
         Delegates execution to the wrapped Graph's ADK implementation.
         """
-        async for event in self.graph._run_async_impl(context):
+        async for event in self.graph._run_async_impl(ctx):
             yield event
 
     async def execute(self, state: StateT) -> StateT:

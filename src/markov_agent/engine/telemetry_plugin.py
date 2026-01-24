@@ -44,43 +44,48 @@ class MarkovBridgePlugin(BasePlugin):
         )
 
     async def before_tool_callback(
-        self, tool_context: ToolContext, tool_name: str, *args, **kwargs
-    ) -> None:
+        self,
+        *,
+        tool: Any,
+        tool_args: dict[str, Any],
+        tool_context: ToolContext,
+    ) -> dict | None:
         # Note: The order of arguments depends on ADK version.
-        # Assuming tool_context is passed first or we handle flexible args if needed.
-        # Based on docs: "Passed as tool_context to ... tool execution callbacks"
-        # We'll assume typical plugin signature: (context, tool_name, ...)
-        
-        # If tool_context is not the first arg in some versions, this might need adjustment.
-        # But per provided docs, context is primary.
         
         await event_bus.emit(
             Event(
                 name="adk.tool.start",
                 payload={
-                    "tool": tool_name,
+                    "tool": tool.name if hasattr(tool, "name") else str(tool),
                     "invocation_id": getattr(tool_context, "invocation_id", "unknown"),
                     "function_call_id": getattr(
                         tool_context, "function_call_id", "unknown"
                     ),
-                    "args": str(args),
+                    "args": str(tool_args),
                 },
             )
         )
+        return None
 
     async def after_tool_callback(
-        self, tool_context: ToolContext, tool_name: str, result: Any, *args, **kwargs
-    ) -> None:
+        self,
+        *,
+        tool: Any,
+        tool_args: dict[str, Any],
+        tool_context: ToolContext,
+        result: dict,
+    ) -> dict | None:
         await event_bus.emit(
             Event(
                 name="adk.tool.end",
                 payload={
-                    "tool": tool_name,
+                    "tool": tool.name if hasattr(tool, "name") else str(tool),
                     "invocation_id": getattr(tool_context, "invocation_id", "unknown"),
                     "result": str(result)[:200],
                 },
             )
         )
+        return None
 
     async def on_model_error_callback(self, error: Exception, *args, **kwargs) -> None:
         await event_bus.emit(Event(name="adk.error", payload={"error": str(error)}))

@@ -68,22 +68,22 @@ class Graph(BaseAgent):
         # self.sub_agents = list(nodes.values())
 
     async def _run_async_impl(
-        self, context: InvocationContext
+        self, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
         """
         Executes the graph topology within the ADK runtime.
         """
         # 0. Handle Input Injection (ADK API Server support)
-        if context.user_content and context.user_content.parts:
+        if ctx.user_content and ctx.user_content.parts:
             # Extract text from the first part
             input_text = ""
-            for part in context.user_content.parts:
+            for part in ctx.user_content.parts:
                 if part.text:
                     input_text += part.text
             
             if input_text:
                 console.log(f"Injecting input into state['{self.input_key}']: {input_text[:50]}...")
-                context.session.state[self.input_key] = input_text
+                ctx.session.state[self.input_key] = input_text
 
         current_node_id = self.entry_point
         steps = 0
@@ -93,7 +93,7 @@ class Graph(BaseAgent):
         )
 
         # We need to ensure we are working with the latest state from the session
-        # context.session.state is a MutableMapping (dict-like)
+        # ctx.session.state is a MutableMapping (dict-like)
 
         while steps < self.max_steps:
             if current_node_id not in self.nodes:
@@ -110,20 +110,20 @@ class Graph(BaseAgent):
 
             # Execute Node
             # We call the node's ADK implementation directly
-            # This allows the node to read/write to context.session.state
-            async for event in current_node._run_async_impl(context):
+            # This allows the node to read/write to ctx.session.state
+            async for event in current_node._run_async_impl(ctx):
                 yield event
 
             # Transition Logic
             # We construct the typed state object for the router if possible
 
-            state_obj = context.session.state
+            state_obj = ctx.session.state
             if self.state_type:
                 try:
-                    state_obj = self.state_type.model_validate(context.session.state)
+                    state_obj = self.state_type.model_validate(ctx.session.state)
                 except Exception:
                     # Best effort construct
-                    state_obj = self.state_type.construct(**context.session.state)
+                    state_obj = self.state_type.construct(**ctx.session.state)
             else:
                 # Fallback Proxy
                 class StateProxy:
@@ -133,7 +133,7 @@ class Graph(BaseAgent):
                     def __getattr__(self, name):
                         return self.__dict__.get(name)
 
-                state_obj = StateProxy(context.session.state)
+                state_obj = StateProxy(ctx.session.state)
 
             # Find next node
             next_node_id = None
@@ -144,7 +144,7 @@ class Graph(BaseAgent):
                         next_node_id = edge.target_func(state_obj)
                     except Exception:
                         # Fallback: pass the dict directly
-                        next_node_id = edge.target_func(context.session.state)
+                        next_node_id = edge.target_func(ctx.session.state)
 
                     console.log(f"Transition: {current_node_id} -> {next_node_id}")
                     break
@@ -181,8 +181,8 @@ class Graph(BaseAgent):
         # Initialize session with the Pydantic state dumped as dict
         session = Session(
             id="local_run",
-            appName="markov-agent",
-            userId="test-user",
+            app_name="markov-agent",
+            user_id="test-user",
             state=state.model_dump(),
         )
 

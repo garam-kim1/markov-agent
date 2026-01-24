@@ -39,7 +39,7 @@ def test_adk_controller_initialization():
         assert call_kwargs["model"] == "gemini-1.5-pro"
         assert call_kwargs["instruction"] == "Custom instruction"
         assert call_kwargs["description"] == "Custom description"
-        assert call_kwargs["generate_content_config"]["temperature"] == 0.9
+        assert call_kwargs["generate_content_config"].temperature == 0.9
 
         # Check Runner Init
         MockRunner.assert_called_once()
@@ -65,4 +65,4 @@ def test_adk_controller_default_overrides():
         # Check default instruction
         assert "Markov Engine" in call_kwargs["instruction"]
         # Check default temperature
-        assert call_kwargs["generate_content_config"]["temperature"] == 0.7
+        assert call_kwargs["generate_content_config"].temperature == 0.7

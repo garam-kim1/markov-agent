@@ -18,9 +18,9 @@ class SimpleNode(BaseNode[ContainerState]):
 
 @pytest.mark.asyncio
 async def test_chain_container():
-    node_a = SimpleNode("A")
-    node_b = SimpleNode("B")
-    node_c = SimpleNode("C")
+    node_a = SimpleNode(name="A")
+    node_b = SimpleNode(name="B")
+    node_c = SimpleNode(name="C")
 
     chain = Chain(nodes=[node_a, node_b, node_c])
 
@@ -37,9 +37,9 @@ async def test_swarm_container():
             # Simple supervisor that just marks it was here
             return state.update(value=state.value + "S")
 
-    supervisor = Supervisor("Supervisor")
-    worker_a = SimpleNode("A")
-    worker_b = SimpleNode("B")
+    supervisor = Supervisor(name="Supervisor")
+    worker_a = SimpleNode(name="A")
+    worker_b = SimpleNode(name="B")
 
     def router(state: ContainerState) -> str:
         if state.next_worker == "A":
@@ -70,7 +70,7 @@ async def test_swarm_container():
             return state.update(value=new_val)
 
     swarm = Swarm(
-        supervisor=SmartSupervisor("Supervisor"),
+        supervisor=SmartSupervisor(name="Supervisor"),
         workers=[worker_a, worker_b],
         router_func=router,
         max_steps=10,

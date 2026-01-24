@@ -1,12 +1,8 @@
 from collections.abc import Callable
-from typing import TypeVar
-
-from markov_agent.core.state import BaseState
-
-StateT = TypeVar("StateT", bound=BaseState)
+from typing import Any
 
 # Edge is a router function: func(state) -> next_node_id
-RouterFunction = Callable[[StateT], str]
+RouterFunction = Callable[[Any], str | None]
 
 
 class Edge:
@@ -19,5 +15,5 @@ class Edge:
         self.source = source
         self.target_func = target_func
 
-    def route(self, state: StateT) -> str:
+    def route(self, state: Any) -> str | None:
         return self.target_func(state)

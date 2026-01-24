@@ -11,11 +11,12 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class SimulationResult(BaseModel):
-    case_id: str
-    input_state: Any
+    case_id: str = ""
+    input_state: Any = None
     final_state: Any
     success: bool
-    error: str = None
+    error: str | None = None
+    steps: int = 0
 
 
 class MonteCarloRunner(BaseModel):

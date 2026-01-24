@@ -69,7 +69,7 @@ def math_selector(results: list[Any]) -> Any:
         ans = res.final_answer
         votes[ans] = votes.get(ans, 0) + 1
 
-    best_ans = max(votes, key=votes.get)
+    best_ans = max(votes.keys(), key=lambda x: votes[x])
 
     # Return one of the solutions that has the best answer
     for res in valid_results:

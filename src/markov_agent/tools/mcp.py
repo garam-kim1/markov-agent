@@ -49,7 +49,7 @@ class MCPTool:
         elif self.config.type == "http" or self.config.type == "sse":
             # Note: At runtime, we need to import the correct params class
             # This relies on google-adk's internal dependencies or mcp-python
-            from mcp.client.sse import SseConnectionParams
+            from mcp.client.sse import SseConnectionParams  # type: ignore
 
             # Assuming basic HTTP/SSE params structure
             connection_params = SseConnectionParams(

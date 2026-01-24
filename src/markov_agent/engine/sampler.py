@@ -6,7 +6,7 @@ from typing import Any
 async def execute_parallel_sampling[T](
     generate_func: Callable[[], Any],
     k: int = 5,
-    selector_func: Callable[[list[Any]], T] = None,
+    selector_func: Callable[[list[Any]], T] | None = None,
 ) -> T:
     """
     Implements pass@k logic.

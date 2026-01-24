@@ -33,8 +33,16 @@ async def test_telemetry_plugin_emits_events():
     
     await plugin.before_agent_callback(mock_agent_ctx, "arg1", kw="arg2")
     
-    # signature: after_tool_callback(tool_context, tool_name, result, *args)
-    await plugin.after_tool_callback(mock_tool_ctx, "test_tool", "result_data")
+    mock_tool = MagicMock()
+    mock_tool.name = "test_tool"
+    
+    # New signature: after_tool_callback(*, tool, tool_args, tool_context, result)
+    await plugin.after_tool_callback(
+        tool=mock_tool,
+        tool_args={"some": "arg"},
+        tool_context=mock_tool_ctx,
+        result={"output": "result_data"}
+    )
     
     await plugin.on_model_error_callback(ValueError("Test Error"))
 
@@ -48,7 +56,7 @@ async def test_telemetry_plugin_emits_events():
 
     assert received_events[1].name == "adk.tool.end"
     assert received_events[1].payload["tool"] == "test_tool"
-    assert received_events[1].payload["result"] == "result_data"
+    assert "result_data" in received_events[1].payload["result"]
     assert received_events[1].payload["invocation_id"] == "inv-123"
 
     assert received_events[2].name == "adk.error"

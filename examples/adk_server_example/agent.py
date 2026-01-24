@@ -16,15 +16,15 @@ class SimpleState(BaseState):
 
 # 2. Define Node
 class EchoNode(BaseNode[SimpleState]):
-    async def _run_async_impl(self, context: InvocationContext) -> AsyncGenerator[Event, None]:
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         # Access state directly from session (dict)
-        state_dict = context.session.state
+        state_dict = ctx.session.state
         input_text = state_dict.get("input_text", "")
         
         response = f"Echo: {input_text}"
         
         # Update State
-        context.session.state["output_text"] = response
+        ctx.session.state["output_text"] = response
         
         # Yield Event with Content (so API Server shows it)
         yield Event(
