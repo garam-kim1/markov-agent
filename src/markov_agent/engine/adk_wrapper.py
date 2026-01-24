@@ -1,9 +1,11 @@
 import asyncio
 import os
 import uuid
+from collections.abc import Callable
 from typing import Any, TypeVar
 
 from google.adk.agents import Agent
+from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -21,11 +23,12 @@ class ADKConfig(BaseModel):
     api_base: str | None = None
     api_key: str | None = None
     tools: list[Any] = Field(default_factory=list)
-    instruction: str | None = None
+    instruction: str | Callable[[ReadonlyContext], str] | None = None
     description: str | None = None
     generation_config: dict[str, Any] | None = None
     plugins: list[Any] = Field(default_factory=list)
     use_litellm: bool = False
+    output_key: str | None = None
 
 
 class RetryPolicy(BaseModel):
@@ -99,6 +102,7 @@ class ADKController:
             tools=self.config.tools,
             generate_content_config=model_config,
             output_schema=output_schema,
+            output_key=self.config.output_key,
         )
 
         self.runner = Runner(
@@ -108,15 +112,22 @@ class ADKController:
             plugins=[MarkovBridgePlugin()] + self.config.plugins,
         )
 
-    async def generate(self, prompt: str, output_schema: type[T] | None = None) -> Any:
+    async def generate(
+        self,
+        prompt: str,
+        output_schema: type[T] | None = None,
+        initial_state: dict[str, Any] | None = None,
+        include_state: bool = False,
+    ) -> Any | tuple[Any, dict[str, Any]]:
         """
         Generates content with retry logic using the ADK Runner.
         If output_schema is provided, attempts to generate and parse JSON.
+        Returns the result, or a tuple of (result, updated_session_state) if include_state is True.
         """
 
         async def run_attempt():
             if self.mock_responder:
-                return self.mock_responder(prompt)
+                return self.mock_responder(prompt), (initial_state or {})
 
             final_prompt = prompt
             # Note: We do NOT manually inject the JSON schema into the prompt here.
@@ -125,7 +136,10 @@ class ADKController:
 
             session_id = f"gen_{uuid.uuid4().hex[:8]}"
             await self.session_service.create_session(
-                app_name="markov_agent", user_id="system", session_id=session_id
+                app_name="markov_agent",
+                user_id="system",
+                session_id=session_id,
+                state=initial_state or {},
             )
 
             content = types.Content(role="user", parts=[types.Part(text=final_prompt)])
@@ -141,7 +155,13 @@ class ADKController:
                         )
                     break
 
-            return final_text
+            # Retrieve final state
+            final_session = await self.session_service.get_session(
+                app_name="markov_agent", user_id="system", session_id=session_id
+            )
+            final_state = final_session.state if final_session else {}
+
+            return final_text, final_state
 
         # Retry Loop
         attempt = 0
@@ -150,9 +170,10 @@ class ADKController:
 
         while attempt < self.retry_policy.max_attempts:
             try:
-                raw_text = await run_attempt()
+                raw_text, final_state = await run_attempt()
 
                 # Parsing Logic
+                result = raw_text
                 if output_schema:
                     cleaned_text = raw_text.strip()
                     # Some models might still wrap in markdown
@@ -166,9 +187,11 @@ class ADKController:
                         if cleaned_text.endswith("```"):
                             cleaned_text = cleaned_text[:-3]
 
-                    return output_schema.model_validate_json(cleaned_text.strip())
+                    result = output_schema.model_validate_json(cleaned_text.strip())
 
-                return raw_text
+                if include_state:
+                    return result, final_state
+                return result
 
             except Exception as e:
                 last_error = e

@@ -110,9 +110,14 @@ class ProbabilisticNode(BaseNode[StateT]):
 
         # 3. Define generation task
         async def generate_task():
-            return await self.controller.generate(
-                prompt, output_schema=self.output_schema
+            # We return only the result to the sampler to avoid breaking selectors
+            res = await self.controller.generate(
+                prompt,
+                output_schema=self.output_schema,
+                initial_state=state_dict,
+                include_state=False,
             )
+            return res
 
         # 4. Execute Parallel Sampling
         # This returns the best result (type depends on output_schema)
@@ -121,6 +126,16 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
 
         # 5. Update State
+        # If we have k=1, we could have gotten the state. 
+        # For simplicity and to support all ADK features, we'll assume the state
+        # is managed by the session service if it's persistent, 
+        # but here we manually update context.session.state.
+        # Since we might have missed state updates from the sampler, 
+        # we can do one final update if output_key was used.
+        if self.adk_config.output_key and isinstance(result, (str, BaseModel)):
+            val = result if isinstance(result, str) else result.model_dump_json()
+            context.session.state[self.adk_config.output_key] = val
+
         output_payload = result
         if isinstance(result, BaseModel):
             output_payload = result.model_dump()
@@ -195,9 +210,15 @@ class ProbabilisticNode(BaseNode[StateT]):
         # Mimic the logic for standalone usage
         prompt = self._render_prompt(state)
 
+        # Convert state to dict for ADKController
+        state_dict = state.model_dump() if isinstance(state, BaseModel) else dict(state)
+
         async def generate_task():
             return await self.controller.generate(
-                prompt, output_schema=self.output_schema
+                prompt,
+                output_schema=self.output_schema,
+                initial_state=state_dict,
+                include_state=False,
             )
 
         result = await execute_parallel_sampling(
