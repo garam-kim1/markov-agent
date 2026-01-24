@@ -34,6 +34,27 @@ We support **LiteLLM** to allow the use of virtually any LLM provider (OpenAI, A
 
 We leverage **Google ADK** deeply to support complex enterprise use cases.
 
+### 🌐 ADK API Server Compatibility
+Every Markov Agent `Graph` is a valid Google ADK `Agent`. This means you can serve your topology instantly using the `adk` CLI:
+
+```bash
+# examples/adk_server_example/agent.py exposes an 'agent' object
+cd examples
+adk api_server
+```
+
+Then send requests:
+```bash
+curl -X POST http://localhost:8000/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "appName": "adk_server_example", 
+    "userId": "u1", 
+    "sessionId": "s1",
+    "newMessage": {"role": "user", "parts": [{"text": "Hello"}]}
+  }'
+```
+
 ### 🛠️ Standard Tools
 The `markov_agent.tools` package provides production-ready tools:
 

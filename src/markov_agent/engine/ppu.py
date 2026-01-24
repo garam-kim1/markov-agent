@@ -3,6 +3,7 @@ from typing import Any, TypeVar
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
+from google.genai import types
 from pydantic import BaseModel
 
 from markov_agent.core.state import BaseState
@@ -169,10 +170,21 @@ class ProbabilisticNode(BaseNode[StateT]):
                     context.session.state.update(output_payload)
 
         # 6. Emit Event
+        # Populate content for ADK API Server compatibility
+        content_text = ""
+        if isinstance(output_payload, dict) or isinstance(output_payload, list):
+             import json
+             try:
+                 content_text = json.dumps(output_payload, indent=2)
+             except Exception:
+                 content_text = str(output_payload)
+        else:
+             content_text = str(output_payload)
+
         yield Event(
             author=self.name,
             actions=EventActions(),
-            # payload={"output": output_payload}  # ADK Event does not support payload
+            content=types.Content(role="model", parts=[types.Part(text=content_text)])
         )
 
     async def execute(self, state: StateT) -> StateT:

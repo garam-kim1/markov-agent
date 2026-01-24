@@ -46,6 +46,7 @@ class Graph(BaseAgent):
     entry_point: str = ""
     max_steps: int = 50
     state_type: type[StateT] | None = None
+    input_key: str = "input_text"
 
     def __init__(
         self,
@@ -54,6 +55,7 @@ class Graph(BaseAgent):
         edges: list[Edge],
         entry_point: str,
         state_type: type[StateT] | None = None,
+        input_key: str = "input_text",
         **kwargs,
     ):
         super().__init__(name=name, **kwargs)
@@ -61,6 +63,7 @@ class Graph(BaseAgent):
         self.edges = edges
         self.entry_point = entry_point
         self.state_type = state_type
+        self.input_key = input_key
         # Register sub_agents for ADK hierarchy if needed
         # self.sub_agents = list(nodes.values())
 
@@ -70,6 +73,18 @@ class Graph(BaseAgent):
         """
         Executes the graph topology within the ADK runtime.
         """
+        # 0. Handle Input Injection (ADK API Server support)
+        if context.user_content and context.user_content.parts:
+            # Extract text from the first part
+            input_text = ""
+            for part in context.user_content.parts:
+                if part.text:
+                    input_text += part.text
+            
+            if input_text:
+                console.log(f"Injecting input into state['{self.input_key}']: {input_text[:50]}...")
+                context.session.state[self.input_key] = input_text
+
         current_node_id = self.entry_point
         steps = 0
 
