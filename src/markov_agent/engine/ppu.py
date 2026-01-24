@@ -1,6 +1,8 @@
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from typing import Any, TypeVar
 
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event, EventActions
 from pydantic import BaseModel
 
 from markov_agent.core.state import BaseState
@@ -58,11 +60,12 @@ class ProbabilisticNode(BaseNode[StateT]):
             output_schema=self.output_schema,
         )
 
-    async def _run_async_impl(self, context: Any) -> Any:
+    async def _run_async_impl(
+        self, context: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
         """
         Executes the PPU logic within the ADK runtime.
         """
-        from google.adk.events import Event, EventActions
 
         # 1. Access State (Dict or Typed)
         # context.session.state is a dict

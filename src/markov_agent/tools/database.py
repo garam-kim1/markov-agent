@@ -1,5 +1,6 @@
-from typing import Any
+from typing import Any, Optional
 
+from google.adk.tools import ToolContext
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
@@ -13,16 +14,22 @@ class DatabaseTool:
     def __init__(self, connection_string: str):
         self.engine: Engine = create_engine(connection_string)
 
-    def query(self, sql_query: str) -> str:
+    def query(self, sql_query: str, tool_context: Optional[ToolContext] = None) -> str:
         """
         Executes a read-only SQL query and returns the results.
 
         Args:
             sql_query: The SQL query to execute.
+            tool_context: Optional ADK ToolContext for access to session/invocation details.
 
         Returns:
             String representation of the results.
         """
+        # Example of using tool_context if available
+        if tool_context:
+            # We could log the invocation ID or check permissions here
+            pass
+
         # Security check: Simple safeguard against obvious non-SELECTs
         # In production, use a read-only user!
         if not sql_query.strip().lower().startswith("select"):

@@ -1,4 +1,8 @@
 import pytest
+from unittest.mock import MagicMock
+
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.tools import ToolContext
 
 from markov_agent.core.events import Event, event_bus
 from markov_agent.engine.telemetry_plugin import MarkovBridgePlugin
@@ -19,23 +23,33 @@ async def test_telemetry_plugin_emits_events():
 
     plugin = MarkovBridgePlugin()
 
-    # 2. Trigger Plugin Methods
-    await plugin.before_agent_callback("arg1", kw="arg2")
-    await plugin.after_tool_callback("test_tool", "result_data")
+    # 2. Trigger Plugin Methods with Mocks
+    mock_agent_ctx = MagicMock(spec=CallbackContext)
+    mock_agent_ctx.agent_name = "test_agent"
+    mock_agent_ctx.invocation_id = "inv-123"
+
+    mock_tool_ctx = MagicMock(spec=ToolContext)
+    mock_tool_ctx.invocation_id = "inv-123"
+    
+    await plugin.before_agent_callback(mock_agent_ctx, "arg1", kw="arg2")
+    
+    # signature: after_tool_callback(tool_context, tool_name, result, *args)
+    await plugin.after_tool_callback(mock_tool_ctx, "test_tool", "result_data")
+    
     await plugin.on_model_error_callback(ValueError("Test Error"))
 
     # 3. Assertions
-    # We might need to wait briefly if event bus is async-detached,
-    # but the implementation uses asyncio.gather so it should be awaited.
-
     assert len(received_events) == 3
 
     assert received_events[0].name == "adk.agent.start"
+    assert received_events[0].payload["agent"] == "test_agent"
+    assert received_events[0].payload["invocation_id"] == "inv-123"
     assert "arg1" in received_events[0].payload["args"]
 
     assert received_events[1].name == "adk.tool.end"
     assert received_events[1].payload["tool"] == "test_tool"
     assert received_events[1].payload["result"] == "result_data"
+    assert received_events[1].payload["invocation_id"] == "inv-123"
 
     assert received_events[2].name == "adk.error"
     assert "Test Error" in received_events[2].payload["error"]
