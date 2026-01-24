@@ -1,5 +1,7 @@
 # Getting Started with Markov Agent
 
+`markov-agent` is a specialized wrapper for the **Google Agent Development Kit (ADK)** designed to bring deterministic control to stochastic LLM processes through the **Markov Engineering** paradigm.
+
 ## Prerequisites
 
 *   **Python:** Version 3.12 or higher.

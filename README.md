@@ -2,7 +2,7 @@
 
 > **From Prompt Engineering to Markov Engineering.**
 
-**Markov Engine** (`markov-agent`) is a **Probabilistic Control System** that treats Large Language Models (LLMs) not as chatbots, but as **Probabilistic Processing Units (PPUs)** within a deterministic topology.
+**Markov Engine** (`markov-agent`) is a **Probabilistic Control System** that acts as a specialized wrapper for the **Google Agent Development Kit (ADK)**. It treats Large Language Models (LLMs) not as chatbots, but as **Probabilistic Processing Units (PPUs)** within a deterministic topology.
 
 It provides the mathematical and architectural scaffolding to build reliable, self-correcting AI systems by constraining the stochastic nature of LLMs within rigorous state machines.
 

@@ -2,7 +2,7 @@
 
 ## Philosophy: Markov Engineering
 
-`markov-agent` rejects the "Prompt Engineering" paradigm in favor of **Markov Engineering**. We treat Large Language Models (LLMs) not as creative partners, but as **Probabilistic Processing Units (PPUs)**—stochastic components within a deterministic system.
+`markov-agent` is a **specialized wrapper for the Google Agent Development Kit (ADK)** that implements the **Markov Engineering** paradigm. We reject the "Prompt Engineering" paradigm in favor of treating Large Language Models (LLMs) not as creative partners, but as **Probabilistic Processing Units (PPUs)**—stochastic components within a deterministic system built on top of the Google ADK.
 
 Our goal is to build reliable control systems where:
 *   **State ($S$)** is immutable and strongly typed.
