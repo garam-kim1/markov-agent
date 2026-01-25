@@ -117,6 +117,9 @@ class ProbabilisticNode(BaseNode[StateT]):
         # Ensure temperature is in base config if set at top level
         if "temperature" not in base_gen_config:
             base_gen_config["temperature"] = self.adk_config.temperature
+        # Ensure top_p is in base config if set at top level (needed for DIVERSE strategy)
+        if "top_p" not in base_gen_config and getattr(self.adk_config, "top_p", None) is not None:
+            base_gen_config["top_p"] = self.adk_config.top_p
 
         varied_configs = generate_varied_configs(
             base_gen_config, self.samples, self.sampling_strategy
@@ -220,6 +223,8 @@ class ProbabilisticNode(BaseNode[StateT]):
         base_gen_config = self.adk_config.generation_config or {}
         if "temperature" not in base_gen_config:
             base_gen_config["temperature"] = self.adk_config.temperature
+        if "top_p" not in base_gen_config and getattr(self.adk_config, "top_p", None) is not None:
+            base_gen_config["top_p"] = self.adk_config.top_p
 
         varied_configs = generate_varied_configs(
             base_gen_config, self.samples, self.sampling_strategy

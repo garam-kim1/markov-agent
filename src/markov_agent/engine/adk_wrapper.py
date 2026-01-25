@@ -19,6 +19,12 @@ T = TypeVar("T", bound=BaseModel)
 class ADKConfig(BaseModel):
     model_name: str
     temperature: float = 0.7
+    top_p: float | None = None
+    top_k: int | None = None
+    min_p: float | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+    max_tokens: int | None = None
     safety_settings: list[Any] = Field(default_factory=list)
     api_base: str | None = None
     api_key: str | None = None
@@ -59,6 +65,53 @@ class ADKController:
         if self.config.api_key:
             os.environ["GOOGLE_API_KEY"] = self.config.api_key
 
+        # Prepare model_config from generation_config and top-level fields
+        model_config = (self.config.generation_config or {}).copy()
+        
+        # Map basic fields
+        if "temperature" not in model_config:
+            model_config["temperature"] = self.config.temperature
+            
+        # Map other sampling parameters
+        for field in ["top_p", "top_k", "min_p", "frequency_penalty", "presence_penalty"]:
+            val = getattr(self.config, field)
+            if val is not None and field not in model_config:
+                model_config[field] = val
+
+        # Map max_tokens -> max_output_tokens (Standardize on Google's name internally for Agent)
+        if self.config.max_tokens is not None:
+             if "max_output_tokens" not in model_config and "max_tokens" not in model_config:
+                 model_config["max_output_tokens"] = self.config.max_tokens
+        elif "max_tokens" in model_config:
+             # If user provided max_tokens in generation_config, rename it
+             model_config["max_output_tokens"] = model_config.pop("max_tokens")
+
+        # If response_schema made it into model_config (via PPU init), remove it
+        # and use the explicit output_schema argument or the one from config
+        if "response_schema" in model_config:
+            if output_schema is None:
+                output_schema = model_config.pop("response_schema")
+            else:
+                model_config.pop("response_schema")
+
+        # Split config into Safe (for GenerateContentConfig) and Extra (for LiteLLM)
+        # Based on google.genai.types.GenerateContentConfig and LiteLLM wrapper support
+        SAFE_GEN_CONFIG_KEYS = {
+            "temperature", "top_p", "top_k", "candidate_count", "max_output_tokens",
+            "stop_sequences", "presence_penalty", "frequency_penalty",
+            "response_mime_type", "response_schema", "response_modalities", "speech_config",
+            "seed" # Usually supported by GenAI, check if causes issues. If so, remove.
+        }
+        
+        safe_config = {}
+        extra_kwargs = {}
+        
+        for k, v in model_config.items():
+            if k in SAFE_GEN_CONFIG_KEYS:
+                safe_config[k] = v
+            else:
+                extra_kwargs[k] = v
+
         # Model Initialization Logic
         model_instance = self.config.model_name
         if self.config.use_litellm:
@@ -74,20 +127,12 @@ class ADKController:
                     elif "OPENAI_API_KEY" not in os.environ:
                         os.environ["OPENAI_API_KEY"] = "dummy"
 
-            model_instance = LiteLlm(model=self.config.model_name)
-
-        # Prepare model_config from generation_config and temperature
-        model_config = self.config.generation_config or {}
-        if "temperature" not in model_config:
-            model_config["temperature"] = self.config.temperature
-
-        # If response_schema made it into model_config (via PPU init), remove it
-        # and use the explicit output_schema argument or the one from config
-        if "response_schema" in model_config:
-            if output_schema is None:
-                output_schema = model_config.pop("response_schema")
-            else:
-                model_config.pop("response_schema")
+            # Pass extra_kwargs to LiteLlm constructor (e.g. min_p)
+            model_instance = LiteLlm(model=self.config.model_name, **extra_kwargs)
+        else:
+            # For Google models, we ignore extra_kwargs or warn? 
+            # For now, we just drop them to prevent crashing GenerateContentConfig
+            pass
 
         self.output_schema = output_schema
         self.agent = Agent(
@@ -101,7 +146,7 @@ class ADKController:
             description=self.config.description
             or "Markov Agent PPU for stochastic processing.",
             tools=self.config.tools,
-            generate_content_config=types.GenerateContentConfig(**model_config),
+            generate_content_config=types.GenerateContentConfig(**safe_config),
             output_schema=output_schema,
             output_key=self.config.output_key,
         )
@@ -125,8 +170,12 @@ class ADKController:
         new_config.generation_config.update(generation_config_override)
         
         # Sync top-level fields if they are in the override (convenience)
-        if "temperature" in generation_config_override:
-            new_config.temperature = generation_config_override["temperature"]
+        # We iterate over all potential sampling fields
+        for field in ["temperature", "top_p", "top_k", "min_p", "frequency_penalty", "presence_penalty", "max_tokens"]:
+            if field in generation_config_override:
+                # Update the top-level config field to match the override
+                # This ensures consistent state if checked elsewhere
+                setattr(new_config, field, generation_config_override[field])
             
         return ADKController(
             config=new_config,
