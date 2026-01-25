@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event

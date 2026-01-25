@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from typing import Any
 
-from markov_agent.core.state import BaseState
 from markov_agent.topology.edge import Edge
 from markov_agent.topology.graph import Graph
 from markov_agent.topology.node import BaseNode

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from google.adk.tools import ToolContext
 from sqlalchemy import create_engine, text
@@ -14,7 +14,7 @@ class DatabaseTool:
     def __init__(self, connection_string: str):
         self.engine: Engine = create_engine(connection_string)
 
-    def query(self, sql_query: str, tool_context: Optional[ToolContext] = None) -> str:
+    def query(self, sql_query: str, tool_context: ToolContext | None = None) -> str:
         """
         Executes a read-only SQL query and returns the results.
 

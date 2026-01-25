@@ -1,6 +1,6 @@
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools import ToolContext
 

@@ -9,7 +9,11 @@ from pydantic import BaseModel, Field
 from markov_agent.core.state import BaseState
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
 from markov_agent.engine.prompt import PromptEngine
-from markov_agent.engine.sampler import execute_parallel_sampling
+from markov_agent.engine.sampler import (
+    SamplingStrategy,
+    execute_parallel_sampling,
+    generate_varied_configs,
+)
 from markov_agent.topology.node import BaseNode
 
 StateT = TypeVar("StateT", bound=BaseState)
@@ -25,6 +29,7 @@ class ProbabilisticNode(BaseNode[StateT]):
     prompt_template: Any = Field(default="")
     output_schema: Any = Field(default=None)
     samples: Any = Field(default=1)
+    sampling_strategy: SamplingStrategy = Field(default=SamplingStrategy.UNIFORM)
     selector: Any = Field(default=None)
     retry_policy: Any = Field(default=None)
     mock_responder: Any = Field(default=None)
@@ -37,6 +42,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         prompt_template: str,
         output_schema: type[BaseModel] | None = None,
         samples: int = 1,
+        sampling_strategy: SamplingStrategy = SamplingStrategy.UNIFORM,
         selector: Callable[[list[Any]], Any] | None = None,
         retry_policy: RetryPolicy | None = None,
         mock_responder=None,
@@ -48,6 +54,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.prompt_template = prompt_template
         self.output_schema = output_schema
         self.samples = samples
+        self.sampling_strategy = sampling_strategy
         self.selector = selector
         self.retry_policy = retry_policy or RetryPolicy()
         self.state_updater = state_updater
@@ -87,8 +94,6 @@ class ProbabilisticNode(BaseNode[StateT]):
             try:
                 state_obj = self.state_type.model_validate(state_dict)
             except Exception:
-                # Fallback to construct if validation strictly fails (e.g. extra fields)
-                # or just use the dict if we can't build the object.
                 try:
                     state_obj = self.state_type.construct(**state_dict)
                 except Exception:
@@ -97,50 +102,53 @@ class ProbabilisticNode(BaseNode[StateT]):
         # 2. Render Prompt
         render_kwargs = {}
         if isinstance(state_obj, BaseModel):
-            # dict(model) iterates over fields and returns values as-is (preserving objects)
-            # This is better than model_dump() which recursively converts to dicts
             render_kwargs.update(dict(state_obj))
-            
-            # Add method access if needed? Jinja2 can call methods if passed in context.
-            # But dict(model) only gives fields.
-            # We can pass the object itself as 'state' or 'self'?
             render_kwargs["state"] = state_obj
-            # Also try to expose methods directly if possible, or user calls state.method()
         elif isinstance(state_dict, dict):
             render_kwargs.update(state_dict)
 
         try:
             prompt = self.prompt_engine.render(self.prompt_template, **render_kwargs)
         except Exception:
-            # If formatting fails (e.g. missing key), we log or just use raw template
-            # to avoid crashing, but usually we want to crash to alert the user.
-            # We'll re-raise for visibility during dev
             raise
 
-        # 3. Define generation task
-        async def generate_task():
-            # We return only the result to the sampler to avoid breaking selectors
-            res = await self.controller.generate(
-                prompt,
-                output_schema=self.output_schema,
-                initial_state=state_dict,
-                include_state=False,
-            )
-            return res
+        # 3. Generate Varied Configs (Explore/Exploit Strategy)
+        base_gen_config = self.adk_config.generation_config or {}
+        # Ensure temperature is in base config if set at top level
+        if "temperature" not in base_gen_config:
+            base_gen_config["temperature"] = self.adk_config.temperature
 
-        # 4. Execute Parallel Sampling
-        # This returns the best result (type depends on output_schema)
-        result = await execute_parallel_sampling(
-            generate_func=generate_task, k=self.samples, selector_func=self.selector
+        varied_configs = generate_varied_configs(
+            base_gen_config, self.samples, self.sampling_strategy
         )
 
-        # 5. Update State
-        # If we have k=1, we could have gotten the state. 
-        # For simplicity and to support all ADK features, we'll assume the state
-        # is managed by the session service if it's persistent, 
-        # but here we manually update ctx.session.state.
-        # Since we might have missed state updates from the sampler, 
-        # we can do one final update if output_key was used.
+        # 4. Create Generation Tasks (Factories)
+        task_factories = []
+        for cfg in varied_configs:
+            # If strategy is uniform, we can reuse the main controller.
+            # Otherwise, create a variant.
+            if self.sampling_strategy == SamplingStrategy.UNIFORM:
+                controller_to_use = self.controller
+            else:
+                controller_to_use = self.controller.create_variant(cfg)
+
+            # Closure to capture the specific controller
+            def make_task(c=controller_to_use):
+                return c.generate(
+                    prompt,
+                    output_schema=self.output_schema,
+                    initial_state=state_dict,
+                    include_state=False,
+                )
+
+            task_factories.append(make_task)
+
+        # 5. Execute Parallel Sampling
+        result = await execute_parallel_sampling(
+            generate_func=task_factories, k=self.samples, selector_func=self.selector
+        )
+
+        # 6. Update State
         if self.adk_config.output_key and isinstance(result, (str, BaseModel)):
             val = result if isinstance(result, str) else result.model_dump_json()
             ctx.session.state[self.adk_config.output_key] = val
@@ -150,8 +158,6 @@ class ProbabilisticNode(BaseNode[StateT]):
             output_payload = result.model_dump()
 
         if self.state_updater:
-            # Use state_updater. It usually expects (StateT, Result) -> StateT
-            # If we have a typed state object, use it.
             if self.state_type and isinstance(state_obj, BaseModel):
                 updated_state = self.state_updater(state_obj, result)
                 if isinstance(updated_state, BaseModel):
@@ -159,17 +165,12 @@ class ProbabilisticNode(BaseNode[StateT]):
                 elif isinstance(updated_state, dict):
                     ctx.session.state.update(updated_state)
             else:
-                # Fallback for dict
                 updated_state = self.state_updater(state_dict, result)
                 if isinstance(updated_state, dict):
                     ctx.session.state.update(updated_state)
                 elif isinstance(updated_state, BaseModel):
                     ctx.session.state.update(updated_state.model_dump())
         else:
-            # Try parse_result (for subclasses overriding it)
-            # We only do this if we can form a valid state object, or if parse_result handles dicts?
-            # Standard parse_result in ProbabilisticNode expects StateT.
-
             used_parse_result = False
             if self.state_type and isinstance(state_obj, BaseModel):
                 try:
@@ -178,90 +179,91 @@ class ProbabilisticNode(BaseNode[StateT]):
                         ctx.session.state.update(updated_state.model_dump())
                         used_parse_result = True
                 except Exception:
-                    # If parse_result fails (e.g. not implemented or type mismatch), fall through
                     pass
 
             if not used_parse_result:
-                # Default: append to history if exists
                 if "history" not in ctx.session.state:
                     ctx.session.state["history"] = []
                 ctx.session.state["history"].append(
                     {"node": self.name, "output": output_payload}
                 )
-
-                # Also merge the result into state if it's a dict/model
                 if isinstance(output_payload, dict):
                     ctx.session.state.update(output_payload)
 
-        # 6. Emit Event
-        # Populate content for ADK API Server compatibility
+        # 7. Emit Event
         content_text = ""
-        if isinstance(output_payload, dict) or isinstance(output_payload, list):
-             import json
-             try:
-                 content_text = json.dumps(output_payload, indent=2)
-             except Exception:
-                 content_text = str(output_payload)
+        if isinstance(output_payload, (dict, list)):
+            import json
+            try:
+                content_text = json.dumps(output_payload, indent=2)
+            except Exception:
+                content_text = str(output_payload)
         else:
-             content_text = str(output_payload)
+            content_text = str(output_payload)
 
         yield Event(
             author=self.name,
             actions=EventActions(),
-            content=types.Content(role="model", parts=[types.Part(text=content_text)])
+            content=types.Content(role="model", parts=[types.Part(text=content_text)]),
         )
 
     async def execute(self, state: StateT) -> StateT:
         """
         Legacy/Convenience wrapper.
-        Warning: This bypasses the ADK Runner mechanics and runs logic directly on the State object.
+        Runs logic directly on the State object, bypassing ADK runner.
+        Respects SamplingStrategy.
         """
-        # Mimic the logic for standalone usage
         prompt = self._render_prompt(state)
-
-        # Convert state to dict for ADKController
         state_dict = state.model_dump() if isinstance(state, BaseModel) else dict(state)
 
-        async def generate_task():
-            return await self.controller.generate(
-                prompt,
-                output_schema=self.output_schema,
-                initial_state=state_dict,
-                include_state=False,
-            )
+        # Duplicate logic for configs (refactor target?)
+        base_gen_config = self.adk_config.generation_config or {}
+        if "temperature" not in base_gen_config:
+            base_gen_config["temperature"] = self.adk_config.temperature
+
+        varied_configs = generate_varied_configs(
+            base_gen_config, self.samples, self.sampling_strategy
+        )
+
+        task_factories = []
+        for cfg in varied_configs:
+            if self.sampling_strategy == SamplingStrategy.UNIFORM:
+                controller_to_use = self.controller
+            else:
+                controller_to_use = self.controller.create_variant(cfg)
+
+            def make_task(c=controller_to_use):
+                return c.generate(
+                    prompt,
+                    output_schema=self.output_schema,
+                    initial_state=state_dict,
+                    include_state=False,
+                )
+            task_factories.append(make_task)
 
         result = await execute_parallel_sampling(
-            generate_func=generate_task, k=self.samples, selector_func=self.selector
+            generate_func=task_factories, k=self.samples, selector_func=self.selector
         )
 
         return self.parse_result(state, result)
 
     def _render_prompt(self, state: StateT) -> str:
-        # Simple format
         render_kwargs = {}
         if isinstance(state, BaseModel):
-             render_kwargs.update(dict(state))
-             render_kwargs["state"] = state
+            render_kwargs.update(dict(state))
+            render_kwargs["state"] = state
         else:
-             render_kwargs.update(state)
+            render_kwargs.update(state)
 
         try:
             return self.prompt_engine.render(self.prompt_template, **render_kwargs)
         except Exception:
-            # Fallback if state format fails
             return self.prompt_template
 
     def parse_result(self, state: StateT, result: Any) -> StateT:
-        """
-        Parses result. If state_updater is provided, uses it.
-        Otherwise, default parser appends result to history.
-        """
-        # If a custom updater is provided, use it
         if self.state_updater:
-            # The updater should return a NEW state instance (immutability)
             return self.state_updater(state, result)
 
-        # Default behavior
         output_payload = result
         if isinstance(result, BaseModel):
             output_payload = result.model_dump()

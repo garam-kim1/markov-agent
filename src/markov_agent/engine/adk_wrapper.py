@@ -89,6 +89,7 @@ class ADKController:
             else:
                 model_config.pop("response_schema")
 
+        self.output_schema = output_schema
         self.agent = Agent(
             name="markov_ppu_agent",
             model=model_instance,
@@ -110,6 +111,28 @@ class ADKController:
             agent=self.agent,
             session_service=self.session_service,
             plugins=[MarkovBridgePlugin()] + self.config.plugins,
+        )
+
+    def create_variant(self, generation_config_override: dict[str, Any]) -> "ADKController":
+        """
+        Creates a new ADKController instance with specific generation config overrides.
+        Useful for adaptive sampling (changing temperature/top_p).
+        """
+        new_config = self.config.model_copy(deep=True)
+        if new_config.generation_config is None:
+            new_config.generation_config = {}
+        
+        new_config.generation_config.update(generation_config_override)
+        
+        # Sync top-level fields if they are in the override (convenience)
+        if "temperature" in generation_config_override:
+            new_config.temperature = generation_config_override["temperature"]
+            
+        return ADKController(
+            config=new_config,
+            retry_policy=self.retry_policy,
+            mock_responder=self.mock_responder,
+            output_schema=self.output_schema
         )
 
     async def generate(
