@@ -30,20 +30,20 @@ async def test_telemetry_plugin_emits_events():
 
     mock_tool_ctx = MagicMock(spec=ToolContext)
     mock_tool_ctx.invocation_id = "inv-123"
-    
+
     await plugin.before_agent_callback(mock_agent_ctx, "arg1", kw="arg2")
-    
+
     mock_tool = MagicMock()
     mock_tool.name = "test_tool"
-    
+
     # New signature: after_tool_callback(*, tool, tool_args, tool_context, result)
     await plugin.after_tool_callback(
         tool=mock_tool,
         tool_args={"some": "arg"},
         tool_context=mock_tool_ctx,
-        result={"output": "result_data"}
+        result={"output": "result_data"},
     )
-    
+
     await plugin.on_model_error_callback(ValueError("Test Error"))
 
     # 3. Assertions

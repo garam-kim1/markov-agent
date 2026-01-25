@@ -10,9 +10,12 @@ class SamplingStrategy(str, Enum):
     """
     Strategies for varying generation parameters across parallel samples.
     """
+
     UNIFORM = "uniform"  # All samples use the same configuration
-    LINEAR_RAMP = "linear_ramp"  # Temperature linearly increases from 0 to max (or base)
-    LINEAR_DECAY = "linear_decay" # Temperature linearly decreases
+    LINEAR_RAMP = (
+        "linear_ramp"  # Temperature linearly increases from 0 to max (or base)
+    )
+    LINEAR_DECAY = "linear_decay"  # Temperature linearly decreases
     DIVERSE = "diverse"  # Random variations in temperature and top_p
 
 
@@ -20,12 +23,12 @@ def generate_varied_configs(
     base_config: dict[str, Any],
     k: int,
     strategy: SamplingStrategy,
-    param_ranges: dict[str, tuple[float, float]] | None = None
+    param_ranges: dict[str, tuple[float, float]] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Generates 'k' variations of the base configuration dictionary based on the strategy.
     Target parameters are usually 'temperature' and 'top_p'.
-    
+
     Args:
         base_config: The starting configuration (e.g. generation_config).
         k: Number of samples.
@@ -34,24 +37,18 @@ def generate_varied_configs(
             e.g. {"temperature": (0.1, 1.0), "top_p": (0.5, 1.0)}
     """
     configs = [copy.deepcopy(base_config) for _ in range(k)]
-    
+
     if k <= 1 or strategy == SamplingStrategy.UNIFORM:
         return configs
 
     # Default ranges
-    ranges = {
-        "temperature": (0.1, 1.2),
-        "top_p": (0.7, 1.0)
-    }
+    ranges = {"temperature": (0.1, 1.2), "top_p": (0.7, 1.0)}
     if param_ranges:
         ranges.update(param_ranges)
 
     t_min, t_max = ranges["temperature"]
     p_min, p_max = ranges["top_p"]
 
-    # Base values (fallback if not in config)
-    base_temp = base_config.get("temperature", 0.7)
-    
     for i, cfg in enumerate(configs):
         if strategy == SamplingStrategy.LINEAR_RAMP:
             # 0 -> k-1 maps to t_min -> t_max
@@ -59,20 +56,20 @@ def generate_varied_configs(
             step = (t_max - t_min) / (k - 1) if k > 1 else 0
             new_temp = t_min + (i * step)
             cfg["temperature"] = round(new_temp, 2)
-            
+
         elif strategy == SamplingStrategy.LINEAR_DECAY:
             # 0 -> k-1 maps to t_max -> t_min
             step = (t_max - t_min) / (k - 1) if k > 1 else 0
             new_temp = t_max - (i * step)
             cfg["temperature"] = round(new_temp, 2)
-            
+
         elif strategy == SamplingStrategy.DIVERSE:
             # Randomize temperature and top_p
-            # We keep the first one as "Anchor" (original config) for stability? 
+            # We keep the first one as "Anchor" (original config) for stability?
             # Or just pure chaos? Let's keep index 0 as base, rest random.
             if i == 0:
                 continue
-            
+
             cfg["temperature"] = round(random.uniform(t_min, t_max), 2)
             cfg["top_p"] = round(random.uniform(p_min, p_max), 2)
 
@@ -86,20 +83,20 @@ async def execute_parallel_sampling[T](
 ) -> T:
     """
     Implements pass@k logic with optional task variance.
-    
+
     Args:
-        generate_func: Either a single factory function (called k times) 
+        generate_func: Either a single factory function (called k times)
                        or a list of specific factory functions (k is ignored/inferred).
         k: Number of samples (if generate_func is single).
         selector_func: Function to select the best result.
     """
 
     tasks = []
-    
+
     if isinstance(generate_func, list):
         # We have specific tasks (likely with varied configs)
         for func in generate_func:
-             tasks.append(_safe_generate(func))
+            tasks.append(_safe_generate(func))
     else:
         # Homogeneous tasks
         for _ in range(k):
@@ -116,7 +113,10 @@ async def execute_parallel_sampling[T](
         raise RuntimeError("All parallel samples failed.")
 
     if selector_func:
-        return selector_func(valid_results)
+        res = selector_func(valid_results)
+        if asyncio.iscoroutine(res):
+            return await res
+        return res
 
     # Default: return the first valid result (highest confidence / first completed)
     return valid_results[0]

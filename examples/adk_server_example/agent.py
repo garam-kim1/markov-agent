@@ -15,29 +15,33 @@ class SimpleState(BaseState):
     input_text: str = ""
     output_text: str = ""
 
+
 # 2. Define Node
 class EchoNode(BaseNode[SimpleState]):
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
         # Access state directly from session (dict)
         state_dict = ctx.session.state
         input_text = state_dict.get("input_text", "")
-        
+
         response = f"Echo: {input_text}"
-        
+
         # Update State
         ctx.session.state["output_text"] = response
-        
+
         # Yield Event with Content (so API Server shows it)
         yield Event(
             author=self.name,
             actions=EventActions(),
-            content=types.Content(role="model", parts=[types.Part(text=response)])
+            content=types.Content(role="model", parts=[types.Part(text=response)]),
         )
 
     # We can still keep execute for local usage if we want, but _run_async_impl is primary for ADK
     async def execute(self, state: SimpleState) -> SimpleState:
         response = f"Echo: {state.input_text}"
         return state.update(output_text=response)
+
 
 # 3. Define Topology
 node = EchoNode(name="echo_node", state_type=SimpleState)
@@ -53,7 +57,7 @@ agent = Graph(
     edges=edges,
     entry_point="echo_node",
     state_type=SimpleState,
-    input_key="input_text" # Maps user message to state.input_text
+    input_key="input_text",  # Maps user message to state.input_text
 )
 
 # Optional: Add logging

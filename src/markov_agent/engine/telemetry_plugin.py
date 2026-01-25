@@ -51,7 +51,7 @@ class MarkovBridgePlugin(BasePlugin):
         tool_context: ToolContext,
     ) -> dict | None:
         # Note: The order of arguments depends on ADK version.
-        
+
         await event_bus.emit(
             Event(
                 name="adk.tool.start",

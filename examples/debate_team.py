@@ -28,7 +28,9 @@ class DebateState(BaseState):
     topic: str
     history: list[DialogueMessage] = Field(default_factory=list)
     round: int = 0
-    status: Literal["ongoing", "consensus", "deadlock", "visionary", "pragmatist"] = "ongoing"
+    status: Literal["ongoing", "consensus", "deadlock", "visionary", "pragmatist"] = (
+        "ongoing"
+    )
     final_summary: str | None = None
 
     def add_message(self, sender: str, content: str) -> "DebateState":

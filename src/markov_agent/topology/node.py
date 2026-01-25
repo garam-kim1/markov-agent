@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -12,7 +12,7 @@ from markov_agent.core.state import BaseState
 StateT = TypeVar("StateT", bound=BaseState)
 
 
-class BaseNode(BaseAgent, Generic[StateT], ABC):
+class BaseNode[StateT](BaseAgent, ABC):
     """
     Abstract Base Node, wrapping google.adk.agents.BaseAgent.
     Integrates Markov Agent's Pydantic State with ADK's session state.
@@ -99,12 +99,14 @@ class BaseNode(BaseAgent, Generic[StateT], ABC):
         # 3. Update Session State
         if new_state:
             # Merge updates back
-            if hasattr(new_state, "model_dump"):
-                ctx.session.state.update(new_state.model_dump())
-            elif isinstance(new_state, dict):
-                ctx.session.state.update(new_state)
-            elif hasattr(new_state, "__dict__"):
-                ctx.session.state.update(new_state.__dict__)
+            st: Any = new_state
+            session_state = cast(dict[Any, Any], ctx.session.state)
+            if hasattr(st, "model_dump"):
+                session_state.update(cast(Any, st.model_dump)())
+            elif isinstance(st, dict):
+                session_state.update(st)
+            elif hasattr(st, "__dict__"):
+                session_state.update(st.__dict__)
 
         # Default behavior: generic event
         yield Event(author=self.name, actions=EventActions())

@@ -25,7 +25,7 @@ def test_adk_controller_initialization():
         patch("markov_agent.engine.adk_wrapper.Runner") as MockRunner,
         patch.dict("os.environ", {}, clear=True),
     ):
-        controller = ADKController(config, retry)
+        ADKController(config, retry)
 
         # Check Environment Variable
         import os
@@ -58,7 +58,7 @@ def test_adk_controller_default_overrides():
         patch("markov_agent.engine.adk_wrapper.Agent") as MockAgent,
         patch("markov_agent.engine.adk_wrapper.Runner"),
     ):
-        controller = ADKController(config, retry)
+        ADKController(config, retry)
 
         call_kwargs = MockAgent.call_args[1]
 

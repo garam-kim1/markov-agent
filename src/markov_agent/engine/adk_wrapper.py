@@ -67,24 +67,33 @@ class ADKController:
 
         # Prepare model_config from generation_config and top-level fields
         model_config = (self.config.generation_config or {}).copy()
-        
+
         # Map basic fields
         if "temperature" not in model_config:
             model_config["temperature"] = self.config.temperature
-            
+
         # Map other sampling parameters
-        for field in ["top_p", "top_k", "min_p", "frequency_penalty", "presence_penalty"]:
+        for field in [
+            "top_p",
+            "top_k",
+            "min_p",
+            "frequency_penalty",
+            "presence_penalty",
+        ]:
             val = getattr(self.config, field)
             if val is not None and field not in model_config:
                 model_config[field] = val
 
         # Map max_tokens -> max_output_tokens (Standardize on Google's name internally for Agent)
         if self.config.max_tokens is not None:
-             if "max_output_tokens" not in model_config and "max_tokens" not in model_config:
-                 model_config["max_output_tokens"] = self.config.max_tokens
+            if (
+                "max_output_tokens" not in model_config
+                and "max_tokens" not in model_config
+            ):
+                model_config["max_output_tokens"] = self.config.max_tokens
         elif "max_tokens" in model_config:
-             # If user provided max_tokens in generation_config, rename it
-             model_config["max_output_tokens"] = model_config.pop("max_tokens")
+            # If user provided max_tokens in generation_config, rename it
+            model_config["max_output_tokens"] = model_config.pop("max_tokens")
 
         # If response_schema made it into model_config (via PPU init), remove it
         # and use the explicit output_schema argument or the one from config
@@ -97,15 +106,24 @@ class ADKController:
         # Split config into Safe (for GenerateContentConfig) and Extra (for LiteLLM)
         # Based on google.genai.types.GenerateContentConfig and LiteLLM wrapper support
         SAFE_GEN_CONFIG_KEYS = {
-            "temperature", "top_p", "top_k", "candidate_count", "max_output_tokens",
-            "stop_sequences", "presence_penalty", "frequency_penalty",
-            "response_mime_type", "response_schema", "response_modalities", "speech_config",
-            "seed" # Usually supported by GenAI, check if causes issues. If so, remove.
+            "temperature",
+            "top_p",
+            "top_k",
+            "candidate_count",
+            "max_output_tokens",
+            "stop_sequences",
+            "presence_penalty",
+            "frequency_penalty",
+            "response_mime_type",
+            "response_schema",
+            "response_modalities",
+            "speech_config",
+            "seed",  # Usually supported by GenAI, check if causes issues. If so, remove.
         }
-        
+
         safe_config = {}
         extra_kwargs = {}
-        
+
         for k, v in model_config.items():
             if k in SAFE_GEN_CONFIG_KEYS:
                 safe_config[k] = v
@@ -130,7 +148,7 @@ class ADKController:
             # Pass extra_kwargs to LiteLlm constructor (e.g. min_p)
             model_instance = LiteLlm(model=self.config.model_name, **extra_kwargs)
         else:
-            # For Google models, we ignore extra_kwargs or warn? 
+            # For Google models, we ignore extra_kwargs or warn?
             # For now, we just drop them to prevent crashing GenerateContentConfig
             pass
 
@@ -158,7 +176,9 @@ class ADKController:
             plugins=[MarkovBridgePlugin()] + self.config.plugins,
         )
 
-    def create_variant(self, generation_config_override: dict[str, Any]) -> "ADKController":
+    def create_variant(
+        self, generation_config_override: dict[str, Any]
+    ) -> "ADKController":
         """
         Creates a new ADKController instance with specific generation config overrides.
         Useful for adaptive sampling (changing temperature/top_p).
@@ -166,22 +186,30 @@ class ADKController:
         new_config = self.config.model_copy(deep=True)
         if new_config.generation_config is None:
             new_config.generation_config = {}
-        
+
         new_config.generation_config.update(generation_config_override)
-        
+
         # Sync top-level fields if they are in the override (convenience)
         # We iterate over all potential sampling fields
-        for field in ["temperature", "top_p", "top_k", "min_p", "frequency_penalty", "presence_penalty", "max_tokens"]:
+        for field in [
+            "temperature",
+            "top_p",
+            "top_k",
+            "min_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "max_tokens",
+        ]:
             if field in generation_config_override:
                 # Update the top-level config field to match the override
                 # This ensures consistent state if checked elsewhere
                 setattr(new_config, field, generation_config_override[field])
-            
+
         return ADKController(
             config=new_config,
             retry_policy=self.retry_policy,
             mock_responder=self.mock_responder,
-            output_schema=self.output_schema
+            output_schema=self.output_schema,
         )
 
     async def generate(
@@ -199,7 +227,10 @@ class ADKController:
 
         async def run_attempt():
             if self.mock_responder:
-                return self.mock_responder(prompt), (initial_state or {})
+                res = self.mock_responder(prompt)
+                if asyncio.iscoroutine(res):
+                    res = await res
+                return res, (initial_state or {})
 
             final_prompt = prompt
             # Note: We do NOT manually inject the JSON schema into the prompt here.

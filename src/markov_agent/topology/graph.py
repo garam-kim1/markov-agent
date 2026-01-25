@@ -80,9 +80,11 @@ class Graph(BaseAgent):
             for part in ctx.user_content.parts:
                 if part.text:
                     input_text += part.text
-            
+
             if input_text:
-                console.log(f"Injecting input into state['{self.input_key}']: {input_text[:50]}...")
+                console.log(
+                    f"Injecting input into state['{self.input_key}']: {input_text[:50]}..."
+                )
                 ctx.session.state[self.input_key] = input_text
 
         current_node_id = self.entry_point

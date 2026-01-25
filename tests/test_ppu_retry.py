@@ -1,4 +1,3 @@
-
 import pytest
 
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy

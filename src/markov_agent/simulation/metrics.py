@@ -122,17 +122,23 @@ def calculate_metrics(results: list[SimulationResult]):
     for k in k_values_to_test:
         sum_at_k = 0.0
         sum_pow_k = 0.0
+        valid_cases_for_k = 0
+
         for _case_id, case_results in cases.items():
             n = len(case_results)
+            if n < k:
+                continue
+
+            valid_cases_for_k += 1
             c = sum(1 for r in case_results if r.success)
             sum_at_k += calculate_pass_at_k_estimator(n, c, k)
             sum_pow_k += calculate_pass_pow_k_estimator(n, c, k)
 
         pass_at_k_scores[f"pass@{k}"] = (
-            sum_at_k / total_cases if total_cases > 0 else 0.0
+            sum_at_k / valid_cases_for_k if valid_cases_for_k > 0 else 0.0
         )
         pass_pow_k_scores[f"pass^{k}"] = (
-            sum_pow_k / total_cases if total_cases > 0 else 0.0
+            sum_pow_k / valid_cases_for_k if valid_cases_for_k > 0 else 0.0
         )
 
     return {
