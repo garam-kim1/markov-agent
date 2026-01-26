@@ -6,6 +6,7 @@ from typing import Any, TypeVar
 
 from google.adk.agents import Agent
 from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.apps import App
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -169,11 +170,15 @@ class ADKController:
             output_key=self.config.output_key,
         )
 
-        self.runner = Runner(
-            app_name="markov_agent",
-            agent=self.agent,
-            session_service=self.session_service,
+        self.app = App(
+            name="markov_agent",
+            root_agent=self.agent,
             plugins=[MarkovBridgePlugin()] + self.config.plugins,
+        )
+
+        self.runner = Runner(
+            app=self.app,
+            session_service=self.session_service,
         )
 
     def create_variant(

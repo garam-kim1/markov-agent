@@ -27,8 +27,11 @@ def db_tool():
 
 def test_database_tool_safeguard():
     tool = DatabaseTool("sqlite:///:memory:")
-    result = tool.query("DELETE FROM users")
-    assert "Error: Only SELECT queries are allowed" in result
+    try:
+        result = tool.query("DELETE FROM users")
+        assert "Error: Only SELECT queries are allowed" in result
+    finally:
+        tool.close()
 
 
 def test_database_tool_query(tmp_path):
@@ -38,15 +41,21 @@ def test_database_tool_query(tmp_path):
 
     # Pre-populate
     engine = create_engine(conn_str)
-    with engine.connect() as conn:
-        conn.execute(text("CREATE TABLE users (id INTEGER, name TEXT)"))
-        conn.execute(text("INSERT INTO users VALUES (1, 'Alice')"))
-        conn.commit()
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("CREATE TABLE users (id INTEGER, name TEXT)"))
+            conn.execute(text("INSERT INTO users VALUES (1, 'Alice')"))
+            conn.commit()
+    finally:
+        engine.dispose()
 
     tool = DatabaseTool(conn_str)
-    result = tool.query("SELECT * FROM users")
-    assert "Alice" in result
-    assert "1" in result
+    try:
+        result = tool.query("SELECT * FROM users")
+        assert "Alice" in result
+        assert "1" in result
+    finally:
+        tool.close()
 
 
 def test_database_tool_schema(tmp_path):
@@ -54,17 +63,23 @@ def test_database_tool_schema(tmp_path):
     conn_str = f"sqlite:///{db_file}"
 
     engine = create_engine(conn_str)
-    with engine.connect() as conn:
-        conn.execute(text("CREATE TABLE items (id INTEGER, price REAL)"))
-        conn.commit()
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("CREATE TABLE items (id INTEGER, price REAL)"))
+            conn.commit()
+    finally:
+        engine.dispose()
 
     tool = DatabaseTool(conn_str)
-    schema = tool.get_schema()
+    try:
+        schema = tool.get_schema()
 
-    assert "Table: items" in schema
-    assert (
-        "price (FLOAT)" in schema
-        or "price (REAL)" in schema
-        or "price (DOUBLE)" in schema
-    )
+        assert "Table: items" in schema
+        assert (
+            "price (FLOAT)" in schema
+            or "price (REAL)" in schema
+            or "price (DOUBLE)" in schema
+        )
+    finally:
+        tool.close()
     # Type representation varies by sqlalchemy version/dialect, so check relaxed.

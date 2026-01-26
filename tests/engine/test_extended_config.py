@@ -26,6 +26,7 @@ def test_extended_config_google_mapping():
     with (
         patch("markov_agent.engine.adk_wrapper.Agent") as MockAgent,
         patch("markov_agent.engine.adk_wrapper.Runner"),
+        patch("markov_agent.engine.adk_wrapper.App"),
         patch.dict("os.environ", {}, clear=True),
     ):
         try:
@@ -33,8 +34,9 @@ def test_extended_config_google_mapping():
         except Exception as e:
             pytest.fail(f"ADKController initialization failed: {e}")
 
+        # Verify calls
         MockAgent.assert_called_once()
-        call_kwargs = MockAgent.call_args[1]
+        _, call_kwargs = MockAgent.call_args
 
         gen_config = call_kwargs["generate_content_config"]
 
@@ -70,13 +72,14 @@ def test_extended_config_litellm_mapping():
     with (
         patch("markov_agent.engine.adk_wrapper.Agent") as MockAgent,
         patch("markov_agent.engine.adk_wrapper.Runner"),
+        patch("markov_agent.engine.adk_wrapper.App"),
         patch.dict("os.environ", {}, clear=True),
     ):
         # Patch the source module class
         with patch("google.adk.models.lite_llm.LiteLlm") as MockLiteLLMClass:
             ADKController(config, retry)
 
-            # Check LiteLlm init args
+            # Check LiteLLM init
             MockLiteLLMClass.assert_called_once()
             _, kwargs = MockLiteLLMClass.call_args
             assert kwargs["model"] == "openai/gpt-4o"
@@ -105,10 +108,11 @@ def test_create_variant_overrides():
     with (
         patch("markov_agent.engine.adk_wrapper.Agent"),
         patch("markov_agent.engine.adk_wrapper.Runner"),
+        patch("markov_agent.engine.adk_wrapper.App"),
     ):
         controller = ADKController(config, retry)
-
-        # Create variant
+        
+        # New variant with override
         variant = controller.create_variant(
             {"temperature": 0.1, "top_p": 0.5, "top_k": 10}
         )

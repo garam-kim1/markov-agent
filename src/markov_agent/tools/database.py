@@ -67,3 +67,9 @@ class DatabaseTool:
         Returns the methods as a list of callables for ADK.
         """
         return [self.query, self.get_schema]
+
+    def close(self):
+        """
+        Closes the database engine connection pool.
+        """
+        self.engine.dispose()
