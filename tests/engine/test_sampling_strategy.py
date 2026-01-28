@@ -89,3 +89,39 @@ async def test_execute_parallel_sampling_varied():
     # asyncio.gather preserves order
     assert results[0] == "A"
     assert results[1] == "B"
+
+
+@pytest.mark.asyncio
+async def test_parallel_sampling_partial_failure():
+    """
+    Verifies that if some tasks fail, the selector still receives the valid results.
+    """
+    async def success_task():
+        return "Success"
+
+    async def fail_task():
+        raise ValueError("Oops")
+
+    # Run 3 tasks: 2 success, 1 fail
+    # Note: execute_parallel_sampling with list input ignores 'k'
+    tasks = [success_task, fail_task, success_task]
+    
+    # Selector should see 2 "Success" strings
+    def selector(results):
+        assert len(results) == 2
+        assert all(r == "Success" for r in results)
+        return "Selected"
+
+    result = await execute_parallel_sampling(tasks, selector_func=selector)
+    assert result == "Selected"
+
+@pytest.mark.asyncio
+async def test_parallel_sampling_all_failure():
+    """
+    Verifies that if all tasks fail, the exception is raised.
+    """
+    async def fail_task():
+        raise ValueError("All Fail")
+        
+    with pytest.raises(ValueError, match="All Fail"):
+        await execute_parallel_sampling([fail_task, fail_task])
