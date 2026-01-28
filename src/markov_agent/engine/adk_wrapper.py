@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 from google.adk.agents import Agent
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.apps import App
+from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -56,11 +57,13 @@ class ADKController:
         retry_policy: RetryPolicy,
         mock_responder=None,
         output_schema: Any | None = None,
+        artifact_service: BaseArtifactService | None = None,
     ):
         self.config = config
         self.retry_policy = retry_policy
         self.mock_responder = mock_responder
         self.session_service = InMemorySessionService()
+        self.artifact_service = artifact_service or InMemoryArtifactService()
 
         # Configure environment if needed
         if self.config.api_key:
@@ -85,7 +88,8 @@ class ADKController:
             if val is not None and field not in model_config:
                 model_config[field] = val
 
-        # Map max_tokens -> max_output_tokens (Standardize on Google's name internally for Agent)
+        # Map max_tokens -> max_output_tokens
+        # (Standardize on Google's name internally for Agent)
         if self.config.max_tokens is not None:
             if (
                 "max_output_tokens" not in model_config
@@ -119,7 +123,7 @@ class ADKController:
             "response_schema",
             "response_modalities",
             "speech_config",
-            "seed",  # Usually supported by GenAI, check if causes issues. If so, remove.
+            "seed",  # Usually supported by GenAI.
         }
 
         safe_config = {}
@@ -179,6 +183,7 @@ class ADKController:
         self.runner = Runner(
             app=self.app,
             session_service=self.session_service,
+            artifact_service=self.artifact_service,
         )
 
     def create_variant(
@@ -215,6 +220,7 @@ class ADKController:
             retry_policy=self.retry_policy,
             mock_responder=self.mock_responder,
             output_schema=self.output_schema,
+            artifact_service=self.artifact_service,
         )
 
     async def generate(
@@ -227,7 +233,8 @@ class ADKController:
         """
         Generates content with retry logic using the ADK Runner.
         If output_schema is provided, attempts to generate and parse JSON.
-        Returns the result, or a tuple of (result, updated_session_state) if include_state is True.
+        Returns the result, or a tuple of (result, updated_session_state)
+        if include_state is True.
         """
 
         async def run_attempt():

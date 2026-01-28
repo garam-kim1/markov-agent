@@ -19,7 +19,8 @@ class BaseNode[StateT](BaseAgent, ABC):
     """
 
     # Allow arbitrary types for Pydantic (needed for ADK internals if any)
-    # Allow extra fields so subclasses can set attributes in __init__ without declaring fields
+    # Allow extra fields so subclasses can set attributes in __init__
+    # without declaring fields
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
     state_type: Any = Field(default=None, exclude=True)

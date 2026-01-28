@@ -3,6 +3,7 @@ from typing import TypeVar
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.events import Event, EventActions
 from pydantic import ConfigDict, Field
 
@@ -83,7 +84,8 @@ class Graph(BaseAgent):
 
             if input_text:
                 console.log(
-                    f"Injecting input into state['{self.input_key}']: {input_text[:50]}..."
+                    f"Injecting input into state['{self.input_key}']: "
+                    f"{input_text[:50]}..."
                 )
                 ctx.session.state[self.input_key] = input_text
 
@@ -164,17 +166,16 @@ class Graph(BaseAgent):
         if steps >= self.max_steps:
             console.log(f"[bold red]Max steps ({self.max_steps}) reached.[/bold red]")
 
-    async def run(self, state: StateT) -> StateT:
+    async def run(
+        self, state: StateT, artifact_service: BaseArtifactService | None = None
+    ) -> StateT:
         """
         Legacy/Convenience entry point.
         Wraps the ADK logic in a local execution loop.
         """
         # Create a mock Session and Context
-        # We can't easily import 'Session' if it's not exposed, but we can try to mimic it
-        # or use the one from adk_wrapper if available.
-
-        # For this wrapper, we'll create a simple dict-holding class if ADK imports fail,
-        # but since we inherit BaseAgent, we assume ADK is present.
+        # We can't easily import 'Session' if it's not exposed,
+        # but we can try to mimic it or use the one from adk_wrapper if available.
 
         import uuid
 
@@ -188,11 +189,14 @@ class Graph(BaseAgent):
             state=state.model_dump(),
         )
 
+        service_to_use = artifact_service or InMemoryArtifactService()
+
         context = InvocationContext(
             session=session,
             session_service=InMemorySessionService(),
             invocation_id=str(uuid.uuid4()),
             agent=self,
+            artifact_service=service_to_use,
         )
 
         # Run the generator

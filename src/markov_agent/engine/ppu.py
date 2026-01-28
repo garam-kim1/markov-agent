@@ -2,6 +2,7 @@ from collections.abc import AsyncGenerator, Callable
 from typing import Any, TypeVar
 
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.artifacts import BaseArtifactService
 from google.adk.events import Event, EventActions
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -34,6 +35,7 @@ class ProbabilisticNode(BaseNode[StateT]):
     retry_policy: Any = Field(default=None)
     mock_responder: Any = Field(default=None)
     state_updater: Any = Field(default=None)
+    artifact_service: BaseArtifactService | None = Field(default=None)
 
     def __init__(
         self,
@@ -48,6 +50,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         mock_responder=None,
         state_updater=None,
         state_type: type[StateT] | None = None,
+        artifact_service: BaseArtifactService | None = None,
     ):
         super().__init__(name, state_type=state_type)
         self.adk_config = adk_config
@@ -59,6 +62,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.retry_policy = retry_policy or RetryPolicy()
         self.state_updater = state_updater
         self.prompt_engine = PromptEngine()
+        self.artifact_service = artifact_service
 
         # Inject native JSON support if schema is provided
         if self.output_schema:
@@ -75,6 +79,7 @@ class ProbabilisticNode(BaseNode[StateT]):
             self.retry_policy,
             mock_responder=mock_responder,
             output_schema=self.output_schema,
+            artifact_service=self.artifact_service,
         )
 
     async def _run_async_impl(
@@ -117,7 +122,8 @@ class ProbabilisticNode(BaseNode[StateT]):
         # Ensure temperature is in base config if set at top level
         if "temperature" not in base_gen_config:
             base_gen_config["temperature"] = self.adk_config.temperature
-        # Ensure top_p is in base config if set at top level (needed for DIVERSE strategy)
+        # Ensure top_p is in base config if set at top level
+        # (needed for DIVERSE strategy)
         if (
             "top_p" not in base_gen_config
             and getattr(self.adk_config, "top_p", None) is not None

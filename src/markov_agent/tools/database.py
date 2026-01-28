@@ -20,7 +20,8 @@ class DatabaseTool:
 
         Args:
             sql_query: The SQL query to execute.
-            tool_context: Optional ADK ToolContext for access to session/invocation details.
+            tool_context: Optional ADK ToolContext for access to
+                session/invocation details.
 
         Returns:
             String representation of the results.

@@ -45,7 +45,8 @@ class ParallelNode(BaseNode[StateT]):
 
         async def run_node_isolated(node):
             # Create isolated session/context
-            # Note: We share session_service but use a distinct session ID logic or just a transient session object
+            # Note: We share session_service but use a distinct session ID
+            # logic or just a transient session object
             isolated_session = Session(
                 id=f"{ctx.session.id}_{node.name}",
                 app_name=ctx.session.app_name,
@@ -81,8 +82,10 @@ class ParallelNode(BaseNode[StateT]):
             # Identify changes
             for key, value in final_node_state.items():
                 if value != initial_state.get(key):
-                    # Last writer wins logic for conflicts, but with parallel branches usually touching different keys
-                    # In a real conflict, we might need a better strategy, but this mimics 'execute' logic.
+                    # Last writer wins logic for conflicts, but with parallel
+                    # branches usually touching different keys.
+                    # In a real conflict, we might need a better strategy,
+                    # but this mimics 'execute' logic.
                     merged_updates[key] = value
 
         # 4. Update Main State
