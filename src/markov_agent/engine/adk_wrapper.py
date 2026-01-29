@@ -35,6 +35,7 @@ class ADKConfig(BaseModel):
     description: str | None = None
     generation_config: dict[str, Any] | None = None
     plugins: list[Any] = Field(default_factory=list)
+    callbacks: list[Any] = Field(default_factory=list)
     use_litellm: bool = False
     output_key: str | None = None
 
@@ -174,10 +175,18 @@ class ADKController:
             output_key=self.config.output_key,
         )
 
+        plugins = [MarkovBridgePlugin()]
+        if self.config.callbacks:
+            from markov_agent.engine.callback_adapter import CallbackAdapterPlugin
+
+            plugins.append(CallbackAdapterPlugin(self.config.callbacks))
+
+        plugins.extend(self.config.plugins)
+
         self.app = App(
             name="markov_agent",
             root_agent=self.agent,
-            plugins=[MarkovBridgePlugin()] + self.config.plugins,
+            plugins=plugins,
         )
 
         self.runner = Runner(

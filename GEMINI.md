@@ -197,4 +197,16 @@ The following documentation is available in the `docs/` directory:
 *   **[Reliability Engineering](docs/guides/reliability_engineering.md)**: Quantify uncertainty with Monte Carlo simulations.
 *   **[Getting Started Guide](docs/guides/getting_started.md)**: Instructions on how to set up the environment, install dependencies using `uv`, and run tests/examples.
 
+---
+
+## 9. Local LLM Configuration
+
+When a real LLM request is necessary for testing or development, and Gemini is not being used, adhere to the following local LLM configuration:
+
+*   **Model Name:** `openai/Qwen3-0.6B-Q4_K_M.gguf`
+*   **API Base:** `http://192.168.1.213:8080/v1`
+*   **API Key:** `no-key`
+*   **Default Temperature:** `0.7`
+*   **Requirement:** Ensure `use_litellm=True` is set in the `ADKConfig`.
+
 **End of System Instruction.**
