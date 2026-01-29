@@ -193,6 +193,8 @@ The following documentation is available in the `docs/` directory:
 *   **[Google ADK Deep Dive](docs/adk_deep_dive/google_adk_overview.md)**: A detailed explanation of the Google Agent Development Kit, its philosophy (Code-First, Model Agnostic), and how it powers the `markov-agent` engine.
 *   **[Architecture Overview](docs/architecture/overview.md)**: A high-level view of the `markov-agent` system, explaining the core concepts of "Markov Engineering," PPUs, and the Graph Topology.
 *   **[Building Coding Agents](docs/guides/building_coding_agents.md)**: A guide on constructing reliable software engineering agents.
+*   **[Compositional Patterns](docs/guides/compositional_patterns.md)**: Learn how to use Chains, Swarms, Loops, and Parallel nodes.
+*   **[Reliability Engineering](docs/guides/reliability_engineering.md)**: Quantify uncertainty with Monte Carlo simulations.
 *   **[Getting Started Guide](docs/guides/getting_started.md)**: Instructions on how to set up the environment, install dependencies using `uv`, and run tests/examples.
 
 **End of System Instruction.**

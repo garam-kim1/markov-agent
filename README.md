@@ -120,16 +120,24 @@ if __name__ == "__main__":
 
 Check out the `examples/` directory for more complex usage patterns:
 
-*   **`examples/code_improver_agent.py`**: A dedicated **Coding Agent** that fixes bugs and improves code quality. It demonstrates:
+*   **`examples/agents/code_improver_agent.py`**: A dedicated **Coding Agent** that fixes bugs and improves code quality. It demonstrates:
     *   **Iterative Refinement**: Analyze -> Plan -> Code -> Review loop.
     *   **Regex Parsing**: Extracting code blocks from LLM responses.
     *   **Feedback Loops**: Retrying code generation based on reviewer score.
-*   **`examples/deep_research_agent.py`**: A complex agent that iteratively researches a topic, drafts an article, and critiques its own work in a loop. It demonstrates:
+*   **`examples/agents/deep_research_agent.py`**: A complex agent that iteratively researches a topic, drafts an article, and critiques its own work in a loop. It demonstrates:
     *   Cyclic Graphs (Looping logic)
     *   Structured Output (JSON) with Pydantic
     *   State Management and Updates
     *   Mocking LLM responses for testing
-*   **`examples/local_llm_test.py`**: A minimal example demonstrating how to connect to a **Local LLM** (e.g., Qwen/Llama via llama.cpp server) using the `use_litellm` flag.
+*   **`examples/agents/debate_team.py`**: A multi-agent simulation where two agents debate a topic. It demonstrates:
+    *   **Swarm Pattern**: Coordinator and Worker nodes.
+    *   **Adversarial Interaction**: Agents responding to each other's outputs.
+*   **`examples/agents/complex_local_agent.py`**: A task-decomposition agent configured for Local LLMs. It demonstrates:
+    *   **Planning & Execution**: Breaking a complex query into sequential sub-tasks.
+    *   **Stateful Iteration**: Tracking progress through a plan.
+    *   **Local Config**: Using `ADKConfig` with a local API endpoint.
+*   **`examples/agents/complex_reliability_agent.py`**: Advanced patterns for ensuring system reliability.
+*   **`examples/diagnostics/local_llm_test.py`**: A minimal example demonstrating how to connect to a **Local LLM** (e.g., Qwen/Llama via llama.cpp server) using the `use_litellm` flag.
 
 ## 📚 Documentation
 
