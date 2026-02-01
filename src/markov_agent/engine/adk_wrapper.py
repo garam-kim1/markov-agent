@@ -38,6 +38,8 @@ class ADKConfig(BaseModel):
     callbacks: list[Any] = Field(default_factory=list)
     use_litellm: bool = False
     output_key: str | None = None
+    context_cache_config: Any | None = None
+    events_compaction_config: Any | None = None
 
 
 class RetryPolicy(BaseModel):
@@ -187,6 +189,8 @@ class ADKController:
             name="markov_agent",
             root_agent=self.agent,
             plugins=plugins,
+            context_cache_config=self.config.context_cache_config,
+            events_compaction_config=self.config.events_compaction_config,
         )
 
         self.runner = Runner(
