@@ -1,0 +1,4 @@
+google-adk>=0.1.0
+uvicorn
+fastapi
+# markov-agent>=0.1.0  # Uncomment if available on PyPI or install from source
