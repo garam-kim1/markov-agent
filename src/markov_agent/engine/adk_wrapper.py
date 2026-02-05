@@ -330,3 +330,41 @@ class ADKController:
 
         msg = f"Failed to generate after {self.retry_policy.max_attempts} attempts"
         raise RuntimeError(msg) from last_error
+
+    async def run_async(
+        self,
+        prompt: str,
+        session_id: str | None = None,
+        user_id: str = "system",
+        initial_state: dict[str, Any] | None = None,
+    ):
+        """
+        Exposes the underlying ADK event stream.
+        This allows for real-time handling of tool calls, streaming responses, and more.
+        """
+        if session_id is None:
+            session_id = f"stream_{uuid.uuid4().hex[:8]}"
+
+        # Ensure session exists
+        await self.session_service.create_session(
+            app_name="markov_agent",
+            user_id=user_id,
+            session_id=session_id,
+            state=initial_state or {},
+        )
+
+        content = types.Content(role="user", parts=[types.Part(text=prompt)])
+
+        async for event in self.runner.run_async(
+            user_id=user_id, session_id=session_id, new_message=content
+        ):
+            yield event
+
+    async def get_session_events(self, session_id: str, user_id: str = "system"):
+        """
+        Retrieves the history of events for a given session.
+        """
+        session = await self.session_service.get_session(
+            app_name="markov_agent", user_id=user_id, session_id=session_id
+        )
+        return session.events if session else []

@@ -1,4 +1,5 @@
 import pytest
+from typing import Any
 from unittest.mock import Mock, MagicMock
 from markov_agent.engine.callbacks import (
     BeforeAgentCallback,
@@ -65,15 +66,18 @@ async def test_callback_adapter_plugin():
 @pytest.mark.asyncio
 async def test_multiple_callbacks_chaining():
     class AppendA(BeforeModelCallback):
-        def __call__(self, context, req):
-            return req + "A"
-            
+        def __call__(self, context: CallbackContext, model_request: Any) -> Any:
+            return model_request + "A"
+
     class AppendB(BeforeModelCallback):
-        def __call__(self, context, req):
-            return req + "B"
-            
+        def __call__(self, context: CallbackContext, model_request: Any) -> Any:
+            return model_request + "B"
+
     plugin = CallbackAdapterPlugin([AppendA(), AppendB()])
     
+    # We need a dummy context to avoid type error
+    mock_context = MagicMock(spec=CallbackContext)
     req = "start"
-    res = await plugin.before_model_callback(None, req)
+    res = await plugin.before_model_callback(mock_context, req)
     assert res == "startAB"
+

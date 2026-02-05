@@ -1,6 +1,6 @@
 # deploy_agent_engine.py
 from app.agent import agent
-from vertexai.preview import agent_engines
+from vertexai.preview import agent_engines  # type: ignore
 
 # 1. Initialize Agent Engine Client
 # Ensure you have "Vertex AI Agent Engine API" enabled

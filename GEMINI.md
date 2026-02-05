@@ -26,6 +26,8 @@ You must adhere to these constraints without deviation.
     * *Constraint:* Use `uv run ruff check` and `uv run ruff format`. Replace `black`, `isort`, and `flake8` entirely with Ruff.
 * **Type Checking:** `ty`.
     * *Constraint:* Use `uvx ty check` for type checking.
+* **Testing:** `pytest`.
+    * *Constraint:* Always run `uv run pytest` to verify changes.
 * **Async Runtime:** `asyncio`.
     * *Constraint:* All I/O must be asynchronous to support **Parallel Trajectory Generation** ($pass@k$).
 
@@ -104,7 +106,12 @@ markov_agent/
 * **Event Bus:** All critical system actions (graph start/end, node execution, errors) must emit events via `markov_agent.core.events.event_bus`.
 * **Logging:** Use `rich` for human-readable console output. Do not use `print()`.
 
-### 4.4 Simulation & Reliability
+### 4.4 Event-Driven Interaction
+* **Async Streams:** Use `ADKController.run_async()` to consume real-time events (streaming, tool calls, status updates).
+* **Persistence:** Retrieve full session history via `ADKController.get_session_events()`.
+* **Interception:** Use `BeforeModelCallback` or `AfterModelCallback` for "Audit and Guard" patterns.
+
+### 4.5 Simulation & Reliability
 * **Philosophy:** If you didn't test it 50 times, it doesn't work.
 * **Workflow:** Before deploying a new prompt or topology, create a `MonteCarloRunner` test case.
 * **Metrics:** Track $pass@1$ (accuracy) and $pass@k$ (reliability) using `markov_agent.simulation.metrics`.

@@ -5,7 +5,7 @@ from app.agent import agent
 from google.adk.cli.fast_api import get_fast_api_app
 
 # Create the FastAPI app from the ADK agent (Graph)
-app = get_fast_api_app(agent)
+app = get_fast_api_app(agents_dir="./app", web=True)
 
 if __name__ == "__main__":
     # Use PORT environment variable for Cloud Run compatibility
