@@ -12,9 +12,7 @@ from markov_agent.topology.graph import Graph
 
 
 class ResearchState(BaseState):
-    """
-    Represents the full context of a research session.
-    """
+    """Represents the full context of a research session."""
 
     topic: str
     plan: list[str] = Field(default_factory=list)
@@ -75,45 +73,42 @@ def update_critique(state: ResearchState, result: CritiqueOutput) -> ResearchSta
 
 
 def mock_llm_router(prompt: str) -> str:
-    """
-    A fake LLM that responds based on the prompt content.
-    """
+    """A fake LLM that responds based on the prompt content."""
     import json
     import re
 
     if "Plan research" in prompt:
         return json.dumps(
-            {"questions": ["History of topic?", "Current state?", "Future outlook?"]}
+            {"questions": ["History of topic?", "Current state?", "Future outlook?"]},
         )
-    elif "Research these questions" in prompt:
+    if "Research these questions" in prompt:
         return json.dumps(
             {
                 "notes": (
                     "Found significant data indicating growth in the sector. "
                     "Users prefer modular systems."
-                )
-            }
+                ),
+            },
         )
-    elif "Write a comprehensive article" in prompt:
+    if "Write a comprehensive article" in prompt:
         return json.dumps(
             {
                 "content": (
                     "Title: The Future of X.\n\nSection 1: History...\n"
                     "Section 2: Growth..."
-                )
-            }
+                ),
+            },
         )
-    elif "Review the following draft" in prompt:
+    if "Review the following draft" in prompt:
         # Simulate improvement over iterations
         match = re.search(r"Iteration: (\d+)", prompt)
         iteration = int(match.group(1)) if match else 0
 
         if iteration < 2:
             return json.dumps({"feedback": "Too shallow. Needs more data.", "score": 5})
-        else:
-            return json.dumps(
-                {"feedback": "Excellent work. Comprehensive.", "score": 9}
-            )
+        return json.dumps(
+            {"feedback": "Excellent work. Comprehensive.", "score": 9},
+        )
     return "{}"
 
 

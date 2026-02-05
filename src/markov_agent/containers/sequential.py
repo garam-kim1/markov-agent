@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
@@ -11,8 +11,8 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class SequentialNode(BaseNode[StateT]):
-    """
-    Executes a list of nodes sequentially.
+    """Executes a list of nodes sequentially.
+
     Lighter weight alternative to creating a full Chain Graph.
     """
 
@@ -21,20 +21,19 @@ class SequentialNode(BaseNode[StateT]):
         name: str,
         nodes: list[BaseNode],
         state_type: type[StateT] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         super().__init__(name=name, state_type=state_type)
         self.nodes = nodes
 
     async def _run_async_impl(
-        self, ctx: InvocationContext
+        self,
+        ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
-        """
-        Executes sub-nodes sequentially.
-        """
+        """Execute sub-nodes sequentially."""
         for node in self.nodes:
             # We assume node is a BaseNode (Agent)
-            async for event in node._run_async_impl(ctx):
+            async for event in node._run_async_impl(ctx):  # noqa: SLF001
                 yield event
 
     async def execute(self, state: StateT) -> StateT:

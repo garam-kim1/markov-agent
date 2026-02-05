@@ -54,9 +54,7 @@ def test_database_tool_as_list():
 
 
 def test_search_node_configuration():
-    """
-    Verify that SearchNode automatically injects the Google Search tool.
-    """
+    """Verify that SearchNode automatically injects the Google Search tool."""
     config = ADKConfig(model_name="mock")
     # SearchNode adds the tool
     node = SearchNode("searcher", config, "Find {query}")

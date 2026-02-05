@@ -2,9 +2,7 @@ from google.adk.tools.google_search_tool import GoogleSearchTool as AdkGoogleSea
 
 
 class GoogleSearchTool:
-    """
-    A wrapper around Google ADK's native GoogleSearchTool.
-    """
+    """A wrapper around Google ADK's native GoogleSearchTool."""
 
     def __init__(self):
         self._tool = AdkGoogleSearchTool()

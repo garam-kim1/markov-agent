@@ -20,9 +20,7 @@ class SimulationResult(BaseModel):
 
 
 class MonteCarloRunner(BaseModel):
-    """
-    Runs the dataset through the graph N times to ensure reliability.
-    """
+    """Runs the dataset through the graph N times to ensure reliability."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -32,7 +30,6 @@ class MonteCarloRunner(BaseModel):
     success_criteria: Callable[[BaseState], bool] = lambda s: True
 
     async def run_simulation(self) -> list[SimulationResult]:
-        all_results = []
 
         tasks = []
         for i, state in enumerate(self.dataset):
@@ -42,11 +39,12 @@ class MonteCarloRunner(BaseModel):
                 # Pydantic model_copy(deep=True) is useful here
                 tasks.append(self._run_single(state.model_copy(deep=True), case_id))
 
-        all_results = await asyncio.gather(*tasks)
-        return all_results
+        return await asyncio.gather(*tasks)
 
     async def _run_single(
-        self, initial_state: StateT, case_id: str
+        self,
+        initial_state: StateT,
+        case_id: str,
     ) -> SimulationResult:
         try:
             final_state = await self.graph.run(initial_state)

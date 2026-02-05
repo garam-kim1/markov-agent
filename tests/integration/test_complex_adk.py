@@ -111,7 +111,10 @@ async def test_loop_max_iterations():
 
     # Loop max 3 times, condition never met
     loop = LoopNode(
-        name="LooperMax", body=increment, condition=lambda s: False, max_iterations=3
+        name="LooperMax",
+        body=increment,
+        condition=lambda s: False,
+        max_iterations=3,
     )
 
     initial = LoopState(count=0)

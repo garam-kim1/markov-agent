@@ -25,8 +25,7 @@ class OutputSchema(BaseModel):
 
 @pytest.mark.asyncio
 async def test_retry_on_network_error():
-    """
-    Simulate network failures (RuntimeError) for the first 2 attempts,
+    """Simulate network failures (RuntimeError) for the first 2 attempts,
     succeed on the 3rd.
     """
     config = ADKConfig(model_name="mock-model")
@@ -38,7 +37,8 @@ async def test_retry_on_network_error():
         nonlocal attempts
         attempts += 1
         if attempts < 3:
-            raise RuntimeError("Simulated Network Error")
+            msg = "Simulated Network Error"
+            raise RuntimeError(msg)
         return "Success"
 
     controller = ADKController(config, retry, mock_responder=fail_twice_then_succeed)
@@ -51,8 +51,7 @@ async def test_retry_on_network_error():
 
 @pytest.mark.asyncio
 async def test_retry_on_schema_validation_error():
-    """
-    Simulate invalid JSON response for the first attempt, then valid JSON.
+    """Simulate invalid JSON response for the first attempt, then valid JSON.
     ADKController should catch the validation error and retry.
     """
     config = ADKConfig(model_name="mock-model")
@@ -82,9 +81,7 @@ async def test_retry_on_schema_validation_error():
 
 @pytest.mark.asyncio
 async def test_max_retries_exceeded():
-    """
-    Simulate persistent failure. Verify it raises RuntimeError after max attempts.
-    """
+    """Simulate persistent failure. Verify it raises RuntimeError after max attempts."""
     config = ADKConfig(model_name="mock-model")
     retry = RetryPolicy(max_attempts=2, initial_delay=0.01)
 
@@ -93,7 +90,8 @@ async def test_max_retries_exceeded():
     def always_fail(prompt):
         nonlocal attempts
         attempts += 1
-        raise RuntimeError("Fail")
+        msg = "Fail"
+        raise RuntimeError(msg)
 
     controller = ADKController(config, retry, mock_responder=always_fail)
 
@@ -106,9 +104,7 @@ async def test_max_retries_exceeded():
 
 @pytest.mark.asyncio
 async def test_parallel_sampling_selector_distinct():
-    """
-    Refined parallel sampling test with distinct lengths.
-    """
+    """Refined parallel sampling test with distinct lengths."""
     config = ADKConfig(model_name="mock-model")
 
     # Responses with distinct lengths
@@ -153,8 +149,7 @@ async def test_parallel_sampling_selector_distinct():
 
 @pytest.mark.asyncio
 async def test_temperature_variation_in_diverse_sampling():
-    """
-    Verify that SamplingStrategy.DIVERSE creates controllers with different configs.
+    """Verify that SamplingStrategy.DIVERSE creates controllers with different configs.
     We'll inspect the controller creation by mocking create_variant.
     """
     config = ADKConfig(model_name="mock-model", temperature=0.5)
@@ -201,9 +196,7 @@ async def test_temperature_variation_in_diverse_sampling():
 
 @pytest.mark.asyncio
 async def test_telemetry_emission():
-    """
-    Verify that telemetry events are emitted during execution.
-    """
+    """Verify that telemetry events are emitted during execution."""
     from markov_agent.core.events import Event, event_bus
 
     captured_events = []
@@ -263,17 +256,7 @@ async def test_telemetry_emission():
 
 @pytest.mark.asyncio
 async def test_controller_request_construction_with_runner_mock():
-    """
-
-
-
-
-
-    Verify that ADKController correctly invokes the Runner when
-
-
-
-
+    """Verify that ADKController correctly invokes the Runner when
 
     NO mock_responder is set.
 
@@ -282,7 +265,6 @@ async def test_controller_request_construction_with_runner_mock():
 
 
     """
-
     config = ADKConfig(model_name="gemini-1.5-pro")
 
     retry = RetryPolicy()

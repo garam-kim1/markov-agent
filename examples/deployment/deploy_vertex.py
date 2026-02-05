@@ -1,6 +1,7 @@
 # deploy_agent_engine.py
-from app.agent import agent
 from vertexai.preview import agent_engines  # type: ignore
+
+from examples.deployment.app.agent import agent
 
 # 1. Initialize Agent Engine Client
 # Ensure you have "Vertex AI Agent Engine API" enabled
@@ -16,7 +17,7 @@ operation = client.create_agent_engine(
     requirements=[
         "google-adk>=0.1.0",
         # "markov-agent>=0.1.0" # Add this if published
-    ]
+    ],
 )
 
 # 3. Wait for completion

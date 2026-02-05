@@ -19,7 +19,8 @@ class SimpleState(BaseState):
 # 2. Define Node
 class EchoNode(BaseNode[SimpleState]):
     async def _run_async_impl(
-        self, ctx: InvocationContext
+        self,
+        ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
         # Access state directly from session (dict)
         state_dict = ctx.session.state

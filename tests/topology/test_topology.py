@@ -20,7 +20,7 @@ class AddNode(BaseNode[StateForTest]):
 
     async def execute(self, state: StateForTest) -> StateForTest:
         new_value = state.value + self.increment
-        new_path = state.path + [self.name]
+        new_path = [*state.path, self.name]
         return state.update(value=new_value, path=new_path)
 
 

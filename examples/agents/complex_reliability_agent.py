@@ -55,8 +55,7 @@ LOCAL_LLM_CONFIG = ADKConfig(
 
 
 def math_selector(results: list[Any]) -> Any:
-    """
-    Selects the most common answer (Self-Consistency) or the first valid one.
+    """Selects the most common answer (Self-Consistency) or the first valid one.
     For this example, we'll use a majority vote on 'final_answer'.
     """
     valid_results = [r for r in results if isinstance(r, MathSolution)]
@@ -95,7 +94,7 @@ def build_math_agent(samples: int = 1, use_selector: bool = False) -> Graph:
         selector=math_selector if use_selector else None,
         state_type=MathState,
         state_updater=lambda state, result: state.model_copy(
-            update={"solution": result}
+            update={"solution": result},
         ),
     )
 
@@ -103,15 +102,13 @@ def build_math_agent(samples: int = 1, use_selector: bool = False) -> Graph:
     nodes = {"solver": solver_node}
     edges = [Edge(source="solver", target_func=lambda s: None)]
 
-    graph = Graph(
+    return Graph(
         name="math_agent",
         nodes=nodes,
         edges=edges,
         entry_point="solver",
         state_type=MathState,
     )
-
-    return graph
 
 
 # -------------------------------------------------------------------------
@@ -126,30 +123,32 @@ async def run_experiment():
     dataset = [
         MathState(problem=MathProblem(question="What is 12 + 25?", expected_answer=37)),
         MathState(
-            problem=MathProblem(question="Calculate 5 * 8 - 3", expected_answer=37)
+            problem=MathProblem(question="Calculate 5 * 8 - 3", expected_answer=37),
         ),
         MathState(
             problem=MathProblem(
-                question="If x = 10, what is 2x + 5?", expected_answer=25
-            )
+                question="If x = 10, what is 2x + 5?",
+                expected_answer=25,
+            ),
         ),
         MathState(
             problem=MathProblem(
-                question="What is the square root of 144?", expected_answer=12
-            )
+                question="What is the square root of 144?",
+                expected_answer=12,
+            ),
         ),
         MathState(
-            problem=MathProblem(question="Solve for x: 3x = 27", expected_answer=9)
+            problem=MathProblem(question="Solve for x: 3x = 27", expected_answer=9),
         ),
     ]
 
     # --- Experiment A: Baseline (k=1, n_runs=10) ---
     # We run the agent 10 times per problem to calculate pass@k metrics
     console.print(
-        "\n[bold yellow]--- Experiment A: Baseline Simulation (Calculating pass@k metrics) ---[/bold yellow]"
+        "\n[bold yellow]--- Experiment A: Baseline Simulation (Calculating pass@k metrics) ---[/bold yellow]",
     )
     console.print(
-        "Running standard agent (k=1) 10 times per case to estimate reliability curves..."
+        "Running standard agent (k=1) 10 times per case to estimate reliability curves...",
     )
 
     agent_baseline = build_math_agent(samples=1, use_selector=False)
@@ -158,8 +157,9 @@ async def run_experiment():
         graph=agent_baseline,
         dataset=dataset,
         n_runs=5,  # 5 runs per case to save time, but sufficient for pass@5
-        success_criteria=lambda s: s.solution
-        and s.solution.final_answer == s.problem.expected_answer,
+        success_criteria=lambda s: (
+            s.solution and s.solution.final_answer == s.problem.expected_answer
+        ),
     )
 
     results = await runner.run_simulation()
@@ -171,13 +171,13 @@ async def run_experiment():
     console.print(f"Reliability (pass@5): {metrics['reliability']:.2f}")
 
     console.print(
-        "\n[bold cyan]Estimated pass@k (Probability of at least 1 correct in k tries):[/bold cyan]"
+        "\n[bold cyan]Estimated pass@k (Probability of at least 1 correct in k tries):[/bold cyan]",
     )
     for k, v in metrics["pass_at_k"].items():
         console.print(f"  {k}: {v:.4f}")
 
     console.print(
-        "\n[bold cyan]Estimated pass^k (Probability of ALL correct in k tries):[/bold cyan]"
+        "\n[bold cyan]Estimated pass^k (Probability of ALL correct in k tries):[/bold cyan]",
     )
     for k, v in metrics["pass_pow_k"].items():
         console.print(f"  {k}: {v:.4f}")
@@ -185,7 +185,7 @@ async def run_experiment():
     # --- Experiment B: Runtime Reliability (k=5 with Selector) ---
     # We verify if using k=5 at runtime actually improves the single-shot performance
     console.print(
-        "\n[bold yellow]--- Experiment B: Runtime Reliability (Self-Consistency with k=5) ---[/bold yellow]"
+        "\n[bold yellow]--- Experiment B: Runtime Reliability (Self-Consistency with k=5) ---[/bold yellow]",
     )
     console.print("Running enhanced agent (k=5, majority vote) 1 time per case...")
 
@@ -196,8 +196,9 @@ async def run_experiment():
         graph=agent_enhanced,
         dataset=dataset,
         n_runs=1,
-        success_criteria=lambda s: s.solution
-        and s.solution.final_answer == s.problem.expected_answer,
+        success_criteria=lambda s: (
+            s.solution and s.solution.final_answer == s.problem.expected_answer
+        ),
     )
 
     results_enhanced = await runner_enhanced.run_simulation()

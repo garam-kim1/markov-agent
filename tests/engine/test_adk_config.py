@@ -4,14 +4,12 @@ from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolic
 
 
 def test_adk_controller_initialization():
-    """
-    Verify that ADKController correctly passes configuration to the underlying ADK Agent.
-    """
+    """Verify that ADKController correctly passes configuration to the underlying ADK Agent."""
     config = ADKConfig(
         model_name="gemini-1.5-pro",
         temperature=0.9,
         safety_settings=[
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
         ],
         api_key="TEST_KEY",
         instruction="Custom instruction",
@@ -40,7 +38,7 @@ def test_adk_controller_initialization():
         MockRunner.assert_called_once()
         # Ensure App is passed to Runner
         assert MockRunner.call_args[1]["app"] == MockApp.return_value
-        
+
         # Ensure Agent is passed to App
         MockApp.assert_called_once()
         assert MockApp.call_args[1]["root_agent"] == MockAgent.return_value
@@ -61,5 +59,5 @@ def test_adk_controller_default_overrides():
     ):
         ADKController(config, retry)
 
-        args, kwargs = MockAgent.call_args
+        _args, _kwargs = MockAgent.call_args
         # Should default to "You are a probabilistic processing unit..."

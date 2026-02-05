@@ -10,9 +10,7 @@ from markov_agent.topology.graph import Graph
 
 
 class SimpleState(BaseState):
-    """
-    A simple state to track the user query and the model's response.
-    """
+    """A simple state to track the user query and the model's response."""
 
     query: str
     response: str | None = None
@@ -22,9 +20,7 @@ class SimpleState(BaseState):
 
 
 class GeminiNode(ProbabilisticNode[SimpleState]):
-    """
-    A specialized node that uses Gemini to process the query.
-    """
+    """A specialized node that uses Gemini to process the query."""
 
     def parse_result(self, state: SimpleState, result: str) -> SimpleState:
         # Standard implementation to store the LLM output in the state
@@ -49,7 +45,9 @@ async def main():
     # Configuration for the gemini-3-flash-preview model.
     # We pass the api_key explicitly to the ADKConfig.
     config = ADKConfig(
-        model_name="gemini-3-flash-preview", api_key=api_key, temperature=0.7
+        model_name="gemini-3-flash-preview",
+        api_key=api_key,
+        temperature=0.7,
     )
 
     # Initialize the Probabilistic Processing Unit (PPU)
@@ -87,7 +85,7 @@ async def main():
         print(f"\nAn error occurred during execution: {e}")
         print(
             "\nPlease ensure your GEMINI_API_KEY is valid and "
-            "you have access to the requested model."
+            "you have access to the requested model.",
         )
 
 

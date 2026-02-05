@@ -76,10 +76,10 @@ class MockLLM:
         if "Analyze the following code" in prompt:
             return "The code has a bug in the loop condition and lacks type hints."
 
-        elif "Create a plan" in prompt:
+        if "Create a plan" in prompt:
             return "1. Fix the loop.\n2. Add type hints.\n3. Add docstrings."
 
-        elif "Generate Python code" in prompt:
+        if "Generate Python code" in prompt:
             self.attempts += 1
             if self.attempts == 1:
                 # First attempt: Generate slightly wrong code (missing type hints)
@@ -90,9 +90,8 @@ def factorial(n):
     return n * factorial(n-1)
 ```
 """
-            else:
-                # Second attempt: Fix it
-                return """Here is the fixed code:
+            # Second attempt: Fix it
+            return """Here is the fixed code:
 ```python
 def factorial(n: int) -> int:
     if n == 0:
@@ -104,12 +103,11 @@ def factorial(n: int) -> int:
 ```
 """
 
-        elif "Review the following code" in prompt:
+        if "Review the following code" in prompt:
             # Check if code in prompt has type hints
             if "def factorial(n):" in prompt:
                 return "Score: 5\nFeedback: Missing type hints. Please add them."
-            else:
-                return "Score: 9\nFeedback: Great job, strict typing is present."
+            return "Score: 9\nFeedback: Great job, strict typing is present."
 
         return "I don't know how to respond to that."
 

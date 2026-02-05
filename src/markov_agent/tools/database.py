@@ -1,13 +1,14 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from google.adk.tools import ToolContext
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine
 
 
 class DatabaseTool:
-    """
-    A tool for executing SQL queries against a database.
+    """A tool for executing SQL queries against a database.
     Compatible with Google ADK tool registration.
     """
 
@@ -15,8 +16,7 @@ class DatabaseTool:
         self.engine: Engine = create_engine(connection_string)
 
     def query(self, sql_query: str, tool_context: ToolContext | None = None) -> str:
-        """
-        Executes a read-only SQL query and returns the results.
+        """Executes a read-only SQL query and returns the results.
 
         Args:
             sql_query: The SQL query to execute.
@@ -25,6 +25,7 @@ class DatabaseTool:
 
         Returns:
             String representation of the results.
+
         """
         # Example of using tool_context if available
         if tool_context:
@@ -45,9 +46,7 @@ class DatabaseTool:
             return f"Database Error: {e}"
 
     def get_schema(self) -> str:
-        """
-        Returns the schema of the database to help the agent understand tables.
-        """
+        """Returns the schema of the database to help the agent understand tables."""
         # This is a simplified schema dumper.
         # For complex DBs, use reflection.
         try:
@@ -64,13 +63,9 @@ class DatabaseTool:
             return f"Schema Error: {e}"
 
     def as_tool_list(self) -> list[Any]:
-        """
-        Returns the methods as a list of callables for ADK.
-        """
+        """Returns the methods as a list of callables for ADK."""
         return [self.query, self.get_schema]
 
-    def close(self):
-        """
-        Closes the database engine connection pool.
-        """
+    def close(self) -> None:
+        """Closes the database engine connection pool."""
         self.engine.dispose()

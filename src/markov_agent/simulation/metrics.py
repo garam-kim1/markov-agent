@@ -4,11 +4,10 @@ from markov_agent.simulation.runner import SimulationResult
 
 
 def calculate_pass_at_k_estimator(n: int, c: int, k: int) -> float:
-    """
-    Unbiased estimator for pass@k (Probability of at least one success).
+    """Unbiased estimator for pass@k (Probability of at least one success).
     n: total samples generated
     c: number of correct samples
-    k: hypothetical budget (k)
+    k: hypothetical budget (k).
     """
     if n - c < k:
         return 1.0
@@ -16,7 +15,7 @@ def calculate_pass_at_k_estimator(n: int, c: int, k: int) -> float:
     def comb(n, k):
         if k < 0 or k > n:
             return 0
-        if k == 0 or k == n:
+        if k in (0, n):
             return 1
         if k > n // 2:
             k = n - k
@@ -35,11 +34,10 @@ def calculate_pass_at_k_estimator(n: int, c: int, k: int) -> float:
 
 
 def calculate_pass_pow_k_estimator(n: int, c: int, k: int) -> float:
-    """
-    Unbiased estimator for pass^k (Probability that all k samples are correct).
+    """Unbiased estimator for pass^k (Probability that all k samples are correct).
     n: total samples generated
     c: number of correct samples
-    k: hypothetical budget (k)
+    k: hypothetical budget (k).
     """
     if c < k:
         return 0.0
@@ -47,7 +45,7 @@ def calculate_pass_pow_k_estimator(n: int, c: int, k: int) -> float:
     def comb(n, k):
         if k < 0 or k > n:
             return 0
-        if k == 0 or k == n:
+        if k in (0, n):
             return 1
         if k > n // 2:
             k = n - k
@@ -66,8 +64,7 @@ def calculate_pass_pow_k_estimator(n: int, c: int, k: int) -> float:
 
 
 def calculate_metrics(results: list[SimulationResult]):
-    """
-    Calculates:
+    """Calculates:
     - Accuracy (Global pass rate, effectively pass@1 averaged)
     - Consistency (pass^k): Probability that all samples in a budget k are correct.
     - Reliability (pass@k): Probability that at least one sample in a budget k is
@@ -94,7 +91,7 @@ def calculate_metrics(results: list[SimulationResult]):
     consistent_cases = 0  # 100% success for all n_runs
     reliable_cases = 0  # at least one success in n_runs
 
-    for _case_id, case_results in cases.items():
+    for case_results in cases.values():
         case_runs = len(case_results)
         case_successes = sum(1 for r in case_results if r.success)
 
@@ -124,7 +121,7 @@ def calculate_metrics(results: list[SimulationResult]):
         sum_pow_k = 0.0
         valid_cases_for_k = 0
 
-        for _case_id, case_results in cases.items():
+        for case_results in cases.values():
             n = len(case_results)
             if n < k:
                 continue

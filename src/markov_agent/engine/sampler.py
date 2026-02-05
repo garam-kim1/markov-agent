@@ -2,14 +2,12 @@ import asyncio
 import copy
 import random
 from collections.abc import Callable
-from enum import Enum
-from typing import Any
+from enum import StrEnum
+from typing import Any, cast
 
 
-class SamplingStrategy(str, Enum):
-    """
-    Strategies for varying generation parameters across parallel samples.
-    """
+class SamplingStrategy(StrEnum):
+    """Strategies for varying generation parameters across parallel samples."""
 
     UNIFORM = "uniform"  # All samples use the same configuration
     LINEAR_RAMP = (
@@ -25,8 +23,8 @@ def generate_varied_configs(
     strategy: SamplingStrategy,
     param_ranges: dict[str, tuple[float, float]] | None = None,
 ) -> list[dict[str, Any]]:
-    """
-    Generates 'k' variations of the base configuration dictionary based on the strategy.
+    """Generate 'k' variations of the base configuration dictionary based on the strategy.
+
     Target parameters are usually 'temperature' and 'top_p'.
 
     Args:
@@ -35,6 +33,7 @@ def generate_varied_configs(
         strategy: The sampling strategy to apply.
         param_ranges: Optional min/max bounds. Defaults to sensible LLM defaults.
             e.g. {"temperature": (0.1, 1.0), "top_p": (0.5, 1.0)}
+
     """
     configs = [copy.deepcopy(base_config) for _ in range(k)]
 
@@ -70,8 +69,8 @@ def generate_varied_configs(
             if i == 0:
                 continue
 
-            cfg["temperature"] = round(random.uniform(t_min, t_max), 2)
-            cfg["top_p"] = round(random.uniform(p_min, p_max), 2)
+            cfg["temperature"] = round(random.uniform(t_min, t_max), 2)  # noqa: S311
+            cfg["top_p"] = round(random.uniform(p_min, p_max), 2)  # noqa: S311
 
     return configs
 
@@ -81,26 +80,25 @@ async def execute_parallel_sampling[T](
     k: int = 5,
     selector_func: Callable[[list[Any]], T] | None = None,
 ) -> T:
-    """
-    Implements pass@k logic with optional task variance.
+    """Implement pass@k logic with optional task variance.
 
     Args:
         generate_func: Either a single factory function (called k times)
                        or a list of specific factory functions (k is ignored/inferred).
         k: Number of samples (if generate_func is single).
         selector_func: Function to select the best result.
-    """
 
+    """
     tasks = []
 
     if isinstance(generate_func, list):
         # We have specific tasks (likely with varied configs)
-        for func in generate_func:
-            tasks.append(_safe_generate(func))
+        tasks.extend(
+            _safe_generate(cast(Callable[[], Any], func)) for func in generate_func
+        )
     else:
         # Homogeneous tasks
-        for _ in range(k):
-            tasks.append(_safe_generate(generate_func))
+        tasks.extend(_safe_generate(generate_func) for _ in range(k))
 
     results = await asyncio.gather(*tasks)
 
@@ -110,7 +108,8 @@ async def execute_parallel_sampling[T](
         # If all failed, raise the first error
         if results and isinstance(results[0], Exception):
             raise results[0]
-        raise RuntimeError("All parallel samples failed.")
+        msg = "All parallel samples failed."
+        raise RuntimeError(msg)
 
     if selector_func:
         res = selector_func(valid_results)
@@ -122,7 +121,7 @@ async def execute_parallel_sampling[T](
     return valid_results[0]
 
 
-async def _safe_generate(func):
+async def _safe_generate(func: Callable[[], Any]) -> Any:
     try:
         # Check if func is awaitable or returns awaitable
         res = func()

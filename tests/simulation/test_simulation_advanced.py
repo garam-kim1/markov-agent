@@ -14,7 +14,8 @@ class SimState(BaseState):
 class ErrorNode(BaseNode[SimState]):
     async def execute(self, state: SimState) -> SimState:
         if state.val == -1:
-            raise ValueError("Simulated Crash")
+            msg = "Simulated Crash"
+            raise ValueError(msg)
         return state.update(val=state.val + 1)
 
 
@@ -27,7 +28,10 @@ async def test_monte_carlo_errors():
     dataset = [SimState(val=0), SimState(val=-1)]
 
     runner = MonteCarloRunner(
-        graph=graph, dataset=dataset, n_runs=1, success_criteria=lambda s: True
+        graph=graph,
+        dataset=dataset,
+        n_runs=1,
+        success_criteria=lambda s: True,
     )
 
     results = await runner.run_simulation()
@@ -54,7 +58,10 @@ async def test_monte_carlo_metrics_failure():
 
     # Success only if val > 10 (which is impossible here, val becomes 1)
     runner = MonteCarloRunner(
-        graph=graph, dataset=dataset, n_runs=1, success_criteria=lambda s: s.val > 10
+        graph=graph,
+        dataset=dataset,
+        n_runs=1,
+        success_criteria=lambda s: s.val > 10,
     )
 
     results = await runner.run_simulation()

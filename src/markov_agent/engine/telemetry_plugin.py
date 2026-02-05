@@ -8,15 +8,16 @@ from markov_agent.core.events import Event, event_bus
 
 
 class MarkovBridgePlugin(BasePlugin):
-    """
-    Bridges Google ADK events to the Markov Agent event bus.
-    """
+    """Bridges Google ADK events to the Markov Agent event bus."""
 
     def __init__(self):
         super().__init__(name="markov_telemetry")
 
     async def before_agent_callback(
-        self, callback_context: CallbackContext, *args, **kwargs
+        self,
+        callback_context: CallbackContext,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         await event_bus.emit(
             Event(
@@ -26,11 +27,14 @@ class MarkovBridgePlugin(BasePlugin):
                     "invocation_id": callback_context.invocation_id,
                     "args": str(args),
                 },
-            )
+            ),
         )
 
     async def after_agent_callback(
-        self, callback_context: CallbackContext, *args, **kwargs
+        self,
+        callback_context: CallbackContext,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         await event_bus.emit(
             Event(
@@ -40,7 +44,7 @@ class MarkovBridgePlugin(BasePlugin):
                     "invocation_id": callback_context.invocation_id,
                     "args": str(args),
                 },
-            )
+            ),
         )
 
     async def before_tool_callback(
@@ -49,7 +53,7 @@ class MarkovBridgePlugin(BasePlugin):
         tool: Any,
         tool_args: dict[str, Any],
         tool_context: ToolContext,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         # Note: The order of arguments depends on ADK version.
 
         await event_bus.emit(
@@ -59,11 +63,13 @@ class MarkovBridgePlugin(BasePlugin):
                     "tool": tool.name if hasattr(tool, "name") else str(tool),
                     "invocation_id": getattr(tool_context, "invocation_id", "unknown"),
                     "function_call_id": getattr(
-                        tool_context, "function_call_id", "unknown"
+                        tool_context,
+                        "function_call_id",
+                        "unknown",
                     ),
                     "args": str(tool_args),
                 },
-            )
+            ),
         )
         return None
 
@@ -73,8 +79,8 @@ class MarkovBridgePlugin(BasePlugin):
         tool: Any,
         tool_args: dict[str, Any],
         tool_context: ToolContext,
-        result: dict,
-    ) -> dict | None:
+        result: dict[str, Any],
+    ) -> dict[str, Any] | None:
         await event_bus.emit(
             Event(
                 name="adk.tool.end",
@@ -83,9 +89,11 @@ class MarkovBridgePlugin(BasePlugin):
                     "invocation_id": getattr(tool_context, "invocation_id", "unknown"),
                     "result": str(result)[:200],
                 },
-            )
+            ),
         )
         return None
 
-    async def on_model_error_callback(self, error: Exception, *args, **kwargs) -> None:
+    async def on_model_error_callback(
+        self, error: Exception, *args: Any, **kwargs: Any
+    ) -> None:
         await event_bus.emit(Event(name="adk.error", payload={"error": str(error)}))

@@ -6,8 +6,7 @@ from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolic
 
 
 def test_extended_config_google_mapping():
-    """
-    Test that parameters are mapped correctly for Google GenAI (default).
+    """Test that parameters are mapped correctly for Google GenAI (default).
     Checks mapping of max_tokens -> max_output_tokens.
     Ensures unsupported params like min_p are dropped from GenerateContentConfig.
     """
@@ -55,8 +54,7 @@ def test_extended_config_google_mapping():
 
 
 def test_extended_config_litellm_mapping():
-    """
-    Test that parameters are mapped correctly when use_litellm=True.
+    """Test that parameters are mapped correctly when use_litellm=True.
     Checks that max_tokens -> max_output_tokens (mapped for safe config).
     Checks that min_p is passed to LiteLlm constructor via extra_kwargs.
     """
@@ -99,9 +97,7 @@ def test_extended_config_litellm_mapping():
 
 
 def test_create_variant_overrides():
-    """
-    Test that create_variant correctly updates the new parameters.
-    """
+    """Test that create_variant correctly updates the new parameters."""
     config = ADKConfig(model_name="test", temperature=0.5, top_p=0.9)
     retry = RetryPolicy()
 
@@ -111,10 +107,10 @@ def test_create_variant_overrides():
         patch("markov_agent.engine.adk_wrapper.App"),
     ):
         controller = ADKController(config, retry)
-        
+
         # New variant with override
         variant = controller.create_variant(
-            {"temperature": 0.1, "top_p": 0.5, "top_k": 10}
+            {"temperature": 0.1, "top_p": 0.5, "top_k": 10},
         )
 
         # Check variant config

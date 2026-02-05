@@ -22,7 +22,6 @@ def db_tool():
     # If the tool creates its own engine, it won't see the data we inserted if we used a different engine.
 
     # Workaround: Use a temp file db for the test to ensure persistence across connections
-    pass
 
 
 def test_database_tool_safeguard():

@@ -21,7 +21,8 @@ class TraceNode(BaseNode[ExtendedState]):
 
     async def execute(self, state: ExtendedState) -> ExtendedState:
         return state.update(
-            counter=state.counter + self.increment, trace=state.trace + [self.name]
+            counter=state.counter + self.increment,
+            trace=[*state.trace, self.name],
         )
 
 
@@ -49,7 +50,10 @@ async def test_loop_node_condition():
         return s.counter >= 3
 
     loop = LoopNode(
-        name="Loop", body=node_inc, condition=stop_condition, max_iterations=10
+        name="Loop",
+        body=node_inc,
+        condition=stop_condition,
+        max_iterations=10,
     )
 
     initial = ExtendedState(counter=0)
@@ -73,7 +77,10 @@ async def test_loop_node_max_iterations():
         return False
 
     loop = LoopNode(
-        name="LoopMax", body=node_inc, condition=never_stop, max_iterations=5
+        name="LoopMax",
+        body=node_inc,
+        condition=never_stop,
+        max_iterations=5,
     )
 
     initial = ExtendedState(counter=0)

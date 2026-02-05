@@ -6,8 +6,7 @@ from markov_agent.topology.node import BaseNode
 
 
 class AgentAsTool:
-    """
-    Wraps a Markov Agent Node (BaseNode) as a tool for use by other agents.
+    """Wraps a Markov Agent Node (BaseNode) as a tool for use by other agents.
     Allows for Hierarchical Task Decomposition and Explicit Invocation patterns.
     """
 
@@ -18,7 +17,5 @@ class AgentAsTool:
         self._tool = agent_tool.AgentTool(agent=node)
 
     def as_tool_list(self) -> list[Any]:
-        """
-        Returns the wrapped ADK AgentTool in a list.
-        """
+        """Returns the wrapped ADK AgentTool in a list."""
         return [self._tool]

@@ -6,8 +6,8 @@ RouterFunction = Callable[[Any], str | None]
 
 
 class Edge:
-    """
-    Defines a transition between nodes.
+    """Defines a transition between nodes.
+
     Although often just a function, this class can hold metadata about the transition.
     """
 

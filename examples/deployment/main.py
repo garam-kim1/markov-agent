@@ -1,7 +1,6 @@
 import os
 
 import uvicorn
-from app.agent import agent
 from google.adk.cli.fast_api import get_fast_api_app
 
 # Create the FastAPI app from the ADK agent (Graph)

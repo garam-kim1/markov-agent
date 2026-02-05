@@ -6,7 +6,6 @@ from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolic
 @pytest.mark.asyncio
 async def test_retry_transient_failure():
     """Test that transient failures are retried and eventually succeed."""
-
     # Setup mock to fail 2 times then succeed
     attempts = 0
 
@@ -14,7 +13,8 @@ async def test_retry_transient_failure():
         nonlocal attempts
         attempts += 1
         if attempts < 3:
-            raise ValueError(f"Fail attempt {attempts}")
+            msg = f"Fail attempt {attempts}"
+            raise ValueError(msg)
         return "Success"
 
     retry = RetryPolicy(
@@ -36,7 +36,8 @@ async def test_retry_permanent_failure():
     """Test that permanent failures exhaust retries and raise RuntimeError."""
 
     def always_fail(prompt):
-        raise ValueError("Permanent Fail")
+        msg = "Permanent Fail"
+        raise ValueError(msg)
 
     retry = RetryPolicy(max_attempts=3, initial_delay=0.01, backoff_factor=1.0)
     config = ADKConfig(model_name="mock-model")

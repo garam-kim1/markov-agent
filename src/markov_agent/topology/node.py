@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
-from typing import Any, TypeVar, cast
+from typing import Any, Self, TypeVar, cast
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -13,8 +13,8 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class BaseNode[StateT](BaseAgent, ABC):
-    """
-    Abstract Base Node, wrapping google.adk.agents.BaseAgent.
+    """Abstract Base Node, wrapping google.adk.agents.BaseAgent.
+
     Integrates Markov Agent's Pydantic State with ADK's session state.
     """
 
@@ -30,8 +30,8 @@ class BaseNode[StateT](BaseAgent, ABC):
         name: str,
         description: str = "",
         state_type: type[StateT] | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         # BaseAgent expects name, description, sub_agents (list), prompt_config, etc.
         # We pass minimal args here and let subclasses handle specifics
         super().__init__(name=name, description=description, **kwargs)
@@ -39,19 +39,19 @@ class BaseNode[StateT](BaseAgent, ABC):
 
     @abstractmethod
     async def execute(self, state: StateT) -> StateT:
-        """
-        Public API for Markov Agent users.
+        """Public API for Markov Agent users.
+
         Bridges the Pydantic State to ADK's InvocationContext/Session.
         """
-        pass
 
     # We must implement _run_async_impl from BaseAgent (or run_async_impl per SDK)
     # Python SDK usually uses _run_async_impl
     async def _run_async_impl(
-        self, ctx: InvocationContext
+        self,
+        ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
-        """
-        The ADK execution entry point.
+        """Execute the ADK execution entry point.
+
         Subclasses should implement their logic here or in a specialized method.
         If using the Markov Agent wrapper pattern, we bridge to 'execute'.
         """
@@ -73,37 +73,32 @@ class BaseNode[StateT](BaseAgent, ABC):
             # but strictly we should pass the dict if no type is known.
             # However, existing nodes might expect dot-notation.
             class StateProxy:
-                def __init__(self, data):
+                def __init__(self, data: dict[str, Any]) -> None:
                     self.__dict__ = data
 
-                def __getattr__(self, name):
+                def __getattr__(self, name: str) -> Any:
                     return self.__dict__.get(name)
 
-                def update(self, **kwargs):
+                def update(self, **kwargs: Any) -> Self:
                     new_data = self.__dict__.copy()
                     new_data.update(kwargs)
-                    return StateProxy(new_data)
+                    return StateProxy(new_data)  # type: ignore
 
-                def model_dump(self):
+                def model_dump(self) -> dict[str, Any]:
                     return self.__dict__
 
             state_input = StateProxy(ctx.session.state)
 
         # 2. Call execute
-        try:
-            new_state = await self.execute(cast(StateT, state_input))
-        except Exception:
-            # If execute fails (maybe type check), we might yield error
-            # But for now let it raise to debug
-            raise
+        new_state = await self.execute(cast("StateT", state_input))
 
         # 3. Update Session State
         if new_state:
             # Merge updates back
             st: Any = new_state
-            session_state = cast(dict[Any, Any], ctx.session.state)
+            session_state = cast("dict[Any, Any]", ctx.session.state)
             if hasattr(st, "model_dump"):
-                session_state.update(cast(Any, st.model_dump)())
+                session_state.update(cast("Any", st.model_dump)())
             elif isinstance(st, dict):
                 session_state.update(st)
             elif hasattr(st, "__dict__"):

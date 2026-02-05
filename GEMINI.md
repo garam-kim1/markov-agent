@@ -164,9 +164,11 @@ node = ProbabilisticNode(
 )
 ```
 
-### 5.2 State Management
-* **Immutability:** State is the only source of truth. Use `state.update(...)` to return a new instance; never modify state in place.
-* **History:** The `BaseState` automatically tracks history. Use this for debugging, not for application logic (unless building a "memory" feature).
+### 5.3 Comments and Tool Overrides
+* **Comments:** You are encouraged to add high-value comments to explain *why* complex logic exists. Follow the "Code-First, Comment-Second" principle.
+* **Tool Overrides:** If `ruff` or `ty` checks produce false positives or block progress on valid but unconventional code, you may:
+    1. Add inline `# noqa` or `# type: ignore` comments.
+    2. Modify `pyproject.toml` to add specific ignores or configuration overrides for the affected files/patterns.
 
 ---
 

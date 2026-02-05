@@ -23,7 +23,10 @@ async def test_monte_carlo_runner():
 
     dataset = [SimState(value=i) for i in range(5)]
     runner = MonteCarloRunner(
-        graph=graph, dataset=dataset, n_runs=2, success_criteria=lambda s: s.value > 0
+        graph=graph,
+        dataset=dataset,
+        n_runs=2,
+        success_criteria=lambda s: s.value > 0,
     )
 
     results = await runner.run_simulation()

@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, Field
 
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
@@ -13,9 +12,7 @@ class SimulatorState(BaseModel):
 
 
 class UserSimulator:
-    """
-    Simulates a user in a conversation loop.
-    """
+    """Simulates a user in a conversation loop."""
 
     def __init__(
         self,
@@ -31,7 +28,8 @@ class UserSimulator:
 
         # We use ADKController directly to drive the simulator LLM
         self.controller = ADKController(
-            config=self.adk_config, retry_policy=RetryPolicy(max_attempts=3)
+            config=self.adk_config,
+            retry_policy=RetryPolicy(max_attempts=3),
         )
 
         self.system_prompt_template = """
@@ -59,9 +57,7 @@ Your Response:
 """
 
     async def generate_next_turn(self, agent_response: str) -> str:
-        """
-        Generates the next user input based on the agent's response.
-        """
+        """Generates the next user input based on the agent's response."""
         # Update history with agent's response
         if agent_response:
             self.state.history.append({"role": "Agent", "content": agent_response})

@@ -22,7 +22,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
@@ -38,8 +38,31 @@ line-length = 88
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"] # pycodestyle, pyflakes, isort, bugbear, pyupgrade
-ignore = []
+ignore = [
+    "D100",   # Missing docstring in public module
+    "D101",   # Missing docstring in public class
+    "D102",   # Missing docstring in public method
+    "D103",   # Missing docstring in public function
+    "D104",   # Missing docstring in public package
+    "D107",   # Missing docstring in __init__
+    "ANN101", # Missing type annotation for self
+    "ANN102", # Missing type annotation for cls
+    "ANN204", # Missing return type annotation for special method
+    "S101",   # Use of assert detected (needed for tests)
+    "PLR2004",# Magic value used in comparison
+    "ARG005", # Unused lambda argument
+    "PLC0415",# Import should be at the top-level
+    "BLE001", # Do not catch blind exception
+    "COM812", # Trailing comma missing (handled by formatter)
+    "E501",   # Line too long
+    "INP001", # Implicit namespace package
+]
+
+extend-select = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "D", "S", "PLR", "ARG", "FBT", "SLF"]
+"examples/*" = ["ANN", "D", "T201", "PLR", "ARG", "FBT", "BLE", "PTH", "S", "TRY", "EM", "PERF", "SIM"]
 
 [tool.ruff.format]
 quote-style = "double"

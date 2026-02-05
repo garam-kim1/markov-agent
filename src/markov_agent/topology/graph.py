@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -19,15 +19,15 @@ try:
 except ImportError:
 
     class Console:
-        def log(self, *args, **kwargs):
+        def log(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def print(self, *args, **kwargs):
+        def print(self, *args: Any, **kwargs: Any) -> None:
             pass
 
     console = Console()
 
-    def Panel(x, title=None):
+    def Panel(x: Any, title: str | None = None) -> Any:  # noqa: ARG001
         return x
 
 
@@ -35,9 +35,7 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class Graph(BaseAgent):
-    """
-    The execution engine acting as a finite state machine, wrapped as an ADK Agent.
-    """
+    """The execution engine acting as a finite state machine, wrapped as an ADK Agent."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -57,8 +55,8 @@ class Graph(BaseAgent):
         entry_point: str,
         state_type: type[StateT] | None = None,
         input_key: str = "input_text",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(name=name, **kwargs)
         self.nodes = nodes
         self.edges = edges
@@ -69,11 +67,10 @@ class Graph(BaseAgent):
         # self.sub_agents = list(nodes.values())
 
     async def _run_async_impl(
-        self, ctx: InvocationContext
+        self,
+        ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
-        """
-        Executes the graph topology within the ADK runtime.
-        """
+        """Execute the graph topology within the ADK runtime."""
         # 0. Handle Input Injection (ADK API Server support)
         if ctx.user_content and ctx.user_content.parts:
             # Extract text from the first part
@@ -85,7 +82,7 @@ class Graph(BaseAgent):
             if input_text:
                 console.log(
                     f"Injecting input into state['{self.input_key}']: "
-                    f"{input_text[:50]}..."
+                    f"{input_text[:50]}...",
                 )
                 ctx.session.state[self.input_key] = input_text
 
@@ -93,7 +90,7 @@ class Graph(BaseAgent):
         steps = 0
 
         console.log(
-            f"[bold green]Starting Graph Execution[/bold green] at {self.entry_point}"
+            f"[bold green]Starting Graph Execution[/bold green] at {self.entry_point}",
         )
 
         # We need to ensure we are working with the latest state from the session
@@ -108,20 +105,21 @@ class Graph(BaseAgent):
 
             console.log(
                 Panel(
-                    f"Executing Node: [cyan]{current_node_id}[/cyan]", title="Step info"
-                )
+                    f"Executing Node: [cyan]{current_node_id}[/cyan]",
+                    title="Step info",
+                ),
             )
 
             # Execute Node
             # We call the node's ADK implementation directly
             # This allows the node to read/write to ctx.session.state
-            async for event in current_node._run_async_impl(ctx):
+            async for event in current_node._run_async_impl(ctx):  # noqa: SLF001
                 yield event
 
             # Transition Logic
             # We construct the typed state object for the router if possible
 
-            state_obj = ctx.session.state
+            state_obj: Any = ctx.session.state
             if self.state_type:
                 try:
                     state_obj = self.state_type.model_validate(ctx.session.state)
@@ -131,10 +129,10 @@ class Graph(BaseAgent):
             else:
                 # Fallback Proxy
                 class StateProxy:
-                    def __init__(self, data):
+                    def __init__(self, data: dict[str, Any]) -> None:
                         self.__dict__ = data
 
-                    def __getattr__(self, name):
+                    def __getattr__(self, name: str) -> Any:
                         return self.__dict__.get(name)
 
                 state_obj = StateProxy(ctx.session.state)
@@ -156,7 +154,7 @@ class Graph(BaseAgent):
             if next_node_id is None:
                 console.log(
                     f"[bold yellow]Terminal node reached:[/bold yellow] "
-                    f"{current_node_id}"
+                    f"{current_node_id}",
                 )
                 break
 
@@ -167,10 +165,12 @@ class Graph(BaseAgent):
             console.log(f"[bold red]Max steps ({self.max_steps}) reached.[/bold red]")
 
     async def run(
-        self, state: StateT, artifact_service: BaseArtifactService | None = None
+        self,
+        state: StateT,
+        artifact_service: BaseArtifactService | None = None,
     ) -> StateT:
-        """
-        Legacy/Convenience entry point.
+        """Legacy/Convenience entry point.
+
         Wraps the ADK logic in a local execution loop.
         """
         # Create a mock Session and Context

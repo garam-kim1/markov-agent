@@ -1,11 +1,13 @@
+from typing import Any
+
 from markov_agent.topology.edge import Edge
 from markov_agent.topology.graph import Graph
 from markov_agent.topology.node import BaseNode
 
 
 class Chain(Graph):
-    """
-    Standard Linear Chain pattern A -> B -> C.
+    """Standard Linear Chain pattern A -> B -> C.
+
     Automatically creates edges between the provided list of nodes.
     """
 
@@ -14,7 +16,7 @@ class Chain(Graph):
         nodes: list[BaseNode],
         name: str = "Chain",
         state_type: type | None = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         node_dict = {node.name: node for node in nodes}
         edges = []

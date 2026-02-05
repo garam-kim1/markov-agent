@@ -30,10 +30,10 @@ class SetterNode(BaseNode[ParallelState]):
             updates["val"] = self.val
 
         if self.append_a:
-            updates["list_a"] = state.list_a + [self.append_a]
+            updates["list_a"] = [*state.list_a, self.append_a]
 
         if self.append_b:
-            updates["list_b"] = state.list_b + [self.append_b]
+            updates["list_b"] = [*state.list_b, self.append_b]
 
         return state.update(**updates)
 

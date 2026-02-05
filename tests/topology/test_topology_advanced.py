@@ -20,13 +20,14 @@ class SimpleNode(BaseNode[AdvancedState]):
 
     async def execute(self, state: AdvancedState) -> AdvancedState:
         new_value = state.value + self.increment
-        new_path = state.path + [self.name]
+        new_path = [*state.path, self.name]
         return state.update(value=new_value, path=new_path)
 
 
 class ErrorNode(BaseNode[AdvancedState]):
     async def execute(self, state: AdvancedState) -> AdvancedState:
-        raise ValueError("Intentional Failure")
+        msg = "Intentional Failure"
+        raise ValueError(msg)
 
 
 @pytest.mark.asyncio
@@ -41,7 +42,10 @@ async def test_invalid_transition():
     edge_a = Edge(source="A", target_func=route_to_z)
 
     graph = Graph(
-        name="test_graph_invalid", nodes={"A": node_a}, edges=[edge_a], entry_point="A"
+        name="test_graph_invalid",
+        nodes={"A": node_a},
+        edges=[edge_a],
+        entry_point="A",
     )
 
     initial_state = AdvancedState()
@@ -78,7 +82,10 @@ async def test_disconnected_entry():
 
     # No edges provided
     graph = Graph(
-        name="test_graph_disconnected", nodes={"A": node_a}, edges=[], entry_point="A"
+        name="test_graph_disconnected",
+        nodes={"A": node_a},
+        edges=[],
+        entry_point="A",
     )
 
     initial_state = AdvancedState()

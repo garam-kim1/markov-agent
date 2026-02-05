@@ -77,8 +77,7 @@ class DebateState(BaseState):
 
 
 class MockDebateLLM:
-    """
-    Simulates a debate between a Visionary (Optimist) and a Pragmatist (Critic),
+    """Simulates a debate between a Visionary (Optimist) and a Pragmatist (Critic),
     moderated by an Orchestrator.
     """
 
@@ -94,43 +93,46 @@ class MockDebateLLM:
                     "The counterweight can be a captured asteroid, mining it for resources!",
                 ]
                 return json.dumps(
-                    {"thought": "Thinking big...", "proposal": random.choice(responses)}
+                    {
+                        "thought": "Thinking big...",
+                        "proposal": random.choice(responses),
+                    },
                 )
             return json.dumps(
-                {"thought": "Ideating...", "proposal": "Let's build a Dyson Sphere!"}
+                {"thought": "Ideating...", "proposal": "Let's build a Dyson Sphere!"},
             )
 
-        elif "You are a Pragmatist" in prompt:
+        if "You are a Pragmatist" in prompt:
             # Pragmatist Logic
             if "nanotube" in prompt:
                 return json.dumps(
                     {
                         "thought": "Checking physics...",
                         "critique": "Current material science cannot produce nanotubes of that length without defects. It will snap.",
-                    }
+                    },
                 )
             if "luxury hotel" in prompt:
                 return json.dumps(
                     {
                         "thought": "Checking budget...",
                         "critique": "The radiation shielding requirements for a hotel at that altitude make the payload mass prohibitive.",
-                    }
+                    },
                 )
             if "asteroid" in prompt:
                 return json.dumps(
                     {
                         "thought": "Checking safety...",
                         "critique": "Capturing an asteroid poses an unacceptable risk of orbital decay and impact.",
-                    }
+                    },
                 )
             return json.dumps(
                 {
                     "thought": "Being skeptical...",
                     "critique": "That sounds incredibly expensive and risky.",
-                }
+                },
             )
 
-        elif "You are the Moderator" in prompt:
+        if "You are the Moderator" in prompt:
             # Moderator Logic
             # Check context from prompt (simplistic check for mock)
             if "round: 3" in prompt or "round: 4" in prompt or "round: 5" in prompt:
@@ -139,7 +141,7 @@ class MockDebateLLM:
                         "analysis": "Enough discussion.",
                         "decision": "consensus",
                         "summary": "We agreed to focus on material science R&D before construction.",
-                    }
+                    },
                 )
 
             # Routing based on last speaker in history
@@ -153,26 +155,25 @@ class MockDebateLLM:
                         "analysis": "Visionary proposed.",
                         "decision": "pragmatist",
                         "summary": "",
-                    }
+                    },
                 )
-            elif last_pragmatist > last_visionary:
+            if last_pragmatist > last_visionary:
                 # Pragmatist spoke last
                 return json.dumps(
                     {
                         "analysis": "Critique received.",
                         "decision": "visionary",
                         "summary": "",
-                    }
+                    },
                 )
-            else:
-                # Neither found (start) or equal (impossible if strictly alternating lines)
-                return json.dumps(
-                    {
-                        "analysis": "Starting debate.",
-                        "decision": "visionary",
-                        "summary": "",
-                    }
-                )
+            # Neither found (start) or equal (impossible if strictly alternating lines)
+            return json.dumps(
+                {
+                    "analysis": "Starting debate.",
+                    "decision": "visionary",
+                    "summary": "",
+                },
+            )
 
         return "{}"
 
@@ -210,10 +211,10 @@ visionary = ProbabilisticNode(
     adk_config=COMMON_CONFIG,
     prompt_template="""
     You are a Visionary. Propose innovative solutions for the topic: {{ topic }}.
-    
+
     Current Context:
     {{ state.get_context() }}
-    
+
     Respond with a JSON object containing 'thought' and 'proposal'.
     """,
     output_schema=VisionaryOutput,
@@ -229,10 +230,10 @@ pragmatist = ProbabilisticNode(
     adk_config=COMMON_CONFIG,
     prompt_template="""
     You are a Pragmatist. Critique the Visionary's ideas based on feasibility and cost.
-    
+
     Current Context:
     {{ state.get_context() }}
-    
+
     Respond with a JSON object containing 'thought' and 'critique'.
     """,
     output_schema=PragmatistOutput,
@@ -250,13 +251,13 @@ moderator = ProbabilisticNode(
     You are the Moderator. Analyze the debate.
     Topic: {{ topic }}
     Round: {{ round }}
-    
+
     History:
     {{ state.get_context() }}
-    
+
     Decide who speaks next: 'visionary' or 'pragmatist'.
     If they have reached agreement or if it's round 3, decide 'consensus'.
-    
+
     Respond with JSON: 'analysis', 'decision', 'summary' (only if consensus).
     """,
     output_schema=ModeratorOutput,
@@ -305,7 +306,7 @@ async def main():
         Panel.fit(
             "[bold magenta]Complex Agent Example: Deep Dialogue Debate[/bold magenta]",
             subtitle="Orchestrated by Markov Graph",
-        )
+        ),
     )
 
     initial_state = DebateState(topic="Feasibility of Space Elevators")

@@ -4,9 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class EvalCase(BaseModel):
-    """
-    Represents a single evaluation scenario.
-    """
+    """Represents a single evaluation scenario."""
 
     id: str = Field(..., description="Unique identifier for this test case.")
     description: str = Field(..., description="What this case tests.")
@@ -15,17 +13,17 @@ class EvalCase(BaseModel):
         description="Description of the simulated user (e.g., 'Impatient traveler').",
     )
     user_goal: str = Field(
-        ..., description="The specific objective the simulated user wants to achieve."
+        ...,
+        description="The specific objective the simulated user wants to achieve.",
     )
     expected_outcome: str | None = Field(
-        None, description="Description of the ideal result."
+        None,
+        description="Description of the ideal result.",
     )
 
 
 class TurnResult(BaseModel):
-    """
-    Captures a single exchange in the conversation.
-    """
+    """Captures a single exchange in the conversation."""
 
     user_input: str
     agent_response: str
@@ -33,18 +31,14 @@ class TurnResult(BaseModel):
 
 
 class EvaluationMetrics(BaseModel):
-    """
-    Metrics calculated for a session.
-    """
+    """Metrics calculated for a session."""
 
     scores: dict[str, float] = Field(default_factory=dict)
     details: dict[str, Any] = Field(default_factory=dict)
 
 
 class SessionResult(BaseModel):
-    """
-    The outcome of running one EvalCase.
-    """
+    """The outcome of running one EvalCase."""
 
     case_id: str
     success: bool

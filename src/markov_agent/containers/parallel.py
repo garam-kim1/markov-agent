@@ -1,6 +1,7 @@
 import asyncio
+import copy
 from collections.abc import AsyncGenerator
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
@@ -12,8 +13,8 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class ParallelNode(BaseNode[StateT]):
-    """
-    Executes a list of nodes in parallel.
+    """Executes a list of nodes in parallel.
+
     Merges the resulting state updates.
     """
 
@@ -22,28 +23,28 @@ class ParallelNode(BaseNode[StateT]):
         name: str,
         nodes: list[BaseNode],
         state_type: type[StateT] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         super().__init__(name=name, state_type=state_type)
         self.nodes = nodes
 
     async def _run_async_impl(
-        self, ctx: InvocationContext
+        self,
+        ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
-        """
-        Executes sub-nodes in parallel with state isolation.
+        """Execute sub-nodes in parallel with state isolation.
+
         We snapshot the state, run each node in its own isolated context,
         and then merge the updates back to the main session.
         """
-        import asyncio
-        import copy
-
         from google.adk.sessions import Session
 
         # 1. Snapshot State
         initial_state = copy.deepcopy(ctx.session.state)
 
-        async def run_node_isolated(node):
+        async def run_node_isolated(
+            node: BaseNode,
+        ) -> tuple[list[Event], dict[str, Any]]:
             # Create isolated session/context
             # Note: We share session_service but use a distinct session ID
             # logic or just a transient session object
@@ -61,15 +62,13 @@ class ParallelNode(BaseNode[StateT]):
                 agent=node,
             )
 
-            events = []
-            async for event in node._run_async_impl(isolated_context):
-                events.append(event)
+            events = [event async for event in node._run_async_impl(isolated_context)]  # noqa: SLF001
 
             return events, isolated_session.state
 
         # 2. Run in parallel
         results = await asyncio.gather(
-            *(run_node_isolated(node) for node in self.nodes)
+            *(run_node_isolated(node) for node in self.nodes),
         )
 
         # 3. Process Results and Merge
@@ -80,20 +79,20 @@ class ParallelNode(BaseNode[StateT]):
                 yield event
 
             # Identify changes
-            for key, value in final_node_state.items():
-                if value != initial_state.get(key):
-                    # Last writer wins logic for conflicts, but with parallel
-                    # branches usually touching different keys.
-                    # In a real conflict, we might need a better strategy,
-                    # but this mimics 'execute' logic.
-                    merged_updates[key] = value
+            merged_updates.update(
+                {
+                    key: value
+                    for key, value in final_node_state.items()
+                    if value != initial_state.get(key)
+                }
+            )
 
         # 4. Update Main State
         ctx.session.state.update(merged_updates)
 
     async def execute(self, state: StateT) -> StateT:
-        """
-        Runs all sub-nodes in parallel using the initial state.
+        """Run all sub-nodes in parallel using the initial state.
+
         Then merges the changes from each branch back into the main state.
         """
         # 1. Execute all nodes concurrently
@@ -103,15 +102,17 @@ class ParallelNode(BaseNode[StateT]):
         # Since State is immutable (Pydantic), we detect changes by comparing
         # the result state dictionaries with the initial state dictionary.
         initial_dump = state.model_dump()
-        merged_updates = {}
 
+        merged_updates = {}
         for res in results:
             res_dump = res.model_dump()
-            for key, value in res_dump.items():
-                # If value changed from initial, we want to keep it
-                if value != initial_dump.get(key):
-                    # Potential conflict check could go here
-                    merged_updates[key] = value
+            merged_updates.update(
+                {
+                    key: value
+                    for key, value in res_dump.items()
+                    if value != initial_dump.get(key)
+                }
+            )
 
         # 3. Create new state with merged updates
         return state.update(**merged_updates)

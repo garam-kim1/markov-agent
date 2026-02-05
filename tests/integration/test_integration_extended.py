@@ -28,9 +28,7 @@ class CountNode(BaseNode):
 
 @pytest.mark.asyncio
 async def test_graph_max_steps_termination():
-    """
-    Test that an infinite loop (A->B->A) terminates at exactly max_steps.
-    """
+    """Test that an infinite loop (A->B->A) terminates at exactly max_steps."""
     node_a = CountNode(name="A")
     node_b = CountNode(name="B")
 
@@ -70,9 +68,7 @@ async def test_graph_max_steps_termination():
 
 
 def test_litellm_initialization():
-    """
-    Verify that ADKController initializes LiteLLM when use_litellm=True.
-    """
+    """Verify that ADKController initializes LiteLLM when use_litellm=True."""
     config = ADKConfig(
         model_name="openai/gpt-4o",
         use_litellm=True,
@@ -93,7 +89,7 @@ def test_litellm_initialization():
                         ADKController(config, retry)
 
             MockLiteLlm.assert_called_once()
-            _, kwargs = MockLiteLlm.call_args
+            _, _kwargs = MockLiteLlm.call_args
 
 
 # --- State Proxy Test ---
@@ -101,8 +97,7 @@ def test_litellm_initialization():
 
 @pytest.mark.asyncio
 async def test_graph_state_proxy_fallback():
-    """
-    Verify that if state_type is None, the graph creates a proxy
+    """Verify that if state_type is None, the graph creates a proxy
     that allows attribute access.
     """
     node_a = CountNode(name="A")

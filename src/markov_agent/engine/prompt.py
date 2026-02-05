@@ -2,9 +2,7 @@ from jinja2 import BaseLoader, Environment
 
 
 class PromptEngine:
-    """
-    Jinja2-based structured prompting.
-    """
+    """Jinja2-based structured prompting."""
 
     def __init__(self):
         self.env = Environment(loader=BaseLoader())

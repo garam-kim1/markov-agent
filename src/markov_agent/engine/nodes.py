@@ -1,16 +1,22 @@
+from typing import Any
+
 from markov_agent.engine.adk_wrapper import ADKConfig
 from markov_agent.engine.ppu import ProbabilisticNode
 from markov_agent.tools.search import GoogleSearchTool
 
 
 class SearchNode(ProbabilisticNode):
-    """
-    A ProbabilisticNode pre-configured with Google Search capabilities.
+    """A ProbabilisticNode pre-configured with Google Search capabilities.
+
     Uses the native Google ADK GoogleSearchTool.
     """
 
     def __init__(
-        self, name: str, adk_config: ADKConfig, prompt_template: str, **kwargs
+        self,
+        name: str,
+        adk_config: ADKConfig,
+        prompt_template: str,
+        **kwargs: Any,
     ):
         # Ensure tools list exists
         if adk_config.tools is None:
@@ -23,5 +29,8 @@ class SearchNode(ProbabilisticNode):
         adk_config.tools.extend(search_tool_wrapper.as_tool_list())
 
         super().__init__(
-            name=name, adk_config=adk_config, prompt_template=prompt_template, **kwargs
+            name=name,
+            adk_config=adk_config,
+            prompt_template=prompt_template,
+            **kwargs,
         )

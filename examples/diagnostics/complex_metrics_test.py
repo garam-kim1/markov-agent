@@ -22,7 +22,7 @@ This script simulates a "Code Generation Agent" evaluating its performance on a 
 - Consistency (pass^k): Probability that k random attempts are ALL correct.
 - Reliability (pass@k): Probability that at least ONE of k attempts is correct.
 
-We use a ProbabilisticNode with a mock responder that fails stochastically based 
+We use a ProbabilisticNode with a mock responder that fails stochastically based
 on the problem's complexity.
 """
 
@@ -57,8 +57,7 @@ def code_gen_mock_responder(prompt: str) -> dict:
 
     if is_success:
         return {"code": "def solution(): return True", "valid": True}
-    else:
-        return {"code": "def solution(): raise Exception()", "valid": False}
+    return {"code": "def solution(): raise Exception()", "valid": False}
 
 
 # 3. State Updater for Code Generation
@@ -73,7 +72,7 @@ def update_code_state(state: CodeState, result: Any) -> CodeState:
 
 async def run_demo():
     console.print(
-        "[bold blue]Running Code Generation Simulation: Pass@k vs Pass^k[/bold blue]"
+        "[bold blue]Running Code Generation Simulation: Pass@k vs Pass^k[/bold blue]",
     )
 
     # Topology setup
@@ -149,10 +148,12 @@ def print_metrics_table(metrics: dict[str, Any]):
     summary.add_row("Total Runs", str(metrics["total_runs"]))
     summary.add_row("Global Accuracy (pass@1)", f"{metrics['accuracy']:.2%}")
     summary.add_row(
-        "Strict Consistency (all runs pass)", f"{metrics['consistency']:.2%}"
+        "Strict Consistency (all runs pass)",
+        f"{metrics['consistency']:.2%}",
     )
     summary.add_row(
-        "Global Reliability (at least one pass)", f"{metrics['reliability']:.2%}"
+        "Global Reliability (at least one pass)",
+        f"{metrics['reliability']:.2%}",
     )
 
     console.print(summary)

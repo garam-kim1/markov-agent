@@ -1,3 +1,4 @@
+import contextlib
 from collections.abc import AsyncGenerator, Callable
 from typing import Any, TypeVar
 
@@ -21,8 +22,7 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class ProbabilisticNode(BaseNode[StateT]):
-    """
-    A node that uses a Probabilistic Processing Unit (LLM via ADK)
+    """A node that uses a Probabilistic Processing Unit (LLM via ADK)
     to determine the next state.
     """
 
@@ -47,11 +47,11 @@ class ProbabilisticNode(BaseNode[StateT]):
         sampling_strategy: SamplingStrategy = SamplingStrategy.UNIFORM,
         selector: Callable[[list[Any]], Any] | None = None,
         retry_policy: RetryPolicy | None = None,
-        mock_responder=None,
-        state_updater=None,
+        mock_responder: Callable[[str], Any] | None = None,
+        state_updater: Callable[[Any, Any], Any] | None = None,
         state_type: type[StateT] | None = None,
         artifact_service: BaseArtifactService | None = None,
-    ):
+    ) -> None:
         super().__init__(name, state_type=state_type)
         self.adk_config = adk_config
         self.prompt_template = prompt_template
@@ -83,12 +83,10 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
 
     async def _run_async_impl(
-        self, ctx: InvocationContext
+        self,
+        ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
-        """
-        Executes the PPU logic within the ADK runtime.
-        """
-
+        """Execute the PPU logic within the ADK runtime."""
         # 1. Access State (Dict or Typed)
         # ctx.session.state is a dict
         state_dict = ctx.session.state
@@ -99,10 +97,8 @@ class ProbabilisticNode(BaseNode[StateT]):
             try:
                 state_obj = self.state_type.model_validate(state_dict)
             except Exception:
-                try:
+                with contextlib.suppress(Exception):
                     state_obj = self.state_type.construct(**state_dict)
-                except Exception:
-                    pass
 
         # 2. Render Prompt
         render_kwargs = {}
@@ -112,10 +108,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         elif isinstance(state_dict, dict):
             render_kwargs.update(state_dict)
 
-        try:
-            prompt = self.prompt_engine.render(self.prompt_template, **render_kwargs)
-        except Exception:
-            raise
+        prompt = self.prompt_engine.render(self.prompt_template, **render_kwargs)
 
         # 3. Generate Varied Configs (Explore/Exploit Strategy)
         base_gen_config = self.adk_config.generation_config or {}
@@ -131,7 +124,9 @@ class ProbabilisticNode(BaseNode[StateT]):
             base_gen_config["top_p"] = self.adk_config.top_p
 
         varied_configs = generate_varied_configs(
-            base_gen_config, self.samples, self.sampling_strategy
+            base_gen_config,
+            self.samples,
+            self.sampling_strategy,
         )
 
         # 4. Create Generation Tasks (Factories)
@@ -145,7 +140,7 @@ class ProbabilisticNode(BaseNode[StateT]):
                 controller_to_use = self.controller.create_variant(cfg)
 
             # Closure to capture the specific controller
-            def make_task(c=controller_to_use):
+            def make_task(c: ADKController = controller_to_use) -> Any:
                 return c.generate(
                     prompt,
                     output_schema=self.output_schema,
@@ -157,7 +152,9 @@ class ProbabilisticNode(BaseNode[StateT]):
 
         # 5. Execute Parallel Sampling
         result = await execute_parallel_sampling(
-            generate_func=task_factories, k=self.samples, selector_func=self.selector
+            generate_func=task_factories,
+            k=self.samples,
+            selector_func=self.selector,
         )
 
         # 6. Update State
@@ -197,7 +194,7 @@ class ProbabilisticNode(BaseNode[StateT]):
                 if "history" not in ctx.session.state:
                     ctx.session.state["history"] = []
                 ctx.session.state["history"].append(
-                    {"node": self.name, "output": output_payload}
+                    {"node": self.name, "output": output_payload},
                 )
                 if isinstance(output_payload, dict):
                     ctx.session.state.update(output_payload)
@@ -221,8 +218,8 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
 
     async def execute(self, state: StateT) -> StateT:
-        """
-        Legacy/Convenience wrapper.
+        """Legacy/Convenience wrapper.
+
         Runs logic directly on the State object, bypassing ADK runner.
         Respects SamplingStrategy.
         """
@@ -240,7 +237,9 @@ class ProbabilisticNode(BaseNode[StateT]):
             base_gen_config["top_p"] = self.adk_config.top_p
 
         varied_configs = generate_varied_configs(
-            base_gen_config, self.samples, self.sampling_strategy
+            base_gen_config,
+            self.samples,
+            self.sampling_strategy,
         )
 
         task_factories = []
@@ -250,7 +249,7 @@ class ProbabilisticNode(BaseNode[StateT]):
             else:
                 controller_to_use = self.controller.create_variant(cfg)
 
-            def make_task(c=controller_to_use):
+            def make_task(c: ADKController = controller_to_use) -> Any:
                 return c.generate(
                     prompt,
                     output_schema=self.output_schema,
@@ -261,7 +260,9 @@ class ProbabilisticNode(BaseNode[StateT]):
             task_factories.append(make_task)
 
         result = await execute_parallel_sampling(
-            generate_func=task_factories, k=self.samples, selector_func=self.selector
+            generate_func=task_factories,
+            k=self.samples,
+            selector_func=self.selector,
         )
 
         return self.parse_result(state, result)

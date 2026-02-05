@@ -13,9 +13,7 @@ class Score(BaseModel):
 
 
 class CriteriaEvaluator:
-    """
-    Evaluates agent performance based on specific criteria using an LLM.
-    """
+    """Evaluates agent performance based on specific criteria using an LLM."""
 
     def __init__(self, adk_config: ADKConfig):
         self.adk_config = adk_config
@@ -32,7 +30,7 @@ class CriteriaEvaluator:
         self.controller = ADKController(
             config=self.adk_config,
             retry_policy=RetryPolicy(max_attempts=3),
-            output_schema=Score
+            output_schema=Score,
         )
 
         self.rubric_template = """
@@ -56,11 +54,13 @@ Provide your reasoning and the final score in JSON format.
 """
 
     async def evaluate_criteria(
-        self, response: str, context: dict[str, Any], criteria: str, rule: str = ""
+        self,
+        response: str,
+        context: dict[str, Any],
+        criteria: str,
+        rule: str = "",
     ) -> Score:
-        """
-        Scores the agent's response against a specific criteria.
-        """
+        """Scores the agent's response against a specific criteria."""
         # Default rules if not provided
         if not rule:
             if criteria.lower() == "relevance":
@@ -90,4 +90,5 @@ Provide your reasoning and the final score in JSON format.
         if isinstance(result, dict):
             return Score(**result)
 
-        raise ValueError(f"Unexpected result type from evaluator: {type(result)}")
+        msg = f"Unexpected result type from evaluator: {type(result)}"
+        raise ValueError(msg)

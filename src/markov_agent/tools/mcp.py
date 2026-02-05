@@ -6,8 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class MCPServerConfig(BaseModel):
-    """
-    Configuration for an MCP Server connection.
+    """Configuration for an MCP Server connection.
     Supports both STDIO (local) and HTTP (remote) connections.
     """
 
@@ -27,8 +26,7 @@ class MCPServerConfig(BaseModel):
 
 
 class MCPTool:
-    """
-    A wrapper around Google ADK's McpToolset.
+    """A wrapper around Google ADK's McpToolset.
     Enables agents to use tools from Model Context Protocol servers.
     """
 
@@ -37,35 +35,40 @@ class MCPTool:
         self._toolset = None
         self._init_toolset()
 
-    def _init_toolset(self):
+    def _init_toolset(self) -> None:
         connection_params = None
 
         if self.config.type == "stdio":
             if not self.config.command:
-                raise ValueError("Command is required for stdio MCP server.")
+                msg = "Command is required for stdio MCP server."
+                raise ValueError(msg)
             connection_params = StdioServerParameters(
-                command=self.config.command, args=self.config.args, env=self.config.env
+                command=self.config.command,
+                args=self.config.args,
+                env=self.config.env,
             )
-        elif self.config.type == "http" or self.config.type == "sse":
+        elif self.config.type in {"http", "sse"}:
             # Note: At runtime, we need to import the correct params class
             # This relies on google-adk's internal dependencies or mcp-python
             from mcp.client.sse import SseConnectionParams  # type: ignore
 
             # Assuming basic HTTP/SSE params structure
             connection_params = SseConnectionParams(
-                url=self.config.url, headers=self.config.headers or {}
+                url=self.config.url,
+                headers=self.config.headers or {},
             )
 
         if not connection_params:
-            raise ValueError(f"Unsupported MCP type: {self.config.type}")
+            msg = f"Unsupported MCP type: {self.config.type}"
+            raise ValueError(msg)
 
         self._toolset = McpToolset(
-            connection_params=connection_params, tool_filter=self.config.tool_filter
+            connection_params=connection_params,
+            tool_filter=self.config.tool_filter,
         )
 
     def as_tool_list(self) -> list[Any]:
-        """
-        Returns the tools managed by McpToolset.
+        """Returns the tools managed by McpToolset.
         ADK's McpToolset implements the Toolset interface which likely
         exposes methods or can be passed directly.
         """

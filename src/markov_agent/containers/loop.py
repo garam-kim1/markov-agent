@@ -11,8 +11,8 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class LoopNode(BaseNode[StateT]):
-    """
-    Executes a node (or chain of nodes) repeatedly until a condition is met
+    """Executes a node (or chain of nodes) repeatedly until a condition is met
+
     or max_iterations is reached.
     """
 
@@ -23,15 +23,15 @@ class LoopNode(BaseNode[StateT]):
         condition: Callable[[StateT], bool],
         max_iterations: int = 10,
         state_type: type[StateT] | None = None,
-        **kwargs,
     ):
-        """
-        Args:
-            name: Node name.
-            body: The node to execute in the loop.
-            condition: A function that returns True if the loop should STOP.
-            max_iterations: Maximum number of iterations.
-            state_type: The Pydantic model class for the state.
+        """Args:
+
+        name: Node name.
+        body: The node to execute in the loop.
+        condition: A function that returns True if the loop should STOP.
+        max_iterations: Maximum number of iterations.
+        state_type: The Pydantic model class for the state.
+
         """
         super().__init__(name=name, state_type=state_type)
         self.body = body
@@ -39,14 +39,15 @@ class LoopNode(BaseNode[StateT]):
         self.max_iterations = max_iterations
 
     async def _run_async_impl(
-        self, ctx: InvocationContext
+        self,
+        ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
         # Create a proxy for condition checking or use typed state
         class StateProxy:
-            def __init__(self, data):
+            def __init__(self, data: dict[str, Any]):
                 self.__dict__ = data
 
-            def __getattr__(self, name):
+            def __getattr__(self, name: str):
                 return self.__dict__.get(name)
 
         for _ in range(self.max_iterations):
@@ -60,7 +61,7 @@ class LoopNode(BaseNode[StateT]):
             else:
                 state_obj = StateProxy(ctx.session.state)
 
-            if self.condition(cast(StateT, state_obj)):
+            if self.condition(cast("StateT", state_obj)):
                 break
 
             async for event in self.body._run_async_impl(ctx):

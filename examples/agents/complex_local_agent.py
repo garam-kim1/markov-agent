@@ -91,21 +91,21 @@ class MockLLM:
                         "What are the basics of quantum computing?",
                         "How does quantum computing affect encryption?",
                         "What are post-quantum cryptographic methods?",
-                    ]
-                }
+                    ],
+                },
             )
-        elif "Answer the following question" in prompt:
+        if "Answer the following question" in prompt:
             return json.dumps(
                 {
                     "answer": "Quantum computers can factor large integers efficiently using Shor's algorithm, threatening RSA.",
                     "confidence": 0.95,
-                }
+                },
             )
-        elif "Create a final answer" in prompt:
+        if "Create a final answer" in prompt:
             return json.dumps(
                 {
-                    "summary": "Quantum computing poses a significant threat to classical cryptography like RSA. However, post-quantum cryptography is being developed to mitigate these risks."
-                }
+                    "summary": "Quantum computing poses a significant threat to classical cryptography like RSA. However, post-quantum cryptography is being developed to mitigate these risks.",
+                },
             )
         return "{}"
 
@@ -121,9 +121,9 @@ planner = ProbabilisticNode(
     prompt_template="""
     You are a research planner.
     Break down the user's query into 3 distinct, logical research questions.
-    
+
     User Query: {{ query }}
-    
+
     Return JSON format with a 'steps' list of strings.
     """,
     output_schema=PlanOutput,
@@ -139,9 +139,9 @@ executor = ProbabilisticNode(
     adk_config=LOCAL_LLM_CONFIG,
     prompt_template="""
     Answer the following question concisely based on general knowledge.
-    
+
     Question: {{ plan[current_step_index].question }}
-    
+
     Return JSON with 'answer' and 'confidence' (0.0 to 1.0).
     """,
     output_schema=AnswerOutput,
@@ -157,15 +157,15 @@ synthesizer = ProbabilisticNode(
     adk_config=LOCAL_LLM_CONFIG,
     prompt_template="""
     Create a final answer for the original query based on the research steps.
-    
+
     Original Query: {{ query }}
-    
+
     Research Findings:
     {% for step in plan %}
     - Q: {{ step.question }}
       A: {{ step.answer }}
     {% endfor %}
-    
+
     Return JSON with a 'summary' field.
     """,
     output_schema=ReportOutput,
@@ -221,7 +221,7 @@ async def main():
 
     # Initial State
     initial_state = ResearchState(
-        query="Explain the impact of quantum computing on cryptography."
+        query="Explain the impact of quantum computing on cryptography.",
     )
 
     try:

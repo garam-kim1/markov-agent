@@ -1,13 +1,14 @@
 import asyncio
 import os
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from typing import Any, TypeVar
 
 from google.adk.agents import Agent
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
+from google.adk.events import Event
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -49,8 +50,8 @@ class RetryPolicy(BaseModel):
 
 
 class ADKController:
-    """
-    Wrapper around google_adk.Agent and Runner.
+    """Wrapper around google_adk.Agent and Runner.
+
     Manages configuration, retries, and interaction with the underlying model.
     """
 
@@ -58,10 +59,10 @@ class ADKController:
         self,
         config: ADKConfig,
         retry_policy: RetryPolicy,
-        mock_responder=None,
+        mock_responder: Callable[[str], Any] | None = None,
         output_schema: Any | None = None,
         artifact_service: BaseArtifactService | None = None,
-    ):
+    ) -> None:
         self.config = config
         self.retry_policy = retry_policy
         self.mock_responder = mock_responder
@@ -113,7 +114,7 @@ class ADKController:
 
         # Split config into Safe (for GenerateContentConfig) and Extra (for LiteLLM)
         # Based on google.genai.types.GenerateContentConfig and LiteLLM wrapper support
-        SAFE_GEN_CONFIG_KEYS = {
+        safe_gen_config_keys = {
             "temperature",
             "top_p",
             "top_k",
@@ -133,7 +134,7 @@ class ADKController:
         extra_kwargs = {}
 
         for k, v in model_config.items():
-            if k in SAFE_GEN_CONFIG_KEYS:
+            if k in safe_gen_config_keys:
                 safe_config[k] = v
             else:
                 extra_kwargs[k] = v
@@ -144,14 +145,13 @@ class ADKController:
             from google.adk.models.lite_llm import LiteLlm
 
             # Setup environment for LiteLLM if api_base provided
-            if self.config.api_base:
+            if self.config.api_base and self.config.model_name.startswith("openai/"):
                 # Assuming OpenAI-compatible local server if using openai/ prefix
-                if self.config.model_name.startswith("openai/"):
-                    os.environ["OPENAI_API_BASE"] = self.config.api_base
-                    if self.config.api_key:
-                        os.environ["OPENAI_API_KEY"] = self.config.api_key
-                    elif "OPENAI_API_KEY" not in os.environ:
-                        os.environ["OPENAI_API_KEY"] = "dummy"
+                os.environ["OPENAI_API_BASE"] = self.config.api_base
+                if self.config.api_key:
+                    os.environ["OPENAI_API_KEY"] = self.config.api_key
+                elif "OPENAI_API_KEY" not in os.environ:
+                    os.environ["OPENAI_API_KEY"] = "dummy"
 
             # Pass extra_kwargs to LiteLlm constructor (e.g. min_p)
             model_instance = LiteLlm(model=self.config.model_name, **extra_kwargs)
@@ -200,10 +200,11 @@ class ADKController:
         )
 
     def create_variant(
-        self, generation_config_override: dict[str, Any]
+        self,
+        generation_config_override: dict[str, Any],
     ) -> "ADKController":
-        """
-        Creates a new ADKController instance with specific generation config overrides.
+        """Create a new ADKController instance with specific generation config overrides.
+
         Useful for adaptive sampling (changing temperature/top_p).
         """
         new_config = self.config.model_copy(deep=True)
@@ -243,14 +244,14 @@ class ADKController:
         initial_state: dict[str, Any] | None = None,
         include_state: bool = False,
     ) -> Any | tuple[Any, dict[str, Any]]:
-        """
-        Generates content with retry logic using the ADK Runner.
+        """Generate content with retry logic using the ADK Runner.
+
         If output_schema is provided, attempts to generate and parse JSON.
         Returns the result, or a tuple of (result, updated_session_state)
         if include_state is True.
         """
 
-        async def run_attempt():
+        async def run_attempt() -> tuple[Any, dict[str, Any]]:
             if self.mock_responder:
                 res = self.mock_responder(prompt)
                 if asyncio.iscoroutine(res):
@@ -274,7 +275,9 @@ class ADKController:
 
             final_text = ""
             async for event in self.runner.run_async(
-                user_id="system", session_id=session_id, new_message=content
+                user_id="system",
+                session_id=session_id,
+                new_message=content,
             ):
                 if event.is_final_response():
                     if event.content and event.content.parts:
@@ -285,7 +288,9 @@ class ADKController:
 
             # Retrieve final state
             final_session = await self.session_service.get_session(
-                app_name="markov_agent", user_id="system", session_id=session_id
+                app_name="markov_agent",
+                user_id="system",
+                session_id=session_id,
             )
             final_state = final_session.state if final_session else {}
 
@@ -308,12 +313,10 @@ class ADKController:
                     # even with structured output enforced
                     if cleaned_text.startswith("```json"):
                         cleaned_text = cleaned_text.replace("```json", "", 1)
-                        if cleaned_text.endswith("```"):
-                            cleaned_text = cleaned_text[:-3]
+                        cleaned_text = cleaned_text.removesuffix("```")
                     elif cleaned_text.startswith("```"):
                         cleaned_text = cleaned_text.replace("```", "", 1)
-                        if cleaned_text.endswith("```"):
-                            cleaned_text = cleaned_text[:-3]
+                        cleaned_text = cleaned_text.removesuffix("```")
 
                     result = output_schema.model_validate_json(cleaned_text.strip())
 
@@ -327,6 +330,8 @@ class ADKController:
                 if attempt < self.retry_policy.max_attempts:
                     await asyncio.sleep(current_delay)
                     current_delay *= self.retry_policy.backoff_factor
+            else:
+                break
 
         msg = f"Failed to generate after {self.retry_policy.max_attempts} attempts"
         raise RuntimeError(msg) from last_error
@@ -337,9 +342,9 @@ class ADKController:
         session_id: str | None = None,
         user_id: str = "system",
         initial_state: dict[str, Any] | None = None,
-    ):
-        """
-        Exposes the underlying ADK event stream.
+    ) -> AsyncGenerator[Event, None]:
+        """Expose the underlying ADK event stream.
+
         This allows for real-time handling of tool calls, streaming responses, and more.
         """
         if session_id is None:
@@ -356,15 +361,19 @@ class ADKController:
         content = types.Content(role="user", parts=[types.Part(text=prompt)])
 
         async for event in self.runner.run_async(
-            user_id=user_id, session_id=session_id, new_message=content
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content,
         ):
             yield event
 
-    async def get_session_events(self, session_id: str, user_id: str = "system"):
-        """
-        Retrieves the history of events for a given session.
-        """
+    async def get_session_events(
+        self, session_id: str, user_id: str = "system"
+    ) -> list[Event]:
+        """Retrieve the history of events for a given session."""
         session = await self.session_service.get_session(
-            app_name="markov_agent", user_id=user_id, session_id=session_id
+            app_name="markov_agent",
+            user_id=user_id,
+            session_id=session_id,
         )
         return session.events if session else []

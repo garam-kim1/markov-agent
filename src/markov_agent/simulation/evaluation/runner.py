@@ -13,21 +13,15 @@ from markov_agent.simulation.evaluation.simulator import UserSimulator
 
 
 class TargetAgent(Protocol):
-    """
-    Abstract interface for any agent being evaluated.
-    """
+    """Abstract interface for any agent being evaluated."""
 
     async def generate_response(self, user_input: str, history: list[Any]) -> str:
-        """
-        Produce a response to the user's input.
-        """
+        """Produce a response to the user's input."""
         ...
 
 
 class EvaluationRunner:
-    """
-    Orchestrates the evaluation of an agent against a dataset of test cases.
-    """
+    """Orchestrates the evaluation of an agent against a dataset of test cases."""
 
     def __init__(
         self,
@@ -43,9 +37,7 @@ class EvaluationRunner:
         self.evaluator = CriteriaEvaluator(evaluator_config)
 
     async def run_suite(self, dataset: list[EvalCase]) -> list[SessionResult]:
-        """
-        Runs the full evaluation suite.
-        """
+        """Runs the full evaluation suite."""
         results = []
         for case in dataset:
             result = await self.run_case(case)
@@ -53,9 +45,7 @@ class EvaluationRunner:
         return results
 
     async def run_case(self, case: EvalCase) -> SessionResult:
-        """
-        Runs a single evaluation case.
-        """
+        """Runs a single evaluation case."""
         simulator = UserSimulator(
             persona=case.user_persona,
             goal=case.user_goal,
@@ -82,7 +72,8 @@ class EvaluationRunner:
                 # We update agent history representation as needed by implementation
                 # Here we pass a list, but the wrapper might handle it differently
                 agent_response = await self.agent.generate_response(
-                    user_input, agent_history
+                    user_input,
+                    agent_history,
                 )
 
                 # Update our tracking history
@@ -118,11 +109,12 @@ class EvaluationRunner:
             )
 
     async def _compute_metrics(
-        self, case: EvalCase, history: list[TurnResult], success: bool
+        self,
+        case: EvalCase,
+        history: list[TurnResult],
+        success: bool,
     ) -> EvaluationMetrics:
-        """
-        Computes aggregate metrics for the session using the CriteriaEvaluator.
-        """
+        """Computes aggregate metrics for the session using the CriteriaEvaluator."""
         scores = {}
         details = {}
 
@@ -154,7 +146,7 @@ class EvaluationRunner:
                     response=last_turn.agent_response,
                     context=context,
                     criteria=criteria,
-                )
+                ),
             )
 
         eval_results = await asyncio.gather(*eval_tasks, return_exceptions=True)
@@ -168,7 +160,7 @@ class EvaluationRunner:
                 scores[criteria] = result.score
                 details[f"{criteria}_reasoning"] = result.reasoning
             else:
-                 # Should not happen given logic in evaluator
-                 scores[criteria] = 0.0
+                # Should not happen given logic in evaluator
+                scores[criteria] = 0.0
 
         return EvaluationMetrics(scores=scores, details=details)
