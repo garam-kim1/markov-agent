@@ -30,9 +30,7 @@ async def test_run_async_yields_events(mock_adk_components):
 
     controller.runner.run_async.side_effect = mock_run_async
 
-    events = []
-    async for event in controller.run_async(prompt="test"):
-        events.append(event)
+    events = [event async for event in controller.run_async(prompt="test")]
 
     assert len(events) == 1
     assert events[0] == mock_event

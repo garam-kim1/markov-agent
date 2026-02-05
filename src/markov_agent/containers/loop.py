@@ -11,10 +11,7 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class LoopNode(BaseNode[StateT]):
-    """Executes a node (or chain of nodes) repeatedly until a condition is met
-
-    or max_iterations is reached.
-    """
+    """Executes a node (or chain of nodes) repeatedly until a condition is met or max_iterations is reached."""
 
     def __init__(
         self,
@@ -24,13 +21,14 @@ class LoopNode(BaseNode[StateT]):
         max_iterations: int = 10,
         state_type: type[StateT] | None = None,
     ):
-        """Args:
+        """Initialize the LoopNode.
 
-        name: Node name.
-        body: The node to execute in the loop.
-        condition: A function that returns True if the loop should STOP.
-        max_iterations: Maximum number of iterations.
-        state_type: The Pydantic model class for the state.
+        Args:
+            name: Node name.
+            body: The node to execute in the loop.
+            condition: A function that returns True if the loop should STOP.
+            max_iterations: Maximum number of iterations.
+            state_type: The Pydantic model class for the state.
 
         """
         super().__init__(name=name, state_type=state_type)

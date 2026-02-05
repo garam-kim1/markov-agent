@@ -90,7 +90,6 @@ async def test_graph_propagates_service_to_context():
     )
 
     # We mock _run_async_impl to capture the context
-    # original_impl = graph._run_async_impl
     captured_ctx = None
 
     async def mock_run(ctx: InvocationContext):

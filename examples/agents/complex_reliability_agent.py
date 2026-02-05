@@ -84,7 +84,6 @@ def math_selector(results: list[Any]) -> Any:
 
 
 def build_math_agent(samples: int = 1, use_selector: bool = False) -> Graph:
-    # Node: Solver
     solver_node = ProbabilisticNode(
         name="solver",
         adk_config=LOCAL_LLM_CONFIG,

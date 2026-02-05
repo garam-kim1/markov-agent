@@ -13,9 +13,12 @@ from markov_agent.topology.node import BaseNode
 
 try:
     from rich.console import Console
-    from rich.panel import Panel
+    from rich.panel import Panel as RichPanel
 
     console = Console()
+
+    def panel(x: Any, title: str | None = None) -> Any:
+        return RichPanel(x, title=title)
 except ImportError:
 
     class Console:
@@ -27,7 +30,7 @@ except ImportError:
 
     console = Console()
 
-    def Panel(x: Any, title: str | None = None) -> Any:  # noqa: ARG001
+    def panel(x: Any, title: str | None = None) -> Any:  # noqa: ARG001
         return x
 
 
@@ -63,8 +66,6 @@ class Graph(BaseAgent):
         self.entry_point = entry_point
         self.state_type = state_type
         self.input_key = input_key
-        # Register sub_agents for ADK hierarchy if needed
-        # self.sub_agents = list(nodes.values())
 
     async def _run_async_impl(
         self,
@@ -104,7 +105,7 @@ class Graph(BaseAgent):
             current_node = self.nodes[current_node_id]
 
             console.log(
-                Panel(
+                panel(
                     f"Executing Node: [cyan]{current_node_id}[/cyan]",
                     title="Step info",
                 ),
@@ -113,7 +114,7 @@ class Graph(BaseAgent):
             # Execute Node
             # We call the node's ADK implementation directly
             # This allows the node to read/write to ctx.session.state
-            async for event in current_node._run_async_impl(ctx):  # noqa: SLF001
+            async for event in current_node._run_async_impl(ctx):
                 yield event
 
             # Transition Logic

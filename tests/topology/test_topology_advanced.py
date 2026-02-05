@@ -1,4 +1,5 @@
 import pytest
+from pydantic import Field
 
 from markov_agent.core.state import BaseState
 from markov_agent.topology.edge import Edge
@@ -9,7 +10,7 @@ from markov_agent.topology.node import BaseNode
 # Define a concrete state for testing
 class AdvancedState(BaseState):
     value: int = 0
-    path: list[str] = []
+    path: list[str] = Field(default_factory=list)
 
 
 # Define a concrete node for testing

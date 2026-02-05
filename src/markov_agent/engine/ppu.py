@@ -22,8 +22,9 @@ StateT = TypeVar("StateT", bound=BaseState)
 
 
 class ProbabilisticNode(BaseNode[StateT]):
-    """A node that uses a Probabilistic Processing Unit (LLM via ADK)
-    to determine the next state.
+    """A node that uses a Probabilistic Processing Unit (LLM via ADK).
+
+    Determines the next state by sampling from the model.
     """
 
     adk_config: Any = Field(default=None)
@@ -182,13 +183,11 @@ class ProbabilisticNode(BaseNode[StateT]):
         else:
             used_parse_result = False
             if self.state_type and isinstance(state_obj, BaseModel):
-                try:
+                with contextlib.suppress(Exception):
                     updated_state = self.parse_result(state_obj, result)
                     if isinstance(updated_state, BaseModel):
                         ctx.session.state.update(updated_state.model_dump())
                         used_parse_result = True
-                except Exception:
-                    pass
 
             if not used_parse_result:
                 if "history" not in ctx.session.state:

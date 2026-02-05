@@ -80,16 +80,17 @@ def test_litellm_initialization():
     # Mock google.adk.models.lite_llm.LiteLlm
     # And os.environ
 
-    with patch.dict(os.environ, {}, clear=True):
-        with patch("google.adk.models.lite_llm.LiteLlm") as MockLiteLlm:
-            # Mock Agent to avoid real init
-            with patch("markov_agent.engine.adk_wrapper.Agent"):
-                with patch("markov_agent.engine.adk_wrapper.Runner"):
-                    with patch("markov_agent.engine.adk_wrapper.App"):
-                        ADKController(config, retry)
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("google.adk.models.lite_llm.LiteLlm") as MockLiteLlm,
+        patch("markov_agent.engine.adk_wrapper.Agent"),
+        patch("markov_agent.engine.adk_wrapper.Runner"),
+        patch("markov_agent.engine.adk_wrapper.App"),
+    ):
+        ADKController(config, retry)
 
-            MockLiteLlm.assert_called_once()
-            _, _kwargs = MockLiteLlm.call_args
+        MockLiteLlm.assert_called_once()
+        _, _kwargs = MockLiteLlm.call_args
 
 
 # --- State Proxy Test ---

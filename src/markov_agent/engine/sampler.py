@@ -94,7 +94,7 @@ async def execute_parallel_sampling[T](
     if isinstance(generate_func, list):
         # We have specific tasks (likely with varied configs)
         tasks.extend(
-            _safe_generate(cast(Callable[[], Any], func)) for func in generate_func
+            _safe_generate(cast("Callable[[], Any]", func)) for func in generate_func
         )
     else:
         # Homogeneous tasks
@@ -127,6 +127,7 @@ async def _safe_generate(func: Callable[[], Any]) -> Any:
         res = func()
         if asyncio.iscoroutine(res):
             return await res
-        return res
     except Exception as e:
         return e
+    else:
+        return res

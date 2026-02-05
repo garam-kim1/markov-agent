@@ -1,10 +1,12 @@
 from collections import defaultdict
+from typing import Any
 
 from markov_agent.simulation.runner import SimulationResult
 
 
 def calculate_pass_at_k_estimator(n: int, c: int, k: int) -> float:
-    """Unbiased estimator for pass@k (Probability of at least one success).
+    """Calculate the unbiased estimator for pass@k.
+
     n: total samples generated
     c: number of correct samples
     k: hypothetical budget (k).
@@ -12,7 +14,7 @@ def calculate_pass_at_k_estimator(n: int, c: int, k: int) -> float:
     if n - c < k:
         return 1.0
 
-    def comb(n, k):
+    def comb(n: int, k: int) -> int:
         if k < 0 or k > n:
             return 0
         if k in (0, n):
@@ -34,7 +36,8 @@ def calculate_pass_at_k_estimator(n: int, c: int, k: int) -> float:
 
 
 def calculate_pass_pow_k_estimator(n: int, c: int, k: int) -> float:
-    """Unbiased estimator for pass^k (Probability that all k samples are correct).
+    """Calculate the unbiased estimator for pass^k.
+
     n: total samples generated
     c: number of correct samples
     k: hypothetical budget (k).
@@ -42,7 +45,7 @@ def calculate_pass_pow_k_estimator(n: int, c: int, k: int) -> float:
     if c < k:
         return 0.0
 
-    def comb(n, k):
+    def comb(n: int, k: int) -> int:
         if k < 0 or k > n:
             return 0
         if k in (0, n):
@@ -63,8 +66,9 @@ def calculate_pass_pow_k_estimator(n: int, c: int, k: int) -> float:
     return success_combinations / total_combinations
 
 
-def calculate_metrics(results: list[SimulationResult]):
-    """Calculates:
+def calculate_metrics(results: list[SimulationResult]) -> dict[str, Any]:
+    """Calculate aggregate metrics for simulation results.
+
     - Accuracy (Global pass rate, effectively pass@1 averaged)
     - Consistency (pass^k): Probability that all samples in a budget k are correct.
     - Reliability (pass@k): Probability that at least one sample in a budget k is

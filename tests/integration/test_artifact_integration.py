@@ -18,7 +18,6 @@ class ArtifactGenTool:
             return "Error: No tool context"
 
         # Create artifact part
-        # part = types.Part(text=content)
 
         # Save using the helper method on ToolContext (which calls artifact_service)
         # Note: ToolContext.save_artifact is a wrapper that usually delegates
@@ -55,8 +54,6 @@ class ArtifactGenTool:
 
         # We assume tool_context.save_artifact is available.
         # We need to pass app_name etc?
-        # CallbackContext.save_artifact signature from inspect_artifacts.py (on service) was:
-        # (app_name, user_id, filename, artifact, session_id)
 
         # CallbackContext.save_artifact might simplify this by using context info.
         # Let's inspect signature of CallbackContext.save_artifact if possible.

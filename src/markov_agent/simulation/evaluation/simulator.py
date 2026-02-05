@@ -57,7 +57,7 @@ Your Response:
 """
 
     async def generate_next_turn(self, agent_response: str) -> str:
-        """Generates the next user input based on the agent's response."""
+        """Generate the next user input based on the agent's response."""
         # Update history with agent's response
         if agent_response:
             self.state.history.append({"role": "Agent", "content": agent_response})

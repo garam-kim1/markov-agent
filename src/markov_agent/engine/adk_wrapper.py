@@ -242,6 +242,7 @@ class ADKController:
         prompt: str,
         output_schema: type[T] | None = None,
         initial_state: dict[str, Any] | None = None,
+        *,
         include_state: bool = False,
     ) -> Any | tuple[Any, dict[str, Any]]:
         """Generate content with retry logic using the ADK Runner.

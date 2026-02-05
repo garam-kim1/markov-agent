@@ -32,7 +32,7 @@ class NestedGraphNode(BaseNode[StateT]):
         ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
         """Delegate execution to the wrapped Graph's ADK implementation."""
-        async for event in self.graph._run_async_impl(ctx):  # noqa: SLF001
+        async for event in self.graph._run_async_impl(ctx):
             yield event
 
     async def execute(self, state: StateT) -> StateT:

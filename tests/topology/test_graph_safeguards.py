@@ -50,9 +50,8 @@ async def test_graph_max_steps_enforcement():
     mock_ctx.user_content = None  # No input injection
 
     # 3. Run the internal async generator
-    events = []
-    async for event in graph._run_async_impl(mock_ctx):
-        events.append(event)
+    async for _ in graph._run_async_impl(mock_ctx):
+        pass
 
     # 4. Verify
     # The node should have executed 5 times.

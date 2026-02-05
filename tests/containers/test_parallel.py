@@ -1,4 +1,5 @@
 import pytest
+from pydantic import Field
 
 from markov_agent.containers.parallel import ParallelNode
 from markov_agent.core.state import BaseState
@@ -7,8 +8,8 @@ from markov_agent.topology.node import BaseNode
 
 class ParallelState(BaseState):
     val: int = 0
-    list_a: list[str] = []
-    list_b: list[str] = []
+    list_a: list[str] = Field(default_factory=list)
+    list_b: list[str] = Field(default_factory=list)
 
 
 class SetterNode(BaseNode[ParallelState]):

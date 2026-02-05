@@ -1,5 +1,6 @@
 import asyncio
 import re
+from typing import ClassVar
 
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
 from markov_agent.engine.callbacks import (
@@ -18,7 +19,7 @@ class AuditStartCallback(BeforeAgentCallback):
 
 
 class PIIScrubCallback(BeforeModelCallback):
-    EMAIL_REGEX = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+    EMAIL_REGEX: ClassVar[str] = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
 
     def __call__(self, context, model_request):
         if not hasattr(model_request, "contents"):
@@ -36,7 +37,10 @@ class PIIScrubCallback(BeforeModelCallback):
 
 
 class PolicyCheckCallback(AfterModelCallback):
-    FORBIDDEN_TERMS = ["confidential_internal_project", "unspeakable_secret"]
+    FORBIDDEN_TERMS: ClassVar[list[str]] = [
+        "confidential_internal_project",
+        "unspeakable_secret",
+    ]
 
     def __call__(self, context, model_response):
         text_content = ""

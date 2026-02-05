@@ -33,7 +33,7 @@ class SequentialNode(BaseNode[StateT]):
         """Execute sub-nodes sequentially."""
         for node in self.nodes:
             # We assume node is a BaseNode (Agent)
-            async for event in node._run_async_impl(ctx):  # noqa: SLF001
+            async for event in node._run_async_impl(ctx):
                 yield event
 
     async def execute(self, state: StateT) -> StateT:

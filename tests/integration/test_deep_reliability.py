@@ -206,8 +206,6 @@ async def test_telemetry_emission():
 
     event_bus.subscribe("*", capture)
 
-    # config = ADKConfig(model_name="mock-model")
-
     # We need to run a node execution that triggers the ADK Runner
     # The default mock_responder in ADKController bypasses the Runner if present.
     # To test TelemetryPlugin (which runs inside Runner), we need the Runner
@@ -295,7 +293,6 @@ async def test_controller_request_construction_with_runner_mock():
         assert result == "Real Run Response"
 
         # Verify call arguments
-        # run_async(user_id="system", session_id=..., new_message=...)
         call_args = mock_runner_instance.run_async.call_args[1]
         assert call_args["user_id"] == "system"
         assert "gen_" in call_args["session_id"]

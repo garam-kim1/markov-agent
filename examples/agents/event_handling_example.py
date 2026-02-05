@@ -109,7 +109,7 @@ async def main():
     print(f"Found {len(events)} events in session '{session_id}'")
     for event in events:
         if event.is_final_response() and event.content and event.content.parts:
-            parts = cast(list, event.content.parts)
+            parts = cast("list", event.content.parts)
             print(f" - Saved Response: {parts[0].text[:50]}...")
         elif event.get_function_calls():
             print(f" - Saved Tool Call: {event.get_function_calls()[0].name}")

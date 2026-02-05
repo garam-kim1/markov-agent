@@ -1,4 +1,5 @@
 import pytest
+from pydantic import Field
 
 from markov_agent.containers.loop import LoopNode
 from markov_agent.containers.nested import NestedGraphNode
@@ -11,7 +12,7 @@ from markov_agent.topology.node import BaseNode
 
 class ExtendedState(BaseState):
     counter: int = 0
-    trace: list[str] = []
+    trace: list[str] = Field(default_factory=list)
 
 
 class TraceNode(BaseNode[ExtendedState]):

@@ -62,7 +62,7 @@ class ParallelNode(BaseNode[StateT]):
                 agent=node,
             )
 
-            events = [event async for event in node._run_async_impl(isolated_context)]  # noqa: SLF001
+            events = [event async for event in node._run_async_impl(isolated_context)]
 
             return events, isolated_session.state
 

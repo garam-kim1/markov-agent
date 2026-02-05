@@ -31,13 +31,11 @@ class MonteCarloRunner(BaseModel):
 
     async def run_simulation(self) -> list[SimulationResult]:
 
-        tasks = []
-        for i, state in enumerate(self.dataset):
-            case_id = f"case_{i}"
-            for _ in range(self.n_runs):
-                # We must deep copy or re-instantiate the state for each run
-                # Pydantic model_copy(deep=True) is useful here
-                tasks.append(self._run_single(state.model_copy(deep=True), case_id))
+        tasks = [
+            self._run_single(state.model_copy(deep=True), f"case_{i}")
+            for i, state in enumerate(self.dataset)
+            for _ in range(self.n_runs)
+        ]
 
         return await asyncio.gather(*tasks)
 

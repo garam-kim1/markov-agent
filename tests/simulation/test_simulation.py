@@ -37,7 +37,6 @@ async def test_monte_carlo_runner():
     # Success if value > 0.
     # Inputs: 0, 1, 2, 3, 4.
     # After increment: 1, 2, 3, 4, 5. All > 0.
-    # Accuracy = 1.0
     assert metrics["accuracy"] == 1.0
     assert metrics["consistency"] == 1.0
     assert metrics["total_cases"] == 5

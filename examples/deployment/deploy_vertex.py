@@ -16,7 +16,6 @@ operation = client.create_agent_engine(
     # Define runtime requirements directly here
     requirements=[
         "google-adk>=0.1.0",
-        # "markov-agent>=0.1.0" # Add this if published
     ],
 )
 

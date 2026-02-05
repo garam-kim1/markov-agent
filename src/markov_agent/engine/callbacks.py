@@ -38,8 +38,9 @@ class BeforeModelCallback(BaseCallback):
 
     @abstractmethod
     def __call__(self, context: CallbackContext, model_request: Any) -> Any:
-        """Args:
+        """Handle the model request before it is sent.
 
+        Args:
             context: The callback context.
             model_request: The request object being sent to the model (e.g. LlmRequest).
 
@@ -54,8 +55,9 @@ class AfterModelCallback(BaseCallback):
 
     @abstractmethod
     def __call__(self, context: CallbackContext, model_response: Any) -> Any:
-        """Args:
+        """Handle the model response after it is received.
 
+        Args:
             context: The callback context.
             model_response: The response object received from the model.
 
@@ -72,8 +74,9 @@ class BeforeToolCallback(BaseCallback):
     def __call__(
         self, context: ToolContext, tool: Any, tool_args: dict[str, Any]
     ) -> dict[str, Any] | None:
-        """Args:
+        """Handle tool arguments before execution.
 
+        Args:
             context: The tool execution context.
             tool: The tool instance being executed.
             tool_args: The arguments passed to the tool.
@@ -91,8 +94,9 @@ class AfterToolCallback(BaseCallback):
     def __call__(
         self, context: ToolContext, tool: Any, tool_args: dict[str, Any], result: Any
     ) -> Any:
-        """Args:
+        """Handle tool result after execution.
 
+        Args:
             context: The tool execution context.
             tool: The tool instance that was executed.
             tool_args: The arguments passed to the tool.

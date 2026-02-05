@@ -82,7 +82,7 @@ class BaseNode[StateT](BaseAgent, ABC):
                 def update(self, **kwargs: Any) -> Self:
                     new_data = self.__dict__.copy()
                     new_data.update(kwargs)
-                    return StateProxy(new_data)  # type: ignore
+                    return StateProxy(new_data)  # type: ignore[return-value]
 
                 def model_dump(self) -> dict[str, Any]:
                     return self.__dict__

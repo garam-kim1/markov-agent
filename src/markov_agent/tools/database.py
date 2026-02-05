@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 class DatabaseTool:
     """A tool for executing SQL queries against a database.
+
     Compatible with Google ADK tool registration.
     """
 
@@ -16,7 +17,7 @@ class DatabaseTool:
         self.engine: Engine = create_engine(connection_string)
 
     def query(self, sql_query: str, tool_context: ToolContext | None = None) -> str:
-        """Executes a read-only SQL query and returns the results.
+        """Execute a read-only SQL query and return the results.
 
         Args:
             sql_query: The SQL query to execute.
@@ -46,7 +47,7 @@ class DatabaseTool:
             return f"Database Error: {e}"
 
     def get_schema(self) -> str:
-        """Returns the schema of the database to help the agent understand tables."""
+        """Return the schema of the database to help the agent understand tables."""
         # This is a simplified schema dumper.
         # For complex DBs, use reflection.
         try:
@@ -63,9 +64,9 @@ class DatabaseTool:
             return f"Schema Error: {e}"
 
     def as_tool_list(self) -> list[Any]:
-        """Returns the methods as a list of callables for ADK."""
+        """Return the methods as a list of callables for ADK."""
         return [self.query, self.get_schema]
 
     def close(self) -> None:
-        """Closes the database engine connection pool."""
+        """Close the database engine connection pool."""
         self.engine.dispose()

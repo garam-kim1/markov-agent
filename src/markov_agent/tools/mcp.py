@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class MCPServerConfig(BaseModel):
     """Configuration for an MCP Server connection.
+
     Supports both STDIO (local) and HTTP (remote) connections.
     """
 
@@ -27,6 +28,7 @@ class MCPServerConfig(BaseModel):
 
 class MCPTool:
     """A wrapper around Google ADK's McpToolset.
+
     Enables agents to use tools from Model Context Protocol servers.
     """
 
@@ -50,7 +52,9 @@ class MCPTool:
         elif self.config.type in {"http", "sse"}:
             # Note: At runtime, we need to import the correct params class
             # This relies on google-adk's internal dependencies or mcp-python
-            from mcp.client.sse import SseConnectionParams  # type: ignore
+            from mcp.client.sse import (
+                SseConnectionParams,  # type: ignore[import-not-found]
+            )
 
             # Assuming basic HTTP/SSE params structure
             connection_params = SseConnectionParams(
@@ -68,7 +72,8 @@ class MCPTool:
         )
 
     def as_tool_list(self) -> list[Any]:
-        """Returns the tools managed by McpToolset.
+        """Return the tools managed by McpToolset.
+
         ADK's McpToolset implements the Toolset interface which likely
         exposes methods or can be passed directly.
         """

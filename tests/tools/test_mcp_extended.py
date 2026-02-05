@@ -11,26 +11,28 @@ def test_mcp_http_config():
     mock_params_class = MagicMock()
     mock_sse_module.SseConnectionParams = mock_params_class
 
-    with patch.dict(sys.modules, {"mcp.client.sse": mock_sse_module}):
-        with patch("markov_agent.tools.mcp.McpToolset") as MockToolset:
-            config = MCPServerConfig(
-                type="sse",
-                url="http://localhost:8080/sse",
-                headers={"Authorization": "Bearer token"},
-            )
+    with (
+        patch.dict(sys.modules, {"mcp.client.sse": mock_sse_module}),
+        patch("markov_agent.tools.mcp.McpToolset") as MockToolset,
+    ):
+        config = MCPServerConfig(
+            type="sse",
+            url="http://localhost:8080/sse",
+            headers={"Authorization": "Bearer token"},
+        )
 
-            _ = MCPTool(config)
+        _ = MCPTool(config)
 
-            # Verify SseConnectionParams was initialized with correct args
-            mock_params_class.assert_called_once_with(
-                url="http://localhost:8080/sse",
-                headers={"Authorization": "Bearer token"},
-            )
+        # Verify SseConnectionParams was initialized with correct args
+        mock_params_class.assert_called_once_with(
+            url="http://localhost:8080/sse",
+            headers={"Authorization": "Bearer token"},
+        )
 
-            # Verify toolset initialized with these params
-            MockToolset.assert_called_once()
-            _, kwargs = MockToolset.call_args
-            assert kwargs["connection_params"] == mock_params_class.return_value
+        # Verify toolset initialized with these params
+        MockToolset.assert_called_once()
+        _, kwargs = MockToolset.call_args
+        assert kwargs["connection_params"] == mock_params_class.return_value
 
 
 def test_mcp_unsupported_type_fallback():

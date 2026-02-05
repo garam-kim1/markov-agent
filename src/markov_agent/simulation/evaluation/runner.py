@@ -37,7 +37,7 @@ class EvaluationRunner:
         self.evaluator = CriteriaEvaluator(evaluator_config)
 
     async def run_suite(self, dataset: list[EvalCase]) -> list[SessionResult]:
-        """Runs the full evaluation suite."""
+        """Run the full evaluation suite."""
         results = []
         for case in dataset:
             result = await self.run_case(case)
@@ -45,7 +45,7 @@ class EvaluationRunner:
         return results
 
     async def run_case(self, case: EvalCase) -> SessionResult:
-        """Runs a single evaluation case."""
+        """Run a single evaluation case."""
         simulator = UserSimulator(
             persona=case.user_persona,
             goal=case.user_goal,
@@ -91,7 +91,7 @@ class EvaluationRunner:
                 last_agent_response = agent_response
 
             # Post-Processing: Evaluate Criteria
-            metrics = await self._compute_metrics(case, history, success)
+            metrics = await self._compute_metrics(case, history, success=success)
 
             return SessionResult(
                 case_id=case.id,
@@ -112,9 +112,10 @@ class EvaluationRunner:
         self,
         case: EvalCase,
         history: list[TurnResult],
+        *,
         success: bool,
     ) -> EvaluationMetrics:
-        """Computes aggregate metrics for the session using the CriteriaEvaluator."""
+        """Compute aggregate metrics for the session using the CriteriaEvaluator."""
         scores = {}
         details = {}
 
@@ -139,15 +140,14 @@ class EvaluationRunner:
         # Parallel evaluation of criteria
         criteria_list = ["Relevance", "Correctness", "Safety"]
 
-        eval_tasks = []
-        for criteria in criteria_list:
-            eval_tasks.append(
-                self.evaluator.evaluate_criteria(
-                    response=last_turn.agent_response,
-                    context=context,
-                    criteria=criteria,
-                ),
+        eval_tasks = [
+            self.evaluator.evaluate_criteria(
+                response=last_turn.agent_response,
+                context=context,
+                criteria=criteria,
             )
+            for criteria in criteria_list
+        ]
 
         eval_results = await asyncio.gather(*eval_tasks, return_exceptions=True)
 

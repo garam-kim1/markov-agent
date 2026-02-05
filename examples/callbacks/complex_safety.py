@@ -1,8 +1,8 @@
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
 from markov_agent.engine.callbacks import (
@@ -23,7 +23,7 @@ class AuditLogCallback(BeforeAgentCallback, AfterAgentCallback):
 
     def _log(self, event_type: str, context: Any, **kwargs):
         entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event": event_type,
             "agent_name": getattr(context, "agent_name", "unknown"),
             "session_id": getattr(context, "session_id", "unknown"),
@@ -62,7 +62,7 @@ class AuditStartCallback(BeforeAgentCallback):
 
     def __call__(self, context, *args, **kwargs):
         entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event": "agent_start",
             "agent_name": context.agent_name,
             "invocation_id": context.invocation_id,
@@ -78,7 +78,7 @@ class AuditEndCallback(AfterAgentCallback):
 
     def __call__(self, context, *args, **kwargs):
         entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event": "agent_end",
             "agent_name": context.agent_name,
             "invocation_id": context.invocation_id,
@@ -92,7 +92,7 @@ class AuditEndCallback(AfterAgentCallback):
 class PIIScrubCallback(BeforeModelCallback):
     """Redacts email addresses from the user prompt before sending to LLM."""
 
-    EMAIL_REGEX = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+    EMAIL_REGEX: ClassVar[str] = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
 
     def __call__(self, context, model_request):
         # We expect model_request to be google.adk.models.llm_request.LlmRequest
@@ -119,7 +119,10 @@ class PIIScrubCallback(BeforeModelCallback):
 class PolicyCheckCallback(AfterModelCallback):
     """Ensures the model does not generate forbidden content."""
 
-    FORBIDDEN_TERMS = ["confidential_internal_project", "unspeakable_secret"]
+    FORBIDDEN_TERMS: ClassVar[list[str]] = [
+        "confidential_internal_project",
+        "unspeakable_secret",
+    ]
 
     def __call__(self, context, model_response):
         # Inspect response. Structure depends on model but ADK normalizes some things?
