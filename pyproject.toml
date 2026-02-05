@@ -45,8 +45,8 @@ ignore = [
     "D103",   # Missing docstring in public function
     "D104",   # Missing docstring in public package
     "D107",   # Missing docstring in __init__
-    "ANN101", # Missing type annotation for self
-    "ANN102", # Missing type annotation for cls
+    "D203",   # one-blank-line-before-class (incompatible with D211)
+    "D213",   # multi-line-summary-second-line (incompatible with D212)
     "ANN204", # Missing return type annotation for special method
     "ANN401", # Dynamically typed expressions (typing.Any) are disallowed
     "S101",   # Use of assert detected (needed for tests)
