@@ -61,3 +61,31 @@ def test_adk_controller_default_overrides():
 
         _args, _kwargs = MockAgent.call_args
         # Should default to "You are a probabilistic processing unit..."
+
+
+def test_adk_controller_observability_flags():
+    """Verify that enable_logging and enable_tracing flags are handled."""
+    config = ADKConfig(
+        model_name="test-model",
+        enable_logging=True,
+        enable_tracing=True,
+    )
+    retry = RetryPolicy()
+
+    with (
+        patch("markov_agent.engine.adk_wrapper.Agent"),
+        patch("markov_agent.engine.adk_wrapper.Runner"),
+        patch("markov_agent.engine.adk_wrapper.App") as MockApp,
+        patch("markov_agent.engine.observability.configure_local_telemetry") as mock_trace,
+        patch("markov_agent.engine.observability.configure_standard_logging") as mock_log,
+    ):
+        ADKController(config, retry)
+
+        mock_trace.assert_called_once()
+        mock_log.assert_called_once()
+
+        # Check that LoggingPlugin was added to plugins
+        _, app_kwargs = MockApp.call_args
+        plugins = app_kwargs["plugins"]
+        plugin_names = [p.name for p in plugins]
+        assert "logging_plugin" in plugin_names

@@ -20,7 +20,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class ADKConfig(BaseModel):
-    model_name: str
+    model_name: Any
     temperature: float = 0.7
     top_p: float | None = None
     top_k: int | None = None
@@ -41,6 +41,8 @@ class ADKConfig(BaseModel):
     output_key: str | None = None
     context_cache_config: Any | None = None
     events_compaction_config: Any | None = None
+    enable_logging: bool = False
+    enable_tracing: bool = False
 
 
 class RetryPolicy(BaseModel):
@@ -177,7 +179,20 @@ class ADKController:
             output_key=self.config.output_key,
         )
 
+        if self.config.enable_tracing:
+            from markov_agent.engine.observability import configure_local_telemetry
+
+            configure_local_telemetry()
+
         plugins = [MarkovBridgePlugin()]
+        if self.config.enable_logging:
+            from google.adk.plugins.logging_plugin import LoggingPlugin
+
+            from markov_agent.engine.observability import configure_standard_logging
+
+            configure_standard_logging()
+            plugins.append(LoggingPlugin())
+
         if self.config.callbacks:
             from markov_agent.engine.callback_adapter import CallbackAdapterPlugin
 
