@@ -1,18 +1,38 @@
-# Reliability Engineering with Markov Agent
+# Reliability Engineering: pass@k and pass∧k
 
-> "If you didn't test it 50 times, it doesn't work."
+Industrial AI systems require a dual-metric approach to distinguish between a system's **capacity for reasoning** and its **operational consistency**.
 
-In traditional software, `assert 2 + 2 == 4` is binary. In AI engineering, `assert llm.add(2, 2) == 4` is probabilistic. It might be true 99% of the time, or 60% of the time depending on the model, prompt, and phase of the moon.
+## Metric A: pass@k (Solving for Accuracy)
 
-**Markov Engineering** is the discipline of quantifying and managing this uncertainty.
+To mitigate probabilistic decay in complex tasks, we implement **Parallel Verification**. This mechanism generates $k$ independent execution paths and uses a deterministic "Verifier" (unit test or critic) to select the successful outcome.
+
+**Formula for Accuracy:**
+$$P(\text{Accuracy}) = 1 - (1 - p)^k$$
+
+By increasing $k$, we transform low-probability reasoning into high-reliability output. 
+*   **Example:** If a model has a 20% success rate ($p=0.2$) on a difficult logic task, increasing attempts to $k=10$ raises the probability of at least one correct answer to **89%**.
+
+## Metric B: pass∧k (Solving for Consistency)
+
+Enterprise stability demands **Strict Consistency**, or $pass\wedge k$. This metric validates that a system can perform a task $k$ times with zero failures.
+
+**Formula for Stability:**
+$$P(\text{Stability}) = p^k$$
+
+This metric exposes the "Risk Scenario" in batch processing. 
+*   **Example:** If an agent is 99% accurate ($p=0.99$) but must process a batch of 100 tasks ($k=100$), the probability of completing the entire batch without a single error drops to **~36%**.
+
+$pass\wedge k$ serves as the definitive **Gatekeeper Metric** for production deployment.
+
+---
 
 ## The Simulation Workbench
 
 The `markov_agent.simulation` module provides tools to treat your Agent like a stochastic system that needs statistical verification.
 
-### 1. The Monte Carlo Runner
+### 1. The MonteCarloRunner
 
-The `MonteCarloRunner` executes your graph against a dataset $N$ times per case.
+The `MonteCarloRunner` executes your graph against a dataset $N$ times per case to calculate these metrics.
 
 ```python
 from markov_agent.simulation.runner import MonteCarloRunner
@@ -20,37 +40,12 @@ from markov_agent.simulation.runner import MonteCarloRunner
 runner = MonteCarloRunner(
     graph=my_agent,
     dataset=[test_case_1, test_case_2, ...],
-    n_runs=20,  # Run each case 20 times
+    n_runs=50,  # "If you didn't test it 50 times, it doesn't work."
     success_criteria=lambda state: state.result == "expected_value"
 )
 
 results = await runner.run_simulation()
 ```
-
-### 2. Success Criteria
-
-You must define a programmatic way to verify if a run was successful.
-*   **Exact Match:** `state.answer == "42"`
-*   **Fuzzy Match:** `"error" not in state.response.lower()`
-*   **Unit Tests:** For coding agents, compiling and running the generated code.
-
-## Interpreting Metrics
-
-We measure three key dimensions of reliability:
-
-### Accuracy (Pass@1)
-*   **Definition:** The raw probability that a single run is correct.
-*   **Formula:** $\frac{\text{Total Successes}}{\text{Total Runs}}$
-*   **Goal:** High accuracy is good, but often expensive to guarantee with just prompting.
-
-### Reliability (Pass@k)
-*   **Definition:** The probability that *at least one* result is correct given $k$ attempts.
-*   **Formula:** $1 - (1 - p)^k$ (simplified).
-*   **Insight:** If your agent has 50% accuracy (Pass@1), running it 5 times (Pass@5) gives you a theoretical 96.8% reliability. This is why we use `ParallelNode` and Voting!
-
-### Consistency (Pass^k)
-*   **Definition:** The probability that *all* $k$ runs are correct.
-*   **Insight:** Important for user trust. If an agent works 9 times but hallucinates the 10th time, it has low consistency.
 
 ## The Engineering Cycle
 

@@ -1,10 +1,15 @@
 # Building Coding Agents with Markov Engine
 
-This guide demonstrates how to build reliable **Coding Agents** using the `markov-agent` framework. Unlike simple "text-to-code" scripts, a Markov-based coding agent uses a **Probabilistic Topology** to mimic the software engineering lifecycle: Analysis, Planning, Implementation, and Review.
+This guide demonstrates how to build reliable **Coding Agents** using the `markov-agent` framework. 
+
+## The Core Paradigm: From "Text-to-Code" to MDPs
+
+Traditional "text-to-code" agents often fall into the **Joint Probability Trap**. If a coding task requires five sequential steps (Analyze -> Plan -> Draft -> Debug -> Refactor) and each step is 90% accurate, the total probability of a correct final result is only ~59%.
+
+In the Markov Engine, we treat coding not as a creative prompt, but as a **Markov Decision Process (MDP)** where the transition from "Draft" to "Debug" is governed by a formal topology designed to maximize $pass@k$.
 
 ## The Core Pattern: Iterative Refinement
-
-Reliable code generation requires more than a single LLM call. We use a **Cyclic Graph** to implement a "Refinement Loop."
+...
 
 ### The Workflow
 

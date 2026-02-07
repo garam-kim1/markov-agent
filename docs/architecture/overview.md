@@ -2,30 +2,51 @@
 
 ## Philosophy: Markov Engineering
 
-`markov-agent` is a **specialized wrapper for the Google Agent Development Kit (ADK)** that implements the **Markov Engineering** paradigm. We reject the "Prompt Engineering" paradigm in favor of treating Large Language Models (LLMs) not as creative partners, but as **Probabilistic Processing Units (PPUs)**—stochastic components within a deterministic system built on top of the Google ADK.
+`markov-agent` is a **specialized wrapper for the Google Agent Development Kit (ADK)** that implements the **Markov Engineering** paradigm. We treat Large Language Models (LLMs) as **Probabilistic Processing Units (PPUs)**—stochastic components within a deterministic system built on top of the Google ADK.
 
-Our goal is to build reliable control systems where:
-*   **State ($S$)** is immutable and strongly typed.
-*   **Transitions ($T$)** are defined by a directed graph (Topology).
-*   **Execution** is bounded and observable.
+## The Agent as a Markov Decision Process (MDP)
+
+The strategic advantage of treating agent behavior as a formal MDP lies in moving away from simple text generation and toward a structured state-transition model.
+
+*   **State ($S$):** The formal context, including the state schema, memory, and task completion progress. Managed via Pydantic for strict data contracts.
+*   **Transition ($T$):** The logic graph that defines the probability of moving from the current state to a valid subsequent state.
+
+This framework enables **Trajectory Optimization**, balancing **Exploration** (maximizing $pass@k$ via parallel sampling) with **Guardrails** (maximizing $pass\wedge k$ via strict State Space constraints).
+
+## The Cognitive Kernel: Infrastructure for Reliability
+
+The library provides the "Markov Workbench"—infrastructure dedicated to reliability governance through four core components:
+
+| Component | Technical Function | Business Imperative |
+| :--- | :--- | :--- |
+| **State Schema Registry** | Enforces strict Pydantic contracts between nodes. | **Preventing Downstream Corruption:** Guarantees agent outputs are compatible with legacy systems. |
+| **Pass@k Simulation Engine** | Executes parallel scenario testing against "Golden Datasets". | **Confidence in Deployment:** Moves from subjective "trust" to mathematical proof. |
+| **Trajectory Recorder** | A "Black Box" flight recorder logging $\Delta S$ at every traversal. | **Auditability:** Enables "Time-Travel Debugging" and compliance records. |
+| **Latency & Cost Governor** | Middleware for task complexity estimation and routing. | **Unit Economics:** Ensures compute cost does not exceed problem value. |
 
 ## System Components
 
 ### 1. The Core (`src/markov_agent/core`)
 *   **State:** The single source of truth. All nodes receive and return a `BaseState` object.
-*   **Events:** An event bus that broadcasts every state change, node execution, and error for observability.
+*   **Events:** An event bus that broadcasts every state change, node execution, and error.
 
 ### 2. The Topology (`src/markov_agent/topology`)
-*   **Graph:** The execution engine. It manages the flow of control, ensuring `max_steps` are respected to avoid halting problems.
+*   **Graph:** The execution engine (the "Skeleton"). It manages the flow of control.
 *   **Nodes:** The units of work. A Node transforms State $S_t \to S_{t+1}$.
-*   **Edges:** The routing logic. Deterministic functions that decide the next Node based on the current State.
+*   **Edges:** Routing functions $T(s, a) \to s'$.
 
 ### 3. The Engine (`src/markov_agent/engine`)
-*   **PPU (Probabilistic Processing Unit):** The wrapper around the LLM. It handles:
-    *   **Parallel Trajectory Generation ($pass@k$):** Running the model $k$ times to explore different paths.
-    *   **Validation:** Ensuring outputs match the expected schema.
-    *   **Retries:** Automatically recovering from stochastic failures.
-*   **ADK Wrapper:** Integrates `google-adk` to provide a unified interface for various models.
+*   **PPU (Probabilistic Processing Unit):** Wraps `google-adk` to provide:
+    *   **Parallel Trajectory Generation ($pass@k$):** Running $k$ independent paths.
+    *   **Verification:** Using deterministic critics to select successful outcomes.
+    *   **Retry Policy:** Recovering from stochastic failures.
+
+## Strategic Horizon: Auto-Topology
+
+The future of the Markov Engine involves a shift from manual graph engineering to automated meta-learning via **Genetic Logic Optimization (GLO)**. 
+
+GLO treats prompts and nodes as "genes" in an evolutionary algorithm, optimizing the agent variation that maximizes a multi-variable reward function:
+$$R = \alpha \cdot \text{Accuracy} - \beta \cdot \text{TokenCost} - \gamma \cdot \text{Latency}$$
 
 ### 4. Simulation (`src/markov_agent/simulation`)
 *   **Monte Carlo Runner:** A workbench for running a topology $N$ times to statistically verify its reliability.

@@ -1,8 +1,15 @@
 # Getting Started with Markov Agent
 
-`markov-agent` is a specialized wrapper for the **Google Agent Development Kit (ADK)** designed to bring deterministic control to stochastic LLM processes through the **Markov Engineering** paradigm.
+`markov-agent` is a **Probabilistic Control System** designed to bring deterministic control to stochastic LLM processes through the **Markov Engineering** paradigm.
+
+## Core Concepts
+
+*   **PPU (Probabilistic Processing Unit):** We treat the LLM as a stochastic CPU.
+*   **Topology:** The structural "skeleton" that enforces business logic.
+*   **The Markov Workbench:** The internal platform for engineering high-reliability systems via simulation and trajectory recording.
 
 ## Prerequisites
+...
 
 *   **Python:** Version 3.12 or higher.
 *   **Package Manager:** `uv` (by Astral). This project strictly uses `uv` for dependency management.
@@ -50,4 +57,4 @@ uv run examples/code_improver_agent.py
     from markov_agent.containers.chain import Chain
     agent = Chain(nodes=[draft_node, review_node])
     ```
-4.  **Simulate:** Use `MonteCarloRunner` to verify your agent's reliability before deployment.
+4.  **Simulate:** Use `MonteCarloRunner` to verify your agent's reliability ($pass@k$ and $pass\wedge k$) before deployment. "If you didn't test it 50 times, it doesn't work."

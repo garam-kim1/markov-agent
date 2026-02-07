@@ -1,124 +1,71 @@
-# Markov Engine
+# Markov Engine 🧠📐
 
-> **From Prompt Engineering to Markov Engineering.**
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/release/python-3120/)
+[![uv](https://img.shields.io/badge/managed%20by-uv-arc.svg)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Markov Engine** (`markov-agent`) is a **Probabilistic Control System** that acts as a specialized wrapper for the **Google Agent Development Kit (ADK)**. It treats Large Language Models (LLMs) not as chatbots, but as **Probabilistic Processing Units (PPUs)** within a deterministic topology.
+> **Moving from "Prompt Engineering" to "Markov Engineering".**
 
-It provides the mathematical and architectural scaffolding to build reliable, self-correcting AI systems by constraining the stochastic nature of LLMs within rigorous state machines.
+**Markov Engine** (`markov-agent`) is a **Probabilistic Control System** that serves as a high-reliability execution layer over the **Google Agent Development Kit (ADK)**. It treats Large Language Models (LLMs) as **Probabilistic Processing Units (PPUs)**—stochastic components nested within deterministic topologies.
 
-## 🧠 The Paradigm Shift
+---
+
+## 🏗️ The Paradigm Shift
+
+We are transitioning from **Generative AI** (stateless, creative) to **Agentic AI** (stateful, reliable). Markov Engine provides the formal mathematical treatment required to bridge the "GenAI Paradox" where pilots fail to reach production due to probabilistic decay.
 
 | Feature | Classic "Chatbot" | Markov Engine |
 | :--- | :--- | :--- |
-| **Mental Model** | Conversation / Magic Box | Stochastic CPU (PPU) |
-| **Control Flow** | Linear / Scripted | Directed Acyclic (or Cyclic) Graphs |
-| **Reliability** | "Hope it works" | $P(Success) = 1 - (1 - p)^k$ |
-| **State** | Mutable / Messy | Immutable / Time-Travel Ready |
-| **Debugging** | Print statements | Monte Carlo Simulations |
+| **Mental Model** | Conversation / Magic Box | **Stochastic CPU (PPU)** |
+| **Control Flow** | Linear / Scripted | **Directed Graphs (Topology)** |
+| **Reliability** | "Hope it works" | **$P(Success) = 1 - (1 - p)^k$** |
+| **State** | Mutable / Messy | **Immutable / Strongly Typed** |
+| **Verification** | Human-in-the-loop | **Monte Carlo Simulations** |
 
-## 🚀 Key Concepts
+---
 
-### 1. The PPU (Probabilistic Processing Unit)
-We wrap the Google Agent Development Kit (ADK) in a `ProbabilisticNode`. Instead of a single generation, we support **Parallel Trajectory Generation ($pass@k$)**. By sampling multiple futures and selecting the best one (via a lightweight critic or heuristic), we mathematically increase system reliability.
+## 📐 Mathematical Foundations
 
-### 2. Topology as Code
-Define your application logic as a Graph. Nodes perform work (deterministically or probabilistically), and Edges act as routers, deciding the next step based on the current State.
+Markov Engine formalizes agentic failure to enable rigorous engineering.
 
-### 3. Simulation Workbench
-Don't guess if your prompt works. Run it 50 times. The built-in `MonteCarloRunner` executes your graph against a dataset to calculate **Accuracy** and **Consistency** metrics before you deploy.
+### The Joint Probability Trap
+In multi-step workflows, success probability ($P_{total}$) decays exponentially:
+$$P_{total} = \prod_{i=1}^{n} p_i$$
+A 5-step process with 90% accuracy per step yields only **~59% total reliability**. We solve this through:
 
-### 4. Multi-Provider Support (LiteLLM)
-We support **LiteLLM** to allow the use of virtually any LLM provider (OpenAI, Anthropic, Mistral) or local models (via vLLM/llama.cpp) within the same rigorous topology. Simply set `use_litellm=True` in your configuration.
+*   **Accuracy ($pass@k$):** $1 - (1 - p)^k$ — Parallel verification to transform low-probability reasoning into high-reliability output.
+*   **Consistency ($pass\wedge k$):** $p^k$ — Validating stability across batches to ensure enterprise-grade production readiness.
 
-## 🔌 Deep ADK Integration
+---
 
-We leverage **Google ADK** deeply to support complex enterprise use cases.
+## 🚀 Key Features
 
-### 🌐 ADK API Server Compatibility
-Every Markov Agent `Graph` is a valid Google ADK `Agent`. This means you can serve your topology instantly using the `adk` CLI:
+*   **PPU Design Pattern:** Treat ADK Models as CPUs that sometimes lie. Enforce reliability via parallel sampling and deterministic verification.
+*   **Topology Engineering:** Select optimized "Skeletons" (Linear, Cyclic, Hierarchical Swarm) to constrain reasoning.
+*   **Cognitive Kernel:** Infrastructure for reliability assurance, including a **State Schema Registry** (Pydantic) and **Trajectory Recorder**.
+*   **Advanced Deliberative Logic:** Support for **System 2** reasoning using **MCTS** and **Bayesian Information Gain**.
+*   **Deep ADK Integration:** Native compatibility with Google ADK agents, tools, and servers.
+*   **Multi-Provider (LiteLLM):** Swap between Gemini, OpenAI, Anthropic, or Local models (Qwen/Llama) with a single config flag.
 
-```bash
-# examples/adk_server_example/agent.py exposes an 'agent' object
-cd examples
-adk api_server
-```
-
-Then send requests:
-```bash
-curl -X POST http://localhost:8000/run \
-  -H "Content-Type: application/json" \
-  -d '{
-    "appName": "adk_server_example", 
-    "userId": "u1", 
-    "sessionId": "s1",
-    "newMessage": {"role": "user", "parts": [{"text": "Hello"}]}
-  }'
-```
-
-### 🛠️ Standard Tools
-The `markov_agent.tools` package provides production-ready tools:
-
-*   **`DatabaseTool`**: Securely query SQL databases using `sqlalchemy`.
-*   **`MCPTool`**: Connect to **Model Context Protocol (MCP)** servers to discover and use external tools dynamically.
-*   **`AgentAsTool`**: Wrap any Markov Node/Agent as a tool, enabling **Hierarchical Task Decomposition**.
-
-### 🏗️ Native Structured Output
-The `ProbabilisticNode` now automatically configures the underlying Google GenAI model for **JSON mode** when an `output_schema` is provided, ensuring significantly higher adherence to your data contracts.
-
-### 🔌 Custom ADK Plugins
-You can extend the agent's behavior globally by creating custom plugins. This is ideal for cross-cutting concerns like custom logging, safety auditing, or caching.
-
-```python
-from markov_agent import BasePlugin, CallbackContext, LlmRequest
-
-class MyPlugin(BasePlugin):
-    async def before_model_callback(self, *, callback_context: CallbackContext, llm_request: LlmRequest):
-        print(f"Intercepting request for {callback_context.agent_name}")
-        return None
-
-# Register in ADKConfig
-config = ADKConfig(model_name="gemini-1.5-pro", plugins=[MyPlugin()])
-```
-
-### ⚡ ADK Runtime & Deployment
-Markov Engine provides a production-ready runtime for parameterizing and deploying your agents.
-
-*   **`RunConfig`**: Dynamically override models, tools, or inject user context (e.g., email, history) for a specific execution without changing the underlying topology.
-*   **`AdkWebServer`**: Instantly expose your agent as a FastAPI-powered REST/WebSocket service compatible with ADK's development tools.
-
-```python
-from markov_agent import AdkWebServer, RunConfig
-
-# Execute with specific runtime context
-config = RunConfig(user_email="user@example.com")
-result = controller.run("Help me with X", config=config)
-
-# Deploy as a web service
-server = AdkWebServer(agent=controller)
-server.run(host="127.0.0.1", port=8080)
-```
+---
 
 ## 📦 Installation
 
-### Prerequisites
-
-*   **Python 3.12+**
-*   **`uv`**: A fast Python package manager. Install it via `curl -LsSf https://astral.sh/uv/install.sh | sh` (or `pip install uv`).
-
-### Setup
+Markov Engine requires **Python 3.12+** and is optimized for the **`uv`** package manager.
 
 ```bash
-# Clone the repository
+# Clone and setup
 git clone https://github.com/yourusername/markov_agent.git
 cd markov_agent
-
-# Install dependencies and set up the virtual environment
 uv sync
 ```
 
-## ⚡ Quick Start
+---
 
-Here is a simple example of a linear chain using a mock PPU:
+## ⚡ Quick Start: The "Markovian" Way
+
+Define a strongly-typed state and a deterministic node (or a `ProbabilisticNode` for LLMs).
 
 ```python
 import asyncio
@@ -126,91 +73,61 @@ from markov_agent.core.state import BaseState
 from markov_agent.topology.node import BaseNode
 from markov_agent.containers.chain import Chain
 
-# 1. Define your State
+# 1. Define Immutable, Strongly-Typed State
 class MyState(BaseState):
     input_text: str
     processed_text: str = ""
 
-# 2. Define a Deterministic Node (or use ProbabilisticNode for LLMs)
+# 2. Define a Node (The Transition Logic)
 class UpperCaseNode(BaseNode[MyState]):
     async def execute(self, state: MyState) -> MyState:
         return state.update(processed_text=state.input_text.upper())
 
-# 3. Create the Topology
-chain = Chain(nodes=[UpperCaseNode(name="uppercase_worker")])
+# 3. Create the Topology (The Skeleton)
+agent = Chain(nodes=[UpperCaseNode(name="worker")])
 
-# 4. Run it
+# 4. Run with Full Observability
 async def main():
-    initial = MyState(input_text="hello world")
-    final = await chain.run(initial)
-    print(f"Result: {final.processed_text}")
+    final_state = await agent.run(MyState(input_text="hello world"))
+    print(f"Result: {final_state.processed_text}")
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## 📂 Examples
+---
 
-Check out the `examples/` directory for more complex usage patterns:
+## 📂 Project Structure
 
-*   **`examples/agents/code_improver_agent.py`**: A dedicated **Coding Agent** that fixes bugs and improves code quality. It demonstrates:
-    *   **Iterative Refinement**: Analyze -> Plan -> Code -> Review loop.
-    *   **Regex Parsing**: Extracting code blocks from LLM responses.
-    *   **Feedback Loops**: Retrying code generation based on reviewer score.
-*   **`examples/agents/deep_research_agent.py`**: A complex agent that iteratively researches a topic, drafts an article, and critiques its own work in a loop. It demonstrates:
-    *   Cyclic Graphs (Looping logic)
-    *   Structured Output (JSON) with Pydantic
-    *   State Management and Updates
-    *   Mocking LLM responses for testing
-*   **`examples/agents/debate_team.py`**: A multi-agent simulation where two agents debate a topic. It demonstrates:
-    *   **Swarm Pattern**: Coordinator and Worker nodes.
-    *   **Adversarial Interaction**: Agents responding to each other's outputs.
-*   **`examples/agents/complex_local_agent.py`**: A task-decomposition agent configured for Local LLMs. It demonstrates:
-    *   **Planning & Execution**: Breaking a complex query into sequential sub-tasks.
-    *   **Stateful Iteration**: Tracking progress through a plan.
-    *   **Local Config**: Using `ADKConfig` with a local API endpoint.
-*   **`examples/agents/complex_reliability_agent.py`**: Advanced patterns for ensuring system reliability.
-*   **`examples/plugins/custom_logging_plugin.py`**: Demonstrates how to build and register custom ADK plugins for observability.
-*   **`examples/runtime/web_server_demo.py`**: Shows how to use `RunConfig` for dynamic context and `AdkWebServer` for deployment.
-*   **`examples/diagnostics/local_llm_test.py`**: A minimal example demonstrating how to connect to a **Local LLM** (e.g., Qwen/Llama via llama.cpp server) using the `use_litellm` flag.
+*   **`core/`**: Immutable State management and the Event Bus.
+*   **`topology/`**: Graph engine, Nodes, and Routing logic.
+*   **`engine/`**: The "Cognitive Kernel" & PPU implementation.
+*   **`containers/`**: High-level patterns (Chain, Swarm, Loop, Parallel).
+*   **`simulation/`**: Reliability workbench (Monte Carlo Runner).
+*   **`tools/`**: ADK-native tool wrappers (Database, MCP, Agent-as-Tool).
 
-## 📚 Documentation
+---
 
-*   [**Building Coding Agents**](docs/guides/building_coding_agents.md): A guide on constructing reliable software engineering agents.
-*   [**Compositional Patterns**](docs/guides/compositional_patterns.md): Learn how to use Chains, Swarms, Loops, and Parallel nodes.
-*   [**Reliability Engineering**](docs/guides/reliability_engineering.md): Quantify uncertainty with Monte Carlo simulations.
-*   [**Google ADK Deep Dive**](docs/adk_deep_dive/google_adk_overview.md)
-*   [**Architecture Overview**](docs/architecture/overview.md)
+## 📚 Documentation Index
 
-## 🏗️ Architecture
+*   [**Building Coding Agents**](docs/guides/building_coding_agents.md): Constructing self-correcting software agents.
+*   [**Topology Engineering**](docs/guides/topology_engineering.md): Designing structural architectures for logic.
+*   [**Reliability Engineering**](docs/guides/reliability_engineering.md): Quantifying uncertainty with $pass@k$.
+*   [**Advanced Deliberative Logic**](docs/guides/deliberative_logic.md): "System 2" reasoning and MCTS.
+*   [**Architecture Deep Dive**](docs/architecture/overview.md): MDP formalization and the Cognitive Kernel.
 
-*   **`core/`**: The immutable `State` registry and `EventBus` for observability.
-*   **`topology/`**: The graph engine (`Graph`, `Node`, `Edge`). It handles routing and cyclic safeguards.
-*   **`engine/`**: The "Cognitive Kernel". Wraps the ADK and implements the $pass@k$ parallel sampler.
-*   **`containers/`**: High-level structural patterns:
-    *   **`Chain`**: Simple linear $A \to B \to C$ execution.
-    *   **`Sequential`**: Strict ordered execution of nodes.
-    *   **`Parallel`**: Concurrent execution with state merging.
-    *   **`Loop`**: Iterative execution until a condition is met.
-    *   **`Swarm`**: Supervisor/Worker multi-agent patterns.
-    *   **`Nested`**: Embedding graphs within nodes for modularity.
-*   **`simulation/`**: The reliability lab. Contains `MonteCarloRunner` and metric calculators.
+---
 
-## 🛠️ Development
+## 🛠️ Development & Quality
 
-We enforce strict typing and code quality standards using `ruff`.
-
-### Testing & Formatting
+We enforce strict typing and formatting standards.
 
 ```bash
-# Run tests
-uv run pytest
-
-# Format and Lint
-uv run ruff check . --fix
-uv run ruff format .
+uv run pytest             # Run the test suite
+uv run ruff check . --fix # Lint and fix
+uv run ruff format .      # Format code
 ```
 
 ## 📜 License
 
-MIT License.
+Distributed under the **MIT License**. See `LICENSE` for more information.
