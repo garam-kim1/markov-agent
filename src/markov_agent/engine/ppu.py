@@ -33,6 +33,7 @@ class ProbabilisticNode(BaseNode[StateT]):
     samples: Any = Field(default=1)
     sampling_strategy: SamplingStrategy = Field(default=SamplingStrategy.UNIFORM)
     selector: Any = Field(default=None)
+    verifier_node: Any = Field(default=None)
     retry_policy: Any = Field(default=None)
     mock_responder: Any = Field(default=None)
     state_updater: Any = Field(default=None)
@@ -47,6 +48,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         samples: int = 1,
         sampling_strategy: SamplingStrategy = SamplingStrategy.UNIFORM,
         selector: Callable[[list[Any]], Any] | None = None,
+        verifier_node: BaseNode | None = None,
         retry_policy: RetryPolicy | None = None,
         mock_responder: Callable[[str], Any] | None = None,
         state_updater: Callable[[Any, Any], Any] | None = None,
@@ -60,6 +62,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.samples = samples
         self.sampling_strategy = sampling_strategy
         self.selector = selector
+        self.verifier_node = verifier_node
         self.retry_policy = retry_policy or RetryPolicy()
         self.state_updater = state_updater
         self.prompt_engine = PromptEngine()
@@ -152,11 +155,48 @@ class ProbabilisticNode(BaseNode[StateT]):
             task_factories.append(make_task)
 
         # 5. Execute Parallel Sampling
-        result = await execute_parallel_sampling(
+        results = await execute_parallel_sampling(
             generate_func=task_factories,
             k=self.samples,
-            selector_func=self.selector,
+            selector_func=lambda x: x,  # Get all results to perform verification
         )
+
+        # 5.5 Parallel Verification (if verifier_node is provided)
+        if self.verifier_node and isinstance(results, list) and len(results) > 1:
+            best_result = results[0]
+            # In a real enterprise system, we might run verifiers in parallel.
+            # Here we demonstrate the structural capability.
+            for candidate in results:
+                # Prepare a temporary session state for verification
+                temp_state = ctx.session.state.copy()
+                temp_state["candidate"] = (
+                    candidate.model_dump()
+                    if isinstance(candidate, BaseModel)
+                    else candidate
+                )
+
+                # Mock an invocation context for the verifier
+                # (Simplification: In full graph, verifier is a first-class node)
+                # For this PPU, we just call the verifier logic.
+                if hasattr(self.verifier_node, "execute"):
+                    # Cast for type safety in demo
+                    v_node: Any = self.verifier_node
+                    try:
+                        # We use a simplified check here
+                        v_state = await v_node.execute(temp_state)
+                        if v_state.get("verified", False):
+                            best_result = candidate
+                            break
+                    except Exception:  # noqa: S112
+                        continue
+            result = best_result
+        elif self.selector and isinstance(results, list):
+            # Standard selection (Uniform or Custom Selector)
+            result = self.selector(results)
+        elif isinstance(results, list):
+            result = results[0]
+        else:
+            result = results
 
         # 6. Update State
         if self.adk_config.output_key and isinstance(result, (str, BaseModel)):
