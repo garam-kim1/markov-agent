@@ -105,28 +105,10 @@ class ProbabilisticNode(BaseNode[StateT]):
                     state_obj = self.state_type.construct(**state_dict)
 
         # 2. Render Prompt
-        render_kwargs = {}
-        if isinstance(state_obj, BaseModel):
-            render_kwargs.update(dict(state_obj))
-            render_kwargs["state"] = state_obj
-        elif isinstance(state_dict, dict):
-            render_kwargs.update(state_dict)
-
-        prompt = self.prompt_engine.render(self.prompt_template, **render_kwargs)
+        prompt = self._render_prompt(state_obj)
 
         # 3. Generate Varied Configs (Explore/Exploit Strategy)
-        base_gen_config = self.adk_config.generation_config or {}
-        # Ensure temperature is in base config if set at top level
-        if "temperature" not in base_gen_config:
-            base_gen_config["temperature"] = self.adk_config.temperature
-        # Ensure top_p is in base config if set at top level
-        # (needed for DIVERSE strategy)
-        if (
-            "top_p" not in base_gen_config
-            and getattr(self.adk_config, "top_p", None) is not None
-        ):
-            base_gen_config["top_p"] = self.adk_config.top_p
-
+        base_gen_config = self._get_base_gen_config()
         varied_configs = generate_varied_configs(
             base_gen_config,
             self.samples,
@@ -134,25 +116,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
 
         # 4. Create Generation Tasks (Factories)
-        task_factories = []
-        for cfg in varied_configs:
-            # If strategy is uniform, we can reuse the main controller.
-            # Otherwise, create a variant.
-            if self.sampling_strategy == SamplingStrategy.UNIFORM:
-                controller_to_use = self.controller
-            else:
-                controller_to_use = self.controller.create_variant(cfg)
-
-            # Closure to capture the specific controller
-            def make_task(c: ADKController = controller_to_use) -> Any:
-                return c.generate(
-                    prompt,
-                    output_schema=self.output_schema,
-                    initial_state=state_dict,
-                    include_state=False,
-                )
-
-            task_factories.append(make_task)
+        task_factories = self._create_task_factories(prompt, state_dict, varied_configs)
 
         # 5. Execute Parallel Sampling
         results = await execute_parallel_sampling(
@@ -162,41 +126,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
 
         # 5.5 Parallel Verification (if verifier_node is provided)
-        if self.verifier_node and isinstance(results, list) and len(results) > 1:
-            best_result = results[0]
-            # In a real enterprise system, we might run verifiers in parallel.
-            # Here we demonstrate the structural capability.
-            for candidate in results:
-                # Prepare a temporary session state for verification
-                temp_state = ctx.session.state.copy()
-                temp_state["candidate"] = (
-                    candidate.model_dump()
-                    if isinstance(candidate, BaseModel)
-                    else candidate
-                )
-
-                # Mock an invocation context for the verifier
-                # (Simplification: In full graph, verifier is a first-class node)
-                # For this PPU, we just call the verifier logic.
-                if hasattr(self.verifier_node, "execute"):
-                    # Cast for type safety in demo
-                    v_node: Any = self.verifier_node
-                    try:
-                        # We use a simplified check here
-                        v_state = await v_node.execute(temp_state)
-                        if v_state.get("verified", False):
-                            best_result = candidate
-                            break
-                    except Exception:  # noqa: S112
-                        continue
-            result = best_result
-        elif self.selector and isinstance(results, list):
-            # Standard selection (Uniform or Custom Selector)
-            result = self.selector(results)
-        elif isinstance(results, list):
-            result = results[0]
-        else:
-            result = results
+        result = await self._verify_results(ctx, results)
 
         # 6. Update State
         if self.adk_config.output_key and isinstance(result, (str, BaseModel)):
@@ -262,10 +192,74 @@ class ProbabilisticNode(BaseNode[StateT]):
         Runs logic directly on the State object, bypassing ADK runner.
         Respects SamplingStrategy.
         """
+        return await self._execute_impl(state)
+
+    async def _execute_impl(self, state: StateT) -> StateT:
         prompt = self._render_prompt(state)
         state_dict = state.model_dump() if isinstance(state, BaseModel) else dict(state)
 
-        # Duplicate logic for configs (refactor target?)
+        base_gen_config = self._get_base_gen_config()
+        varied_configs = generate_varied_configs(
+            base_gen_config,
+            self.samples,
+            self.sampling_strategy,
+        )
+
+        task_factories = self._create_task_factories(prompt, state_dict, varied_configs)
+
+        result = await execute_parallel_sampling(
+            generate_func=task_factories,
+            k=self.samples,
+            selector_func=self.selector,
+        )
+
+        return self.parse_result(state, result)
+
+    async def deep(self, state: StateT) -> StateT:
+        """System 2 reasoning (Think-then-Act).
+
+        1. Generates internal reasoning/thought process.
+        2. Executes the primary task with reasoning context.
+        """
+        # Phase 1: Reasoning
+        base_prompt = self._render_prompt(state)
+        thinking_prompt = (
+            f"{base_prompt}\n\n"
+            "SYSTEM INSTRUCTION: Before providing the final output, "
+            "perform a deep step-by-step reasoning analysis. "
+            "Identify constraints, edge cases, and the best strategy."
+        )
+
+        # Use a text-only controller for reasoning
+        thought_ctrl = self.controller.create_variant({"response_mime_type": "text/plain"})
+        reasoning = await thought_ctrl.generate(
+            thinking_prompt,
+            output_schema=None,
+            initial_state=state.model_dump() if isinstance(state, BaseModel) else state,
+        )
+
+        # Phase 2: Action (with reasoning)
+        # We inject reasoning into the prompt via a temporary state field
+        if isinstance(state, BaseModel):
+            rich_state = state.model_copy(update={"reasoning": reasoning})
+        else:
+            rich_state = {**state, "reasoning": reasoning}
+
+        # Temporarily enrich prompt template
+        original_template = self.prompt_template
+        self.prompt_template = (
+            f"{original_template}\n\n"
+            "INTERNAL REASONING (System 2):\n"
+            "{{ reasoning }}\n\n"
+            "Now, generate the final output according to the requested schema."
+        )
+
+        try:
+            return await self._execute_impl(rich_state)
+        finally:
+            self.prompt_template = original_template
+
+    def _get_base_gen_config(self) -> dict[str, Any]:
         base_gen_config = self.adk_config.generation_config or {}
         if "temperature" not in base_gen_config:
             base_gen_config["temperature"] = self.adk_config.temperature
@@ -274,13 +268,14 @@ class ProbabilisticNode(BaseNode[StateT]):
             and getattr(self.adk_config, "top_p", None) is not None
         ):
             base_gen_config["top_p"] = self.adk_config.top_p
+        return base_gen_config
 
-        varied_configs = generate_varied_configs(
-            base_gen_config,
-            self.samples,
-            self.sampling_strategy,
-        )
-
+    def _create_task_factories(
+        self,
+        prompt: str,
+        state_dict: dict[str, Any],
+        varied_configs: list[dict[str, Any]],
+    ) -> list[Callable[[], Any]]:
         task_factories = []
         for cfg in varied_configs:
             if self.sampling_strategy == SamplingStrategy.UNIFORM:
@@ -297,22 +292,51 @@ class ProbabilisticNode(BaseNode[StateT]):
                 )
 
             task_factories.append(make_task)
+        return task_factories
 
-        result = await execute_parallel_sampling(
-            generate_func=task_factories,
-            k=self.samples,
-            selector_func=self.selector,
-        )
+    async def _verify_results(self, ctx: InvocationContext, results: list[Any]) -> Any:
+        if self.verifier_node and isinstance(results, list) and len(results) > 1:
+            best_result = results[0]
+            for candidate in results:
+                temp_state = ctx.session.state.copy()
+                temp_state["candidate"] = (
+                    candidate.model_dump()
+                    if isinstance(candidate, BaseModel)
+                    else candidate
+                )
+                if hasattr(self.verifier_node, "execute"):
+                    v_node: Any = self.verifier_node
+                    try:
+                        v_state = await v_node.execute(temp_state)
+                        if v_state.get("verified", False):
+                            best_result = candidate
+                            break
+                    except Exception:  # noqa: S112
+                        continue
+            return best_result
+        if self.selector and isinstance(results, list):
+            return self.selector(results)
+        if isinstance(results, list):
+            return results[0]
+        return results
 
-        return self.parse_result(state, result)
-
-    def _render_prompt(self, state: StateT) -> str:
+    def _render_prompt(self, state: StateT | dict[str, Any]) -> str:
         render_kwargs = {}
-        if isinstance(state, BaseModel):
-            render_kwargs.update(dict(state))
-            render_kwargs["state"] = state
-        else:
-            render_kwargs.update(state)
+        
+        # Try to convert dict to model if we have a state_type
+        state_obj = state
+        if isinstance(state, dict) and self.state_type:
+            try:
+                state_obj = self.state_type.model_validate(state)
+            except Exception:
+                with contextlib.suppress(Exception):
+                    state_obj = self.state_type.construct(**state)
+
+        if isinstance(state_obj, BaseModel):
+            render_kwargs.update(dict(state_obj))
+            render_kwargs["state"] = state_obj
+        elif isinstance(state_obj, dict):
+            render_kwargs.update(state_obj)
 
         try:
             return self.prompt_engine.render(self.prompt_template, **render_kwargs)

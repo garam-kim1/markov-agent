@@ -16,15 +16,18 @@ class SearchNode(ProbabilisticNode):
         name: str,
         adk_config: ADKConfig,
         prompt_template: str,
+        output_schema: type[BaseModel] | None = None,
+        state_type: type[ProbabilisticNode.StateT] | None = None,
         **kwargs: Any,
     ):
+        # Create a copy to avoid polluting the original config
+        adk_config = adk_config.model_copy(deep=True)
+        
         # Ensure tools list exists
         if adk_config.tools is None:
             adk_config.tools = []
 
         # Add Google Search Tool if not present
-        # Note: We instantiate the wrapper from markov_agent.tools.search
-        # which returns the native tool via as_tool_list()
         search_tool_wrapper = GoogleSearchTool()
         adk_config.tools.extend(search_tool_wrapper.as_tool_list())
 
@@ -32,5 +35,7 @@ class SearchNode(ProbabilisticNode):
             name=name,
             adk_config=adk_config,
             prompt_template=prompt_template,
+            output_schema=output_schema,
+            state_type=state_type,
             **kwargs,
         )
