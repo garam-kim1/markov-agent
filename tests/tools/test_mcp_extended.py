@@ -1,18 +1,15 @@
-import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from markov_agent.tools.mcp import MCPServerConfig, MCPTool
 
 
 def test_mcp_http_config():
     """Test that HTTP/SSE configuration correctly initializes SseConnectionParams."""
-    # We need to mock mcp.client.sse because it might not be installed or we want to verify the call
-    mock_sse_module = MagicMock()
-    mock_params_class = MagicMock()
-    mock_sse_module.SseConnectionParams = mock_params_class
-
+    # Mock SseConnectionParams in the location where it's now imported from
     with (
-        patch.dict(sys.modules, {"mcp.client.sse": mock_sse_module}),
+        patch(
+            "google.adk.tools.mcp_tool.mcp_session_manager.SseConnectionParams"
+        ) as mock_params_class,
         patch("markov_agent.tools.mcp.McpToolset") as MockToolset,
     ):
         config = MCPServerConfig(
