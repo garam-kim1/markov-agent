@@ -231,7 +231,9 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
 
         # Use a text-only controller for reasoning
-        thought_ctrl = self.controller.create_variant({"response_mime_type": "text/plain"})
+        thought_ctrl = self.controller.create_variant(
+            {"response_mime_type": "text/plain"}
+        )
         reasoning = await thought_ctrl.generate(
             thinking_prompt,
             output_schema=None,
@@ -322,7 +324,7 @@ class ProbabilisticNode(BaseNode[StateT]):
 
     def _render_prompt(self, state: StateT | dict[str, Any]) -> str:
         render_kwargs = {}
-        
+
         # Try to convert dict to model if we have a state_type
         state_obj = state
         if isinstance(state, dict) and self.state_type:

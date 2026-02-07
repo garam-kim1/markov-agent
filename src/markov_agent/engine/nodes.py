@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic import BaseModel
+
 from markov_agent.engine.adk_wrapper import ADKConfig
 from markov_agent.engine.ppu import ProbabilisticNode
 from markov_agent.tools.search import GoogleSearchTool
@@ -17,12 +19,12 @@ class SearchNode(ProbabilisticNode):
         adk_config: ADKConfig,
         prompt_template: str,
         output_schema: type[BaseModel] | None = None,
-        state_type: type[ProbabilisticNode.StateT] | None = None,
+        state_type: type[Any] | None = None,
         **kwargs: Any,
     ):
         # Create a copy to avoid polluting the original config
         adk_config = adk_config.model_copy(deep=True)
-        
+
         # Ensure tools list exists
         if adk_config.tools is None:
             adk_config.tools = []

@@ -1,5 +1,6 @@
 import asyncio
 import os
+from typing import Any
 
 from pydantic import BaseModel, Field
 from rich.console import Console
@@ -17,47 +18,62 @@ from markov_agent.topology.graph import Graph
 
 # --- 1. Define Models & State ---
 
+
 class Chapter(BaseModel):
     """Represents a single chapter with research and content."""
+
     title: str
     description: str
     research_notes: str | None = None
     content: str | None = None
     verified: bool = False
 
+
 class ReportState(BaseState):
     """The global state of the report generation process."""
+
     topic: str
     chapters: list[Chapter] = Field(default_factory=list)
     current_chapter_index: int = 0
     final_report: str = ""
 
+
 # --- 2. Output Schemas ---
+
 
 class PlanOutput(BaseModel):
     chapters: list[Chapter]
 
+
 class ResearchOutput(BaseModel):
     notes: str
 
+
 class ChapterContentOutput(BaseModel):
     content: str
+
 
 class VerificationOutput(BaseModel):
     verified: bool
     feedback: str | None = None
 
+
 # --- 3. Custom Nodes for the Complex Structure ---
+
 
 class DeepWriterNode(ProbabilisticNode):
     """A specialized writer that uses System 2 reasoning."""
+
     async def execute(self, state: ReportState) -> ReportState:
         return await self.deep(state)
 
+
 # --- 4. State Updaters ---
+
 
 def update_plan(state: ReportState, result: PlanOutput) -> ReportState:
     return state.update(chapters=result.chapters)
+
 
 def update_research(state: ReportState, result: str | ResearchOutput) -> ReportState:
     idx = state.current_chapter_index
@@ -67,12 +83,14 @@ def update_research(state: ReportState, result: str | ResearchOutput) -> ReportS
         chapters[idx].research_notes = notes
     return state.update(chapters=chapters)
 
+
 def update_content(state: ReportState, result: ChapterContentOutput) -> ReportState:
     idx = state.current_chapter_index
     chapters = list(state.chapters)
     if idx < len(chapters):
         chapters[idx].content = result.content
     return state.update(chapters=chapters)
+
 
 def update_verification(state: ReportState, result: VerificationOutput) -> ReportState:
     idx = state.current_chapter_index
@@ -84,7 +102,9 @@ def update_verification(state: ReportState, result: VerificationOutput) -> Repor
         return state.update(chapters=chapters, current_chapter_index=new_idx)
     return state
 
+
 # --- 5. Main Logic ---
+
 
 async def main():
     console = Console()
@@ -109,7 +129,7 @@ async def main():
         Search for information regarding: {{ topic }}
         Specifically for the chapter: {{ chapters[current_chapter_index].title }}
         Description: {{ chapters[current_chapter_index].description }}
-        
+
         Synthesize the search results into detailed research notes.
         """,
         state_updater=update_research,
@@ -123,7 +143,7 @@ async def main():
         Write the content for the chapter: {{ chapters[current_chapter_index].title }}
         Topic: {{ topic }}
         Research Notes: {{ chapters[current_chapter_index].research_notes }}
-        
+
         Write professional Markdown content.
         Your output MUST match: {"content": "string"}
         """,
@@ -140,7 +160,7 @@ async def main():
         prompt_template="""
         Review the following content for accuracy and style.
         Content: {{ chapters[current_chapter_index].content }}
-        
+
         If it meets high standards, set verified to true.
         Your output MUST match: {"verified": boolean, "feedback": "string"}
         """,
@@ -158,21 +178,19 @@ async def main():
                 "researcher"
                 if not (
                     # Safety check: ensure current_chapter_index is within bounds
-                    (
-                        s.get("chapters", [])[s.get("current_chapter_index", 0)].get(
-                            "verified",
-                            False,
-                        )
-                        if (
-                            isinstance(s, dict)
-                            and s.get("current_chapter_index", 0)
-                            < len(s.get("chapters", []))
-                        )
-                        else (
-                            s.chapters[s.current_chapter_index].verified
-                            if s.current_chapter_index < len(s.chapters)
-                            else True  # Assume verified if out of bounds to stop loop
-                        )
+                    s.get("chapters", [])[s.get("current_chapter_index", 0)].get(
+                        "verified",
+                        False,
+                    )
+                    if (
+                        isinstance(s, dict)
+                        and s.get("current_chapter_index", 0)
+                        < len(s.get("chapters", []))
+                    )
+                    else (
+                        s.chapters[s.current_chapter_index].verified
+                        if s.current_chapter_index < len(s.chapters)
+                        else True  # Assume verified if out of bounds to stop loop
                     )
                 )
                 else None
@@ -211,7 +229,9 @@ async def main():
 
     def route_main(state: Any) -> str | None:
         # State might be dict or ReportState
-        chapters = state.get("chapters", []) if isinstance(state, dict) else state.chapters
+        chapters = (
+            state.get("chapters", []) if isinstance(state, dict) else state.chapters
+        )
         idx = (
             state.get("current_chapter_index", 0)
             if isinstance(state, dict)
@@ -240,26 +260,35 @@ async def main():
     topic = "The Convergence of Symbolic Logic and Neural Probabilities"
     initial_state = ReportState(topic=topic)
 
-    console.print(Panel(f"[bold green]Generating Deep Hierarchical Report[/bold green]\nTopic: [cyan]{topic}[/cyan]"))
+    console.print(
+        Panel(
+            f"[bold green]Generating Deep Hierarchical Report[/bold green]\nTopic: [cyan]{topic}[/cyan]"
+        )
+    )
 
     try:
         final_state_data = await orchestrator.run(initial_state)
-        
+
         # Ensure we have a dict to work with for assembly if it's not a model
-        state_dict = final_state_data if isinstance(final_state_data, dict) else final_state_data.model_dump()
-        
+        state_dict = (
+            final_state_data
+            if isinstance(final_state_data, dict)
+            else final_state_data.model_dump()
+        )
+
         # Assemble Final Report
         report_md = f"# {state_dict.get('topic')}\n\n"
         for c in state_dict.get("chapters", []):
             title = c.get("title") if isinstance(c, dict) else c.title
             content = c.get("content") if isinstance(c, dict) else c.content
             report_md += f"## {title}\n\n{content or 'No content generated.'}\n\n"
-        
+
         console.print("\n[bold blue]=== FINAL REPORT ===[/bold blue]\n")
         console.print(Markdown(report_md))
 
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
