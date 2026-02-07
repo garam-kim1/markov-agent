@@ -71,8 +71,8 @@ class MockLlm(BaseLlm):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     mock_responder: Callable[[str], Any] | None = None
 
-    def __init__(self, mock_responder: Callable[[str], Any]):
-        super().__init__(model="mock-model")
+    def __init__(self, mock_responder: Callable[[str], Any], model: str = "mock-model"):
+        super().__init__(model=model)
         object.__setattr__(self, "mock_responder", mock_responder)
 
     @override
@@ -205,7 +205,7 @@ class ADKController:
         # Model Initialization Logic
         model_instance = self.config.model_name
         if self.mock_responder:
-            model_instance = MockLlm(self.mock_responder)
+            model_instance = MockLlm(self.mock_responder, model=self.config.model_name)
         elif self.config.use_litellm:
             from google.adk.models.lite_llm import LiteLlm
 
