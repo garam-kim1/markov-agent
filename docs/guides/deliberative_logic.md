@@ -6,7 +6,8 @@ High-stakes decision-making in financial or strategic domains requires **System 
 
 Utilizing **Monte Carlo Tree Search**, the agent follows an Expand-Simulate-Select process. It generates multiple plans, simulates outcomes via a critic model, and selects the path that maximizes the **Value Function**:
 
-$$V(s) = \mathbb{E} \left[ \sum_{t=0}^{T} \gamma^t r(s_t, a_t) ight]$$
+$$V(s) = \mathbb{E} \left[ \sum_{t=0}^{T} \gamma^t r(s_t, a_t) \right]$$
+
 
 Here, the discount factor $\gamma$ is critical, as it allows the system to prioritize immediate task success over speculative future states.
 
