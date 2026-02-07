@@ -28,8 +28,9 @@ You must adhere to these constraints without deviation.
     * *Constraint:* Use `uvx ty check` for type checking.
 * **Testing:** `pytest`.
     * *Constraint:* Always run `uv run pytest` to verify changes.
-* **Async Runtime:** `asyncio`.
+*   **Async Runtime:** `asyncio`.
     * *Constraint:* All I/O must be asynchronous to support **Parallel Trajectory Generation** ($pass@k$).
+*   **API Key Management:** Supports `GOOGLE_API_KEY` and `GEMINI_API_KEY` fallbacks.
 
 ### 2.2 The "PPU" Design Pattern
 Treat the ADK Model as a CPU that sometimes lies.
@@ -37,6 +38,8 @@ Treat the ADK Model as a CPU that sometimes lies.
 * **Process:** Parallel Execution Paths (Trajectories) via ADK.
 * **Output:** Validated JSON (enforced via ADK's structured generation capabilities).
 * **Failure Mode:** If validation fails, trigger a `Retry` loop, not a crash.
+* **Testing:** Use `mock_responder` for deterministic local testing; it integrates natively with the ADK flow.
+
 
 ---
 
@@ -63,6 +66,8 @@ markov_agent/
         │   ├── nodes.py         # Specialized Nodes (e.g. SearchNode)
         │   ├── adk_wrapper.py   # Wrapper around google_adk.Model
         │   ├── telemetry_plugin.py # ADK <-> Markov Event Bus Bridge
+        │   ├── plugins.py       # BasePlugin and ADK type re-exports
+        │   ├── runtime.py       # RunConfig and AdkWebServer
         │   ├── sampler.py       # Implementation of pass@k logic
         │   └── prompt.py        # Jinja2-based structured prompting
         ├── tools/               # Native ADK Tool Wrappers
@@ -102,12 +107,15 @@ markov_agent/
     3.  **Selection:** Return the highest-scoring response.
 * **Math:** $P(Success) = 1 - (1 - p)^k$.
 
-### 4.3 Observability
+### 4.3 Observability & Plugins
 * **Event Bus:** All critical system actions (graph start/end, node execution, errors) must emit events via `markov_agent.core.events.event_bus`.
+* **ADK Plugins:** Extend agent behavior globally by inheriting from `BasePlugin`. Register them in `ADKConfig(plugins=[...])`.
 * **Logging:** Use `rich` for human-readable console output. Do not use `print()`.
 
-### 4.4 Event-Driven Interaction
+### 4.4 Event-Driven Interaction & Runtime
 * **Async Streams:** Use `ADKController.run_async()` to consume real-time events (streaming, tool calls, status updates).
+* **RunConfig:** Use `RunConfig` to parameterize individual runs (dynamic model/tool swapping, user email, history).
+* **Deployment:** Use `AdkWebServer` to wrap agents as REST/WebSocket services.
 * **Persistence:** Retrieve full session history via `ADKController.get_session_events()`.
 * **Interception:** Use `BeforeModelCallback` or `AfterModelCallback` for "Audit and Guard" patterns.
 

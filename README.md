@@ -65,6 +65,39 @@ The `markov_agent.tools` package provides production-ready tools:
 ### 🏗️ Native Structured Output
 The `ProbabilisticNode` now automatically configures the underlying Google GenAI model for **JSON mode** when an `output_schema` is provided, ensuring significantly higher adherence to your data contracts.
 
+### 🔌 Custom ADK Plugins
+You can extend the agent's behavior globally by creating custom plugins. This is ideal for cross-cutting concerns like custom logging, safety auditing, or caching.
+
+```python
+from markov_agent import BasePlugin, CallbackContext, LlmRequest
+
+class MyPlugin(BasePlugin):
+    async def before_model_callback(self, *, callback_context: CallbackContext, llm_request: LlmRequest):
+        print(f"Intercepting request for {callback_context.agent_name}")
+        return None
+
+# Register in ADKConfig
+config = ADKConfig(model_name="gemini-1.5-pro", plugins=[MyPlugin()])
+```
+
+### ⚡ ADK Runtime & Deployment
+Markov Engine provides a production-ready runtime for parameterizing and deploying your agents.
+
+*   **`RunConfig`**: Dynamically override models, tools, or inject user context (e.g., email, history) for a specific execution without changing the underlying topology.
+*   **`AdkWebServer`**: Instantly expose your agent as a FastAPI-powered REST/WebSocket service compatible with ADK's development tools.
+
+```python
+from markov_agent import AdkWebServer, RunConfig
+
+# Execute with specific runtime context
+config = RunConfig(user_email="user@example.com")
+result = controller.run("Help me with X", config=config)
+
+# Deploy as a web service
+server = AdkWebServer(agent=controller)
+server.run(host="127.0.0.1", port=8080)
+```
+
 ## 📦 Installation
 
 ### Prerequisites
@@ -137,6 +170,8 @@ Check out the `examples/` directory for more complex usage patterns:
     *   **Stateful Iteration**: Tracking progress through a plan.
     *   **Local Config**: Using `ADKConfig` with a local API endpoint.
 *   **`examples/agents/complex_reliability_agent.py`**: Advanced patterns for ensuring system reliability.
+*   **`examples/plugins/custom_logging_plugin.py`**: Demonstrates how to build and register custom ADK plugins for observability.
+*   **`examples/runtime/web_server_demo.py`**: Shows how to use `RunConfig` for dynamic context and `AdkWebServer` for deployment.
 *   **`examples/diagnostics/local_llm_test.py`**: A minimal example demonstrating how to connect to a **Local LLM** (e.g., Qwen/Llama via llama.cpp server) using the `use_litellm` flag.
 
 ## 📚 Documentation

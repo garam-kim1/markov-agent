@@ -9,17 +9,23 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.events import Event
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from markov_agent.engine.plugins import BasePlugin
+from markov_agent.engine.runtime import RunConfig
 from markov_agent.engine.telemetry_plugin import MarkovBridgePlugin
 
 T = TypeVar("T", bound=BaseModel)
 
 
 class ADKConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     model_name: Any
     temperature: float = 0.7
     top_p: float | None = None
@@ -35,7 +41,7 @@ class ADKConfig(BaseModel):
     instruction: str | Callable[[ReadonlyContext], str] | None = None
     description: str | None = None
     generation_config: dict[str, Any] | None = None
-    plugins: list[Any] = Field(default_factory=list)
+    plugins: list[BasePlugin] = Field(default_factory=list)
     callbacks: list[Any] = Field(default_factory=list)
     use_litellm: bool = False
     output_key: str | None = None
@@ -46,9 +52,47 @@ class ADKConfig(BaseModel):
 
 
 class RetryPolicy(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     max_attempts: int = 3
     initial_delay: float = 0.5
     backoff_factor: float = 2.0
+
+
+class MockLlm(BaseLlm):
+    """Mock LLM implementation for testing."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    mock_responder: Callable[[str], Any]
+
+    def __init__(self, mock_responder: Callable[[str], Any]):
+        super().__init__(model="mock-model", mock_responder=mock_responder)
+
+    async def generate_content_async(
+        self,
+        contents: Any,
+        config: types.GenerateContentConfig | None = None,
+        **kwargs: Any,
+    ) -> AsyncGenerator[LlmResponse, None]:
+        # contents is likely LlmRequest object which has .contents list
+        actual_contents = []
+        if hasattr(contents, "contents"):
+            actual_contents = contents.contents
+        elif isinstance(contents, list):
+            actual_contents = contents
+
+        # Extract prompt from contents
+        prompt = ""
+        if actual_contents and actual_contents[-1].parts:
+            prompt = "".join(p.text for p in actual_contents[-1].parts if p.text)
+
+        result = self.mock_responder(prompt)
+        if asyncio.iscoroutine(result):
+            result = await result
+
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text=str(result))])
+        )
 
 
 class ADKController:
@@ -72,8 +116,9 @@ class ADKController:
         self.artifact_service = artifact_service or InMemoryArtifactService()
 
         # Configure environment if needed
-        if self.config.api_key:
-            os.environ["GOOGLE_API_KEY"] = self.config.api_key
+        api_key = self.config.api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if api_key:
+            os.environ["GOOGLE_API_KEY"] = api_key
 
         # Prepare model_config from generation_config and top-level fields
         model_config = (self.config.generation_config or {}).copy()
@@ -143,7 +188,9 @@ class ADKController:
 
         # Model Initialization Logic
         model_instance = self.config.model_name
-        if self.config.use_litellm:
+        if self.mock_responder:
+            model_instance = MockLlm(self.mock_responder)
+        elif self.config.use_litellm:
             from google.adk.models.lite_llm import LiteLlm
 
             # Setup environment for LiteLLM if api_base provided
@@ -259,6 +306,7 @@ class ADKController:
         initial_state: dict[str, Any] | None = None,
         *,
         include_state: bool = False,
+        run_config: RunConfig | None = None,
     ) -> Any | tuple[Any, dict[str, Any]]:
         """Generate content with retry logic using the ADK Runner.
 
@@ -266,23 +314,45 @@ class ADKController:
         Returns the result, or a tuple of (result, updated_session_state)
         if include_state is True.
         """
+        controller = self
+        if run_config and (run_config.model or run_config.tools):
+            if run_config.model:
+                # This is a bit tricky as create_variant expects a dict of overrides
+                # for ADKConfig fields that map to generation_config.
+                # But ADKConfig.model_name is a top-level field.
+                # Let's assume we want to change the model for this run.
+                new_config = self.config.model_copy(deep=True)
+                new_config.model_name = run_config.model
+                if run_config.tools:
+                    new_config.tools = run_config.tools
+                controller = ADKController(
+                    config=new_config,
+                    retry_policy=self.retry_policy,
+                    mock_responder=self.mock_responder,
+                    output_schema=self.output_schema,
+                    artifact_service=self.artifact_service,
+                )
+            elif run_config.tools:
+                new_config = self.config.model_copy(deep=True)
+                new_config.tools = run_config.tools
+                controller = ADKController(
+                    config=new_config,
+                    retry_policy=self.retry_policy,
+                    mock_responder=self.mock_responder,
+                    output_schema=self.output_schema,
+                    artifact_service=self.artifact_service,
+                )
 
         async def run_attempt() -> tuple[Any, dict[str, Any]]:
-            if self.mock_responder:
-                res = self.mock_responder(prompt)
-                if asyncio.iscoroutine(res):
-                    res = await res
-                return res, (initial_state or {})
-
             final_prompt = prompt
             # Note: We do NOT manually inject the JSON schema into the prompt here.
             # The Agent is configured with output_schema, so the underlying model
             # should natively enforce the structure.
 
             session_id = f"gen_{uuid.uuid4().hex[:8]}"
-            await self.session_service.create_session(
+            await controller.session_service.create_session(
                 app_name="markov_agent",
-                user_id="system",
+                user_id=run_config.user_email if run_config and run_config.user_email else "system",
                 session_id=session_id,
                 state=initial_state or {},
             )
@@ -290,10 +360,12 @@ class ADKController:
             content = types.Content(role="user", parts=[types.Part(text=final_prompt)])
 
             final_text = ""
-            async for event in self.runner.run_async(
-                user_id="system",
+            adk_run_config = run_config.to_adk_run_config() if run_config else None
+            async for event in controller.runner.run_async(
+                user_id=run_config.user_email if run_config and run_config.user_email else "system",
                 session_id=session_id,
                 new_message=content,
+                run_config=adk_run_config,
             ):
                 if event.is_final_response():
                     if event.content and event.content.parts:
@@ -303,9 +375,9 @@ class ADKController:
                     break
 
             # Retrieve final state
-            final_session = await self.session_service.get_session(
+            final_session = await controller.session_service.get_session(
                 app_name="markov_agent",
-                user_id="system",
+                user_id=run_config.user_email if run_config and run_config.user_email else "system",
                 session_id=session_id,
             )
             final_state = final_session.state if final_session else {}
@@ -314,10 +386,10 @@ class ADKController:
 
         # Retry Loop
         attempt = 0
-        current_delay = self.retry_policy.initial_delay
+        current_delay = controller.retry_policy.initial_delay
         last_error = None
 
-        while attempt < self.retry_policy.max_attempts:
+        while attempt < controller.retry_policy.max_attempts:
             try:
                 raw_text, final_state = await run_attempt()
 
@@ -343,14 +415,18 @@ class ADKController:
             except Exception as e:
                 last_error = e
                 attempt += 1
-                if attempt < self.retry_policy.max_attempts:
+                if attempt < controller.retry_policy.max_attempts:
                     await asyncio.sleep(current_delay)
-                    current_delay *= self.retry_policy.backoff_factor
+                    current_delay *= controller.retry_policy.backoff_factor
             else:
                 break
 
-        msg = f"Failed to generate after {self.retry_policy.max_attempts} attempts"
+        msg = f"Failed to generate after {controller.retry_policy.max_attempts} attempts"
         raise RuntimeError(msg) from last_error
+
+    def run(self, prompt: str, config: RunConfig | None = None) -> Any:
+        """Run the agent synchronously and block until finished."""
+        return asyncio.run(self.generate(prompt, run_config=config))
 
     async def run_async(
         self,
@@ -358,6 +434,7 @@ class ADKController:
         session_id: str | None = None,
         user_id: str = "system",
         initial_state: dict[str, Any] | None = None,
+        run_config: RunConfig | None = None,
     ) -> AsyncGenerator[Event, None]:
         """Expose the underlying ADK event stream.
 
@@ -366,20 +443,24 @@ class ADKController:
         if session_id is None:
             session_id = f"stream_{uuid.uuid4().hex[:8]}"
 
+        actual_user_id = run_config.user_email if run_config and run_config.user_email else user_id
+
         # Ensure session exists
         await self.session_service.create_session(
             app_name="markov_agent",
-            user_id=user_id,
+            user_id=actual_user_id,
             session_id=session_id,
             state=initial_state or {},
         )
 
         content = types.Content(role="user", parts=[types.Part(text=prompt)])
 
+        adk_run_config = run_config.to_adk_run_config() if run_config else None
         async for event in self.runner.run_async(
-            user_id=user_id,
+            user_id=actual_user_id,
             session_id=session_id,
             new_message=content,
+            run_config=adk_run_config,
         ):
             yield event
 

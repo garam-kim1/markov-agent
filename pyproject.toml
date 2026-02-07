@@ -25,6 +25,10 @@ build-backend = "hatchling.build"
 pythonpath = ["src", "."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:.*is experimental and may change or be removed.*:UserWarning",
+    "ignore:.*'_UnionGenericAlias' is deprecated.*:DeprecationWarning",
+]
 
 [project.optional-dependencies]
 dev = [

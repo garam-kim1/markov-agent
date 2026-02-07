@@ -1,6 +1,7 @@
 import asyncio
 import os
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_response import LlmResponse
