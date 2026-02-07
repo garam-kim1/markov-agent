@@ -24,8 +24,8 @@ class ResearchState(BaseState):
 
 async def run_demo():
     # 1. Setup Governance
-    cheap_cfg = ADKConfig(model_name="gemini-1.5-flash", temperature=0.1)
-    reasoning_cfg = ADKConfig(model_name="gemini-1.5-pro", temperature=0.7)
+    cheap_cfg = ADKConfig(model_name="gemini-3-flash-preview", temperature=0.1)
+    reasoning_cfg = ADKConfig(model_name="gemini-3-flash-preview", temperature=0.7)
 
     governor = CostGovernor(
         cheap_config=cheap_cfg, reasoning_config=reasoning_cfg, cost_budget=0.5

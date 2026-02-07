@@ -16,7 +16,7 @@ def refund_user(transaction_id: str, amount: float) -> str:
 
 # 2. Setup ADK Config with Safety Guardrails
 config = ADKConfig(
-    model_name="gemini-1.5-flash",
+    model_name="gemini-3-flash-preview",
     callbacks=[
         SafetyGuardrail(blocked_terms=["illegal", "hack", "dangerous"]),
         PIIRedactionCallback(),

@@ -175,7 +175,7 @@ async def main():
     # 2. Setup Agent
     # Note: In a real run, ensure GOOGLE_API_KEY is set.
     config = ADKConfig(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3-flash-preview",
         callbacks=callbacks,
     )
 

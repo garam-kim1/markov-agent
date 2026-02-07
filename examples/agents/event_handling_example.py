@@ -79,7 +79,7 @@ async def run_agent_event_loop(
 async def main():
     # Setup configuration
     config = ADKConfig(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3-flash-preview",
         callbacks=[AuditAndGuardCallback()],
     )
 

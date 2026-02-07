@@ -202,7 +202,7 @@ class ModeratorOutput(BaseModel):
 
 # --- 4. Configure Agents ---
 
-COMMON_CONFIG = ADKConfig(model_name="gemini-2.0-flash", temperature=0.7)
+COMMON_CONFIG = ADKConfig(model_name="gemini-3-flash-preview", temperature=0.7)
 RETRY = RetryPolicy(max_attempts=3)
 
 # Agent 1: Visionary

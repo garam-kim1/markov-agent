@@ -40,7 +40,7 @@ class VerboseLoggingPlugin(BasePlugin):
 async def main():
     # 1. Configure the agent with the custom plugin
     config = ADKConfig(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3-flash-preview",
         instruction="You are a helpful assistant.",
         plugins=[VerboseLoggingPlugin()],
         enable_logging=False,  # Disable standard logging to see our plugin output clearly

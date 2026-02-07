@@ -117,7 +117,7 @@ def mock_llm_router(prompt: str) -> str:
 
 async def main():
     # Configuration
-    config = ADKConfig(model_name="mock-gemini")
+    config = ADKConfig(model_name="gemini-3-flash-preview")
 
     # Node 1: Planner
     planner = ProbabilisticNode(

@@ -8,9 +8,9 @@ from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolic
 from markov_agent.engine.runtime import RunConfig
 
 # 1. Define the Agent/Controller Configuration
-# We use a model that supports streaming/live API (e.g., gemini-2.0-flash-exp)
+# We use a model that supports streaming/live API (e.g., gemini-3-flash-preview)
 config = ADKConfig(
-    model_name="gemini-2.0-flash-exp",
+    model_name="gemini-3-flash-preview",
     instruction="You are a helpful voice assistant. Keep answers concise.",
     description="A helpful assistant that answers questions via voice or text.",
     enable_logging=True,

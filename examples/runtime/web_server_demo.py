@@ -13,7 +13,7 @@ from markov_agent import (
 async def run_server_demo():
     # 1. Initialize the controller
     config = ADKConfig(
-        model_name="gemini-1.5-flash", instruction="You are a helpful assistant."
+        model_name="gemini-3-flash-preview", instruction="You are a helpful assistant."
     )
 
     mock_resp = None

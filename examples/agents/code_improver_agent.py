@@ -117,7 +117,7 @@ def factorial(n: int) -> int:
 
 async def main():
     # Configuration
-    config = ADKConfig(model_name="gemini-1.5-pro")
+    config = ADKConfig(model_name="gemini-3-flash-preview")
 
     # Mock
     mock_llm = MockLLM()
