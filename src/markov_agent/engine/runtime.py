@@ -41,14 +41,31 @@ class RunConfig(BaseModel):
     streaming: bool = False
     """Whether to use streaming mode for this run."""
 
+    streaming_mode: str = "none"
+    """The streaming mode to use ('none', 'sse', or 'bidi')."""
+
+    response_modalities: list[str] | None = None
+    """The modalities requested for the response (e.g., ['AUDIO', 'TEXT'])."""
+
+    speech_config: Any | None = None
+    """Configuration for speech-to-text or text-to-speech."""
+
     def to_adk_run_config(self) -> ADKRunConfig:
         """Convert to the underlying ADK RunConfig."""
         from google.adk.agents.run_config import StreamingMode
 
+        mode = StreamingMode.NONE
+        if self.streaming_mode == "sse":
+            mode = StreamingMode.SSE
+        elif self.streaming_mode == "bidi":
+            mode = StreamingMode.BIDI
+        elif self.streaming:
+            mode = StreamingMode.SSE
+
         return ADKRunConfig(
-            streaming_mode=(
-                StreamingMode.SSE if self.streaming else StreamingMode.NONE
-            )
+            streaming_mode=mode,
+            response_modalities=self.response_modalities,
+            speech_config=self.speech_config,
         )
 
 

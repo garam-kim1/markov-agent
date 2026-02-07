@@ -5,12 +5,13 @@ from markov_agent.topology.gate import ConfidenceGate
 class MockState(BaseState):
     confidence: float = 0.0
 
+
 def test_confidence_gate_routing():
     gate = ConfidenceGate(
         threshold=0.8,
         score_func=lambda s: s.confidence,
         target_node="success",
-        fallback_node="fail"
+        fallback_node="fail",
     )
 
     # Success case

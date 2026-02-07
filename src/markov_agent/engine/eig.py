@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from typing import Any, TypeVar, cast
 
 from google.adk.agents.invocation_context import InvocationContext
@@ -52,9 +52,7 @@ class EntropyCheck(BaseNode[StateT]):
 
         # Transition logic based on threshold
         next_node = (
-            self.clarification_node
-            if entropy > self.threshold
-            else self.execution_node
+            self.clarification_node if entropy > self.threshold else self.execution_node
         )
 
         # Update state with entropy and decision
@@ -98,7 +96,7 @@ Estimate the 'Missing Information' on a scale from 0.0 (Perfectly Clear) to 1.0 
         if self.state_type:
             state_obj = self.state_type.model_validate(state_dict)
         else:
-            state_obj = cast(StateT, state_dict)
+            state_obj = cast("StateT", state_dict)
 
         new_state = await self.execute(state_obj)
 

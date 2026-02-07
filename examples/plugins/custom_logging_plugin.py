@@ -19,10 +19,7 @@ class VerboseLoggingPlugin(BasePlugin):
         super().__init__(name="verbose_logger")
 
     async def before_model_callback(
-        self,
-        *,
-        callback_context: CallbackContext,
-        llm_request: LlmRequest
+        self, *, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> LlmResponse | None:
         print(f"\n[Plugin] Sending request to model: {callback_context.agent_name}")
         for content in llm_request.contents:
@@ -34,13 +31,11 @@ class VerboseLoggingPlugin(BasePlugin):
         return None
 
     async def after_model_callback(
-        self,
-        *,
-        callback_context: CallbackContext,
-        llm_response: LlmResponse
+        self, *, callback_context: CallbackContext, llm_response: LlmResponse
     ) -> LlmResponse | None:
         print("[Plugin] Received response from model")
         return None
+
 
 async def main():
     # 1. Configure the agent with the custom plugin
@@ -48,7 +43,7 @@ async def main():
         model_name="gemini-1.5-flash",
         instruction="You are a helpful assistant.",
         plugins=[VerboseLoggingPlugin()],
-        enable_logging=False  # Disable standard logging to see our plugin output clearly
+        enable_logging=False,  # Disable standard logging to see our plugin output clearly
     )
 
     # 2. Initialize the controller
@@ -69,6 +64,7 @@ async def main():
     print("Starting agent run...")
     response = await controller.generate("Tell me a short joke about Markov chains.")
     print(f"\nFinal Response: {response}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

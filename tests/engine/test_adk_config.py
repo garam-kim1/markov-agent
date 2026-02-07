@@ -76,8 +76,12 @@ def test_adk_controller_observability_flags():
         patch("markov_agent.engine.adk_wrapper.Agent"),
         patch("markov_agent.engine.adk_wrapper.Runner"),
         patch("markov_agent.engine.adk_wrapper.App") as MockApp,
-        patch("markov_agent.engine.observability.configure_local_telemetry") as mock_trace,
-        patch("markov_agent.engine.observability.configure_standard_logging") as mock_log,
+        patch(
+            "markov_agent.engine.observability.configure_local_telemetry"
+        ) as mock_trace,
+        patch(
+            "markov_agent.engine.observability.configure_standard_logging"
+        ) as mock_log,
     ):
         ADKController(config, retry)
 

@@ -4,7 +4,7 @@ import uuid
 from collections.abc import AsyncGenerator, Callable
 from typing import Any, TypeVar, override
 
-from google.adk.agents import Agent
+from google.adk.agents import Agent, LiveRequestQueue
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
@@ -290,11 +290,14 @@ class ADKController:
         rewind_before_invocation_id: str | None = None,
     ) -> None:
         """Rewind a session to a previous point."""
-        await self.runner.rewind_async(
-            user_id=user_id,
-            session_id=session_id,
-            rewind_before_invocation_id=rewind_before_invocation_id,
-        )
+        kwargs = {
+            "user_id": user_id,
+            "session_id": session_id,
+        }
+        if rewind_before_invocation_id is not None:
+            kwargs["rewind_before_invocation_id"] = rewind_before_invocation_id
+
+        await self.runner.rewind_async(**kwargs)
 
     async def add_session_to_memory(
         self, session_id: str, user_id: str = "system"
@@ -521,6 +524,48 @@ class ADKController:
             user_id=actual_user_id,
             session_id=session_id,
             new_message=content,
+            run_config=adk_run_config,
+        ):
+            yield event
+
+    async def run_live(
+        self,
+        live_request_queue: LiveRequestQueue,
+        session_id: str | None = None,
+        user_id: str = "system",
+        initial_state: dict[str, Any] | None = None,
+        run_config: RunConfig | None = None,
+    ) -> AsyncGenerator[Event, None]:
+        """Expose the underlying ADK live streaming (bidirectional) capability.
+
+        This allows for real-time handling of text and audio interactions.
+        """
+        if session_id is None:
+            session_id = f"live_{uuid.uuid4().hex[:8]}"
+
+        actual_user_id = (
+            run_config.user_email if run_config and run_config.user_email else user_id
+        )
+
+        # Ensure session exists
+        session = await self.session_service.get_session(
+            app_name="markov_agent",
+            user_id=actual_user_id,
+            session_id=session_id,
+        )
+        if not session:
+            session = await self.session_service.create_session(
+                app_name="markov_agent",
+                user_id=actual_user_id,
+                session_id=session_id,
+                state=initial_state or {},
+            )
+
+        adk_run_config = run_config.to_adk_run_config() if run_config else None
+
+        async for event in self.runner.run_live(
+            session=session,
+            live_request_queue=live_request_queue,
             run_config=adk_run_config,
         ):
             yield event

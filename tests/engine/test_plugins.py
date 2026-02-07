@@ -20,18 +20,18 @@ class MockPlugin(BasePlugin):
         self.before_agent_called = True
         return
 
-    async def before_model_callback(self, *, callback_context: CallbackContext, llm_request: LlmRequest):
+    async def before_model_callback(
+        self, *, callback_context: CallbackContext, llm_request: LlmRequest
+    ):
         self.before_model_called = True
         return
+
 
 @pytest.mark.asyncio
 async def test_adk_controller_with_custom_plugin():
     # Setup
     plugin = MockPlugin()
-    config = ADKConfig(
-        model_name="gemini-1.5-flash",
-        plugins=[plugin]
-    )
+    config = ADKConfig(model_name="gemini-1.5-flash", plugins=[plugin])
     retry_policy = RetryPolicy()
 
     # We mock the runner to avoid actual LLM calls
@@ -48,6 +48,7 @@ async def test_adk_controller_with_custom_plugin():
     assert plugin in controller.app.plugins
     assert controller.app.plugins[-1] == plugin
 
+
 def test_plugin_exports():
     from markov_agent import (
         BasePlugin,
@@ -58,6 +59,7 @@ def test_plugin_exports():
         ToolContext,
         types,
     )
+
     assert BasePlugin is not None
     assert CallbackContext is not None
     assert ToolContext is not None

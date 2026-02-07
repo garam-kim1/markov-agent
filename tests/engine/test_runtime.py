@@ -17,10 +17,7 @@ async def test_run_config_usage():
     # Mock generation
     controller.generate = AsyncMock(return_value="mocked response")  # type: ignore
 
-    run_config = RunConfig(
-        user_email="test@example.com",
-        streaming=False
-    )
+    run_config = RunConfig(user_email="test@example.com", streaming=False)
 
     # Test run (blocking)
     # Since run calls generate which is async, and we mocked it to return a value
@@ -31,6 +28,7 @@ async def test_run_config_usage():
     controller.generate.assert_called_once()  # type: ignore
     _args, kwargs = controller.generate.call_args  # type: ignore
     assert kwargs["run_config"] == run_config
+
 
 def test_adk_web_server_instantiation():
     config = ADKConfig(
@@ -43,17 +41,18 @@ def test_adk_web_server_instantiation():
     assert server.agent_instance == controller
     assert server.internal_server is not None
 
+
 def test_adk_web_server_with_custom_services():
-    from google.adk.sessions import InMemorySessionService
     from google.adk.memory import InMemoryMemoryService
-    
+    from google.adk.sessions import InMemorySessionService
+
     session_service = InMemorySessionService()
     memory_service = InMemoryMemoryService()
-    
+
     config = ADKConfig(
         model_name="gemini-1.5-flash",
         session_service=session_service,
-        memory_service=memory_service
+        memory_service=memory_service,
     )
     retry_policy = RetryPolicy()
     controller = ADKController(config=config, retry_policy=retry_policy)
@@ -62,12 +61,10 @@ def test_adk_web_server_with_custom_services():
     assert server.internal_server.session_service == session_service
     assert server.internal_server.memory_service == memory_service
 
+
 def test_run_config_fields():
     run_config = RunConfig(
-        model="gpt-4",
-        tools=["tool1"],
-        user_email="user@example.com",
-        history=[]
+        model="gpt-4", tools=["tool1"], user_email="user@example.com", history=[]
     )
     assert run_config.model == "gpt-4"
     assert run_config.tools == ["tool1"]

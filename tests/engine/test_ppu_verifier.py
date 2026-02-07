@@ -11,17 +11,20 @@ class MockState(BaseState):
     val: str = ""
     verified: bool = False
 
+
 @pytest.mark.asyncio
 async def test_ppu_verifier_selection():
     cfg = ADKConfig(model_name="mock")
 
     # Mock Verifier Node
     verifier = MagicMock()
+
     # Mock the execute method to return a state with verified=True for a specific candidate
     async def v_exec(state):
         if state.get("candidate") == "good":
             return {"verified": True}
         return {"verified": False}
+
     verifier.execute = v_exec
 
     node = ProbabilisticNode(
@@ -30,13 +33,13 @@ async def test_ppu_verifier_selection():
         prompt_template="test",
         samples=2,
         verifier_node=verifier,
-        state_type=MockState
+        state_type=MockState,
     )
 
     # Mock the controller's parallel generation
     # We need to mock execute_parallel_sampling or controller.generate
     # Simplest is to mock controller.generate and use uniform sampling
-    node.controller.generate = AsyncMock(side_effect=["bad", "good"])
+    node.controller.generate = AsyncMock(side_effect=["bad", "good"])  # type: ignore
 
     # Mock ADK Context
     ctx = MagicMock()

@@ -1,25 +1,29 @@
 import asyncio
-from typing import Any
 
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
-from markov_agent.engine.callbacks import SafetyGuardrail, PIIRedactionCallback
+from markov_agent.engine.callbacks import PIIRedactionCallback, SafetyGuardrail
 from markov_agent.tools import tool
+
 
 # 1. Define a tool that requires confirmation
 @tool(confirmation=True)
 def refund_user(transaction_id: str, amount: float) -> str:
     """Processes a refund for a user. Requires human confirmation."""
-    return f"Successfully processed refund of ${amount} for transaction {transaction_id}."
+    return (
+        f"Successfully processed refund of ${amount} for transaction {transaction_id}."
+    )
+
 
 # 2. Setup ADK Config with Safety Guardrails
 config = ADKConfig(
     model_name="gemini-1.5-flash",
     callbacks=[
         SafetyGuardrail(blocked_terms=["illegal", "hack", "dangerous"]),
-        PIIRedactionCallback()
+        PIIRedactionCallback(),
     ],
-    tools=[refund_user]
+    tools=[refund_user],
 )
+
 
 async def main():
     # We'll use a Mock responder to simulate the interaction without hitting the API
@@ -34,7 +38,7 @@ async def main():
     controller = ADKController(
         config=config,
         retry_policy=RetryPolicy(max_attempts=1),
-        mock_responder=mock_responder
+        mock_responder=mock_responder,
     )
 
     print("--- Test 1: Safety Violation ---")
@@ -46,13 +50,18 @@ async def main():
     print("\n--- Test 2: PII Redaction ---")
     # This one won't throw but should redact if we could see the internal request
     # We can check if it runs without error.
-    res = await controller.generate("My email is secret@example.com, don't tell anyone.")
+    res = await controller.generate(
+        "My email is secret@example.com, don't tell anyone."
+    )
     print(f"Agent response: {res}")
 
     print("\n--- Test 3: Tool with Confirmation (Logic check) ---")
     print("Note: In a full ADK runtime, confirmation would pause execution.")
     print("The tool is registered correctly with confirmation=True.")
-    print(f"Tool {refund_user.name} requires confirmation: {refund_user._require_confirmation}")
+    print(
+        f"Tool {refund_user.name} requires confirmation: {refund_user._require_confirmation}"
+    )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

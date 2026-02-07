@@ -134,7 +134,11 @@ class SafetyGuardrail(BeforeModelCallback):
             for content in model_request.contents:
                 if hasattr(content, "parts"):
                     prompts.extend(
-                        [part.text for part in content.parts if hasattr(part, "text") and part.text]
+                        [
+                            part.text
+                            for part in content.parts
+                            if hasattr(part, "text") and part.text
+                        ]
                     )
         elif isinstance(model_request, str):
             prompts = [model_request]
@@ -143,7 +147,9 @@ class SafetyGuardrail(BeforeModelCallback):
             lowered_prompt = prompt.lower()
             for term in self.blocked_terms:
                 if term in lowered_prompt:
-                    msg = f"Safety Violation: Prompt contains blocked content ('{term}')."
+                    msg = (
+                        f"Safety Violation: Prompt contains blocked content ('{term}')."
+                    )
                     raise CallbackError(msg)
 
 
@@ -166,7 +172,9 @@ class PIIRedactionCallback(BeforeModelCallback):
                 for part in content.parts:
                     if hasattr(part, "text") and part.text:
                         original_text = part.text
-                        new_text = self.EMAIL_REGEX.sub("[EMAIL_REDACTED]", original_text)
+                        new_text = self.EMAIL_REGEX.sub(
+                            "[EMAIL_REDACTED]", original_text
+                        )
                         new_text = self.PHONE_REGEX.sub("[PHONE_REDACTED]", new_text)
 
                         if new_text != original_text:

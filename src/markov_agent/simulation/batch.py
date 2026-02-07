@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from markov_agent.simulation.metrics import calculate_metrics
-from markov_agent.simulation.runner import MonteCarloRunner, SimulationResult
+from markov_agent.simulation.runner import MonteCarloRunner
 
 
 class ConsistencyGatekeeper(BaseModel):
@@ -21,18 +21,16 @@ class ConsistencyGatekeeper(BaseModel):
     async def validate_topology(
         self,
         runner: MonteCarloRunner,
-        test_cases: list[dict[str, Any]],
+        test_cases: list[Any],
         evaluator: Callable[[Any], bool],
     ) -> bool:
         """Run batch stress tests and return True only if stability requirements are met."""
-        results: list[SimulationResult] = []
+        # Update runner configuration
+        runner.n_runs = self.batch_size
+        runner.dataset = test_cases
+        runner.success_criteria = evaluator
 
-        # Run each test case 'batch_size' times
-        for case in test_cases:
-            case_results = await runner.run_simulation(
-                n_runs=self.batch_size, test_cases=[case], evaluator=evaluator
-            )
-            results.extend(case_results)
+        results = await runner.run_simulation()
 
         metrics = calculate_metrics(results)
         # Check global consistency (pass^k)

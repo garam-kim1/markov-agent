@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from markov_agent.engine.adk_wrapper import ADKConfig
@@ -30,7 +29,9 @@ class CostGovernor(BaseModel):
 
         return self.standard_config or self.cheap_config
 
-    def check_budget(self, estimated_cost: float = 0.0, estimated_tokens: int = 0) -> bool:
+    def check_budget(
+        self, estimated_cost: float = 0.0, estimated_tokens: int = 0
+    ) -> bool:
         """Check if the estimated execution would exceed the budget."""
         if (self.current_cost + estimated_cost) > self.cost_budget:
             return False

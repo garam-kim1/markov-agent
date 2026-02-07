@@ -39,7 +39,9 @@ async def main():
     print("=== Markov Agent Observability Demo ===")
 
     # 1. Initialize a mock model
-    mock_llm = MockLLM(response_text="Hello! I am a mock agent with observability enabled.")
+    mock_llm = MockLLM(
+        response_text="Hello! I am a mock agent with observability enabled."
+    )
 
     # 2. Setup ADKConfig with observability enabled and mock model
     config = ADKConfig(
@@ -71,5 +73,6 @@ if __name__ == "__main__":
         # If it fails due to pydantic validation of ADKConfig.model_name,
         # we might need to adjust the type hint in ADKConfig.
         import traceback
+
         traceback.print_exc()
         print(f"\nDemo finished with error: {e}")
