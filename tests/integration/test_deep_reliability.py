@@ -263,7 +263,7 @@ async def test_controller_request_construction_with_runner_mock():
 
 
     """
-    config = ADKConfig(model_name="gemini-1.5-pro")
+    config = ADKConfig(model_name="gemini-3-flash-preview")
 
     retry = RetryPolicy()
 

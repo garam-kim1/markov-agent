@@ -6,7 +6,7 @@ from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolic
 def test_adk_controller_initialization():
     """Verify that ADKController correctly passes configuration to the underlying ADK Agent."""
     config = ADKConfig(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-3-flash-preview",
         temperature=0.9,
         safety_settings=[
             {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
@@ -29,7 +29,7 @@ def test_adk_controller_initialization():
         MockAgent.assert_called_once()
         _, call_kwargs = MockAgent.call_args
 
-        assert call_kwargs["model"] == "gemini-1.5-pro"
+        assert call_kwargs["model"] == "gemini-3-flash-preview"
         assert call_kwargs["instruction"] == "Custom instruction"
         assert call_kwargs["description"] == "Custom description"
         assert call_kwargs["generate_content_config"].temperature == 0.9

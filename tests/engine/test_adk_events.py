@@ -7,7 +7,7 @@ from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolic
 
 @pytest.fixture
 def mock_adk_components():
-    config = ADKConfig(model_name="gemini-1.5-flash")
+    config = ADKConfig(model_name="gemini-3-flash-preview")
     controller = ADKController(config=config, retry_policy=RetryPolicy(max_attempts=1))
 
     # Mock the runner and session service

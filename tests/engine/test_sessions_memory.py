@@ -15,7 +15,7 @@ async def test_sessions_and_memory_initialization():
     memory_service = InMemoryMemoryService()
 
     config = ADKConfig(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-3-flash-preview",
         session_service=session_service,
         memory_service=memory_service,
         enable_memory=True,
@@ -45,7 +45,7 @@ async def test_sessions_and_memory_initialization():
 @pytest.mark.asyncio
 async def test_rewind_functionality():
     """Verify that ADKController.rewind calls the underlying runner.rewind_async."""
-    config = ADKConfig(model_name="gemini-1.5-pro")
+    config = ADKConfig(model_name="gemini-3-flash-preview")
     retry = RetryPolicy()
 
     with (
@@ -77,7 +77,7 @@ async def test_add_session_to_memory():
     session_service = AsyncMock(spec=InMemorySessionService())
 
     config = ADKConfig(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-3-flash-preview",
         session_service=session_service,
         memory_service=memory_service,
         enable_memory=True,
@@ -118,7 +118,7 @@ async def test_stateful_tool_access():
         tool_context.state["counter"] = new_count
         return f"Count is {new_count}"
 
-    config = ADKConfig(model_name="gemini-1.5-pro", tools=[counter_tool])
+    config = ADKConfig(model_name="gemini-3-flash-preview", tools=[counter_tool])
     retry = RetryPolicy()
 
     # We need to run this through a real-ish runner or mock the ToolContext injection

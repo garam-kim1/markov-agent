@@ -128,7 +128,7 @@ tester_tool = AgentAsTool(tester_chain).as_tool_list()
 feature_node = ProbabilisticNode(
     name="feature_engineer",
     adk_config=ADKConfig(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-3-flash-preview",
         tools=tester_tool  # <--- The Agent can now call "TestRunner"
     )
 )

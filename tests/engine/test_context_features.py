@@ -12,7 +12,7 @@ def test_adk_controller_passes_context_configs():
     mock_compaction_config = MagicMock(name="EventsCompactionConfig")
 
     config = ADKConfig(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-3-flash-preview",
         context_cache_config=mock_cache_config,
         events_compaction_config=mock_compaction_config,
     )
@@ -38,7 +38,7 @@ def test_create_variant_preserves_configs():
     mock_compaction_config = MagicMock(name="EventsCompactionConfig")
 
     config = ADKConfig(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-3-flash-preview",
         context_cache_config=mock_cache_config,
         events_compaction_config=mock_compaction_config,
     )

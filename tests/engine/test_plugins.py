@@ -31,7 +31,7 @@ class MockPlugin(BasePlugin):
 async def test_adk_controller_with_custom_plugin():
     # Setup
     plugin = MockPlugin()
-    config = ADKConfig(model_name="gemini-1.5-flash", plugins=[plugin])
+    config = ADKConfig(model_name="gemini-3-flash-preview", plugins=[plugin])
     retry_policy = RetryPolicy()
 
     # We mock the runner to avoid actual LLM calls

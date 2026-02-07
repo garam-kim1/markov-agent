@@ -9,7 +9,7 @@ from markov_agent import ADKConfig, ADKController, AdkWebServer, RetryPolicy, Ru
 async def test_run_config_usage():
     # Setup
     config = ADKConfig(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3-flash-preview",
     )
     retry_policy = RetryPolicy()
     controller = ADKController(config=config, retry_policy=retry_policy)
@@ -32,7 +32,7 @@ async def test_run_config_usage():
 
 def test_adk_web_server_instantiation():
     config = ADKConfig(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3-flash-preview",
     )
     retry_policy = RetryPolicy()
     controller = ADKController(config=config, retry_policy=retry_policy)
@@ -50,7 +50,7 @@ def test_adk_web_server_with_custom_services():
     memory_service = InMemoryMemoryService()
 
     config = ADKConfig(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3-flash-preview",
         session_service=session_service,
         memory_service=memory_service,
     )

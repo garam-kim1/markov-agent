@@ -18,6 +18,7 @@
 * **Engine:** `google-adk` (Model/Tool/Agent primitives).
     * *LiteLLM:* `ADKConfig(use_litellm=True)`.
     * *Keys:* `GOOGLE_API_KEY`, `GEMINI_API_KEY`.
+    * *Preferred Model:* `gemini-3-flash-preview` for all Gemini-based examples and nodes.
 
 ## 3. ARCHITECTURE (TOPOLOGY)
 **Paradigm:** FSM (Finite State Machine).
@@ -52,7 +53,7 @@
     ```python
     node = ProbabilisticNode(
         name="reasoner",
-        adk_config=ADKConfig(model_name="gemini-1.5-pro", temperature=0.7),
+        adk_config=ADKConfig(model_name="gemini-3-flash-preview", temperature=0.7),
         retry_policy=RetryPolicy(max_attempts=3),
         prompt_template="{query}"
     )

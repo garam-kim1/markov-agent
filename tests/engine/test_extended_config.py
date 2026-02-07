@@ -11,7 +11,7 @@ def test_extended_config_google_mapping():
     Ensures unsupported params like min_p are dropped from GenerateContentConfig.
     """
     config = ADKConfig(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-3-flash-preview",
         temperature=0.8,
         top_p=0.95,
         top_k=40,

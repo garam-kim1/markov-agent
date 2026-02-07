@@ -5,7 +5,7 @@ from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolic
 
 @pytest.mark.asyncio
 async def test_adk_controller_enables_logging():
-    config = ADKConfig(model_name="gemini-1.5-flash", enable_logging=True)
+    config = ADKConfig(model_name="gemini-3-flash-preview", enable_logging=True)
 
     controller = ADKController(config=config, retry_policy=RetryPolicy(max_attempts=1))
 
@@ -27,7 +27,7 @@ async def test_adk_controller_enables_tracing(monkeypatch):
         "markov_agent.engine.observability.configure_local_telemetry", mock_configure
     )
 
-    config = ADKConfig(model_name="gemini-1.5-flash", enable_tracing=True)
+    config = ADKConfig(model_name="gemini-3-flash-preview", enable_tracing=True)
 
     ADKController(config=config, retry_policy=RetryPolicy(max_attempts=1))
 

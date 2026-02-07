@@ -115,7 +115,7 @@ async def main():
         return
 
     config = ADKConfig(
-        model_name="gemini-2.0-flash",
+        model_name="gemini-3-flash-preview",
         api_key=api_key,
         temperature=0.7,
     )
