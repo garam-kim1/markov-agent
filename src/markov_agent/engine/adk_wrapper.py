@@ -2,7 +2,7 @@ import asyncio
 import os
 import uuid
 from collections.abc import AsyncGenerator, Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, override
 
 from google.adk.agents import Agent
 from google.adk.agents.readonly_context import ReadonlyContext
@@ -10,6 +10,7 @@ from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.events import Event
 from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -63,29 +64,31 @@ class MockLlm(BaseLlm):
     """Mock LLM implementation for testing."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    mock_responder: Callable[[str], Any]
+    mock_responder: Callable[[str], Any] | None = None
 
     def __init__(self, mock_responder: Callable[[str], Any]):
-        super().__init__(model="mock-model", mock_responder=mock_responder)
+        super().__init__(model="mock-model")
+        object.__setattr__(self, "mock_responder", mock_responder)
 
+    @override
     async def generate_content_async(
         self,
-        contents: Any,
-        config: types.GenerateContentConfig | None = None,
-        **kwargs: Any,
+        llm_request: LlmRequest,
+        stream: bool = False,
     ) -> AsyncGenerator[LlmResponse, None]:
         # contents is likely LlmRequest object which has .contents list
         actual_contents = []
-        if hasattr(contents, "contents"):
-            actual_contents = contents.contents
-        elif isinstance(contents, list):
-            actual_contents = contents
+        if hasattr(llm_request, "contents"):
+            actual_contents = llm_request.contents
+        elif isinstance(llm_request, list):
+            actual_contents = llm_request
 
         # Extract prompt from contents
         prompt = ""
         if actual_contents and actual_contents[-1].parts:
             prompt = "".join(p.text for p in actual_contents[-1].parts if p.text)
 
+        assert self.mock_responder is not None
         result = self.mock_responder(prompt)
         if asyncio.iscoroutine(result):
             result = await result
@@ -116,7 +119,11 @@ class ADKController:
         self.artifact_service = artifact_service or InMemoryArtifactService()
 
         # Configure environment if needed
-        api_key = self.config.api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        api_key = (
+            self.config.api_key
+            or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
+        )
         if api_key:
             os.environ["GOOGLE_API_KEY"] = api_key
 
@@ -352,7 +359,9 @@ class ADKController:
             session_id = f"gen_{uuid.uuid4().hex[:8]}"
             await controller.session_service.create_session(
                 app_name="markov_agent",
-                user_id=run_config.user_email if run_config and run_config.user_email else "system",
+                user_id=run_config.user_email
+                if run_config and run_config.user_email
+                else "system",
                 session_id=session_id,
                 state=initial_state or {},
             )
@@ -362,7 +371,9 @@ class ADKController:
             final_text = ""
             adk_run_config = run_config.to_adk_run_config() if run_config else None
             async for event in controller.runner.run_async(
-                user_id=run_config.user_email if run_config and run_config.user_email else "system",
+                user_id=run_config.user_email
+                if run_config and run_config.user_email
+                else "system",
                 session_id=session_id,
                 new_message=content,
                 run_config=adk_run_config,
@@ -377,7 +388,9 @@ class ADKController:
             # Retrieve final state
             final_session = await controller.session_service.get_session(
                 app_name="markov_agent",
-                user_id=run_config.user_email if run_config and run_config.user_email else "system",
+                user_id=run_config.user_email
+                if run_config and run_config.user_email
+                else "system",
                 session_id=session_id,
             )
             final_state = final_session.state if final_session else {}
@@ -421,7 +434,9 @@ class ADKController:
             else:
                 break
 
-        msg = f"Failed to generate after {controller.retry_policy.max_attempts} attempts"
+        msg = (
+            f"Failed to generate after {controller.retry_policy.max_attempts} attempts"
+        )
         raise RuntimeError(msg) from last_error
 
     def run(self, prompt: str, config: RunConfig | None = None) -> Any:
@@ -443,7 +458,9 @@ class ADKController:
         if session_id is None:
             session_id = f"stream_{uuid.uuid4().hex[:8]}"
 
-        actual_user_id = run_config.user_email if run_config and run_config.user_email else user_id
+        actual_user_id = (
+            run_config.user_email if run_config and run_config.user_email else user_id
+        )
 
         # Ensure session exists
         await self.session_service.create_session(

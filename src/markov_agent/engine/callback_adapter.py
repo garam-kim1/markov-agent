@@ -81,11 +81,13 @@ class CallbackAdapterPlugin(BasePlugin):
             return None
 
         current_request = model_request
+        modified = False
         for cb in self.before_model_cbs:
             result = cb(callback_context, current_request)
             if result is not None:
                 current_request = result
-        return current_request
+                modified = True
+        return current_request if modified else None
 
     async def after_model_callback(
         self,
@@ -107,11 +109,13 @@ class CallbackAdapterPlugin(BasePlugin):
             return None
 
         current_response = model_response
+        modified = False
         for cb in self.after_model_cbs:
             result = cb(callback_context, current_response)
             if result is not None:
                 current_response = result
-        return current_response
+                modified = True
+        return current_response if modified else None
 
     async def before_tool_callback(
         self,
