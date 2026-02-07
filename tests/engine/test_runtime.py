@@ -43,6 +43,25 @@ def test_adk_web_server_instantiation():
     assert server.agent_instance == controller
     assert server.internal_server is not None
 
+def test_adk_web_server_with_custom_services():
+    from google.adk.sessions import InMemorySessionService
+    from google.adk.memory import InMemoryMemoryService
+    
+    session_service = InMemorySessionService()
+    memory_service = InMemoryMemoryService()
+    
+    config = ADKConfig(
+        model_name="gemini-1.5-flash",
+        session_service=session_service,
+        memory_service=memory_service
+    )
+    retry_policy = RetryPolicy()
+    controller = ADKController(config=config, retry_policy=retry_policy)
+
+    server = AdkWebServer(agent=controller)
+    assert server.internal_server.session_service == session_service
+    assert server.internal_server.memory_service == memory_service
+
 def test_run_config_fields():
     run_config = RunConfig(
         model="gpt-4",

@@ -96,7 +96,7 @@ class AdkWebServer:
         self.internal_server = InternalAdkWebServer(
             agent_loader=SimpleAgentLoader(self.app_or_agent),
             session_service=getattr(agent, "session_service", InMemorySessionService()),
-            memory_service=InMemoryMemoryService(),
+            memory_service=getattr(agent, "memory_service", InMemoryMemoryService()),
             artifact_service=getattr(
                 agent, "artifact_service", InMemoryArtifactService()
             ),

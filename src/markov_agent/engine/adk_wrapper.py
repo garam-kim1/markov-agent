@@ -9,11 +9,13 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.apps import App
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.events import Event
+from google.adk.memory import BaseMemoryService, InMemoryMemoryService
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.sessions import BaseSessionService, InMemorySessionService
+from google.adk.tools import load_memory_tool
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -50,6 +52,9 @@ class ADKConfig(BaseModel):
     events_compaction_config: Any | None = None
     enable_logging: bool = False
     enable_tracing: bool = False
+    session_service: BaseSessionService | None = None
+    memory_service: BaseMemoryService | None = None
+    enable_memory: bool = False
 
 
 class RetryPolicy(BaseModel):
@@ -115,7 +120,11 @@ class ADKController:
         self.config = config
         self.retry_policy = retry_policy
         self.mock_responder = mock_responder
-        self.session_service = InMemorySessionService()
+        self.session_service = config.session_service or InMemorySessionService()
+        self.memory_service = config.memory_service
+        if self.config.enable_memory and not self.memory_service:
+            self.memory_service = InMemoryMemoryService()
+
         self.artifact_service = artifact_service or InMemoryArtifactService()
 
         # Configure environment if needed
@@ -217,6 +226,11 @@ class ADKController:
             pass
 
         self.output_schema = output_schema
+
+        tools = list(self.config.tools)
+        if self.config.enable_memory:
+            tools.append(load_memory_tool)
+
         self.agent = Agent(
             name="markov_ppu_agent",
             model=model_instance,
@@ -227,7 +241,7 @@ class ADKController:
             ),
             description=self.config.description
             or "Markov Agent PPU for stochastic processing.",
-            tools=self.config.tools,
+            tools=tools,
             generate_content_config=types.GenerateContentConfig(**safe_config),
             output_schema=output_schema,
             output_key=self.config.output_key,
@@ -266,7 +280,37 @@ class ADKController:
             app=self.app,
             session_service=self.session_service,
             artifact_service=self.artifact_service,
+            memory_service=self.memory_service,
         )
+
+    async def rewind(
+        self,
+        session_id: str,
+        user_id: str = "system",
+        rewind_before_invocation_id: str | None = None,
+    ) -> None:
+        """Rewind a session to a previous point."""
+        await self.runner.rewind_async(
+            user_id=user_id,
+            session_id=session_id,
+            rewind_before_invocation_id=rewind_before_invocation_id,
+        )
+
+    async def add_session_to_memory(
+        self, session_id: str, user_id: str = "system"
+    ) -> None:
+        """Save a completed session into memory."""
+        if not self.memory_service:
+            msg = "Memory service not configured."
+            raise RuntimeError(msg)
+
+        session = await self.session_service.get_session(
+            app_name="markov_agent",
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if session:
+            await self.memory_service.add_session_to_memory(session)
 
     def create_variant(
         self,
