@@ -52,12 +52,20 @@ A 5-step process with 90% accuracy per step yields only **~59% total reliability
 
 ## 📦 Installation
 
-Markov Engine requires **Python 3.12+** and is optimized for the **`uv`** package manager.
+Markov Engine requires **Python 3.12+**.
 
+### Via pip
+You can install the library directly from GitHub:
+```bash
+pip install git+https://github.com/garam-kim1/markov-agent.git
+```
+
+### For Development (using `uv`)
+The project is optimized for the **`uv`** package manager:
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/markov_agent.git
-cd markov_agent
+git clone https://github.com/garam-kim1/markov-agent.git
+cd markov-agent
 uv sync
 ```
 
