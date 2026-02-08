@@ -153,14 +153,9 @@ class Graph(BaseAgent):
                             f"(p={chosen_prob:.2f})",
                         )
 
-                        # Record probability in state if it's a Markov State
-                        if hasattr(state_obj, "record_probability") and callable(
-                            state_obj.record_probability
-                        ):
-                            state_obj.record_probability(current_node_id, chosen_prob)
-                            # Sync back to session state
-                            if hasattr(state_obj, "meta"):
-                                ctx.session.state["meta"] = state_obj.meta
+                        # Sync back to session state if it was a Markov State
+                        if hasattr(state_obj, "meta"):
+                            ctx.session.state["meta"] = state_obj.meta
                     break
 
             if next_node_id is None:
@@ -217,3 +212,89 @@ class Graph(BaseAgent):
 
         # Update the original state object with results from session
         return state.update(**session.state)
+
+    async def run_beam(
+        self,
+        initial_state: StateT,
+        width: int = 3,
+        max_steps: int = 10,
+    ) -> list[StateT]:
+        """Execute the graph using Beam Search to find the most probable paths."""
+        import copy
+        import uuid
+
+        from google.adk.artifacts import InMemoryArtifactService
+        from google.adk.sessions import InMemorySessionService, Session
+
+        # candidates stores (state, current_node_id)
+        candidates: list[tuple[StateT, str]] = [(initial_state, self.entry_point)]
+        final_states: list[StateT] = []
+
+        for _ in range(max_steps):
+            next_candidates: list[tuple[StateT, str]] = []
+
+            for state, node_id in candidates:
+                if node_id not in self.nodes:
+                    final_states.append(state)
+                    continue
+
+                node = self.nodes[node_id]
+
+                # Execute Node on a clone of the state
+                branch_state = copy.deepcopy(state)
+                session = Session(
+                    id=f"beam_{uuid.uuid4()}",
+                    app_name=self.name,
+                    user_id="beam-search",
+                    state=branch_state.model_dump(),
+                )
+                ctx = InvocationContext(
+                    session=session,
+                    session_service=InMemorySessionService(),
+                    invocation_id=str(uuid.uuid4()),
+                    agent=self,
+                    artifact_service=InMemoryArtifactService(),
+                )
+
+                # Run node
+                async for _ in node._run_async_impl(ctx):
+                    pass
+
+                # Update branch_state from session safely
+                branch_state = type(state).model_validate(copy.deepcopy(session.state))
+
+                # Find transitions
+                found_transition = False
+                for edge in self.edges:
+                    if edge.source == node_id:
+                        distribution = edge.get_distribution(branch_state)
+                        if not distribution:
+                            continue
+
+                        found_transition = True
+                        for next_node_id, prob in distribution.items():
+                            child_state = copy.deepcopy(branch_state)
+                            if hasattr(child_state, "record_probability"):
+                                child_state.record_probability(
+                                    node_id, prob, distribution=distribution
+                                )
+                            next_candidates.append((child_state, next_node_id))
+                        break
+
+                if not found_transition:
+                    final_states.append(branch_state)
+
+            if not next_candidates:
+                candidates = []
+                break
+
+            # Sort by confidence and prune
+            next_candidates.sort(
+                key=lambda x: x[0].meta.get("confidence", 1.0), reverse=True
+            )
+            candidates = next_candidates[:width]
+
+        # Combine results
+        all_results = final_states + [c[0] for c in candidates]
+        all_results.sort(key=lambda x: x.meta.get("confidence", 1.0), reverse=True)
+        return all_results[:width]

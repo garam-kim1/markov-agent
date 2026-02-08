@@ -147,12 +147,13 @@ class ProbabilisticNode(BaseNode[StateT]):
         # We perform selection and verification
         result = await self._verify_results(ctx, results)
 
-        # Determine selection confidence (for Majority Voting specifically)
+        # Determine selection confidence and distribution (for Entropy)
         selection_confidence = 1.0
+        distribution = None
         if self.samples > 1 and results:
-            # Count how many samples match the selected result
+            # Count how many samples match each result to form a distribution
             try:
-                # Helper to normalize/hash result for comparison
+
                 def _norm(val: Any) -> Any:
                     if isinstance(val, BaseModel):
                         return val.model_dump_json()
@@ -162,9 +163,15 @@ class ProbabilisticNode(BaseNode[StateT]):
                         return json.dumps(val, sort_keys=True)
                     return val
 
+                norm_results = [_norm(r) for r in results]
+                from collections import Counter
+
+                counts = Counter(norm_results)
+                total = len(results)
+                distribution = {str(k): v / total for k, v in counts.items()}
+
                 target = _norm(result)
-                matches = sum(1 for r in results if _norm(r) == target)
-                selection_confidence = matches / len(results)
+                selection_confidence = counts.get(target, 0) / total
             except Exception:
                 selection_confidence = 1.0 / len(results)
 
@@ -174,7 +181,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         ):
             # This records the confidence of the PPU in its own selection
             cast("Any", state_obj).record_probability(
-                f"{self.name}_ppu", selection_confidence
+                f"{self.name}_ppu", selection_confidence, distribution=distribution
             )
             # Sync back
             if hasattr(state_obj, "meta"):

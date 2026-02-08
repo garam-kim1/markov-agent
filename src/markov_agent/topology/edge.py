@@ -18,48 +18,55 @@ class Edge:
         self.source = source
         self.target_func = target_func
 
+    def get_distribution(self, state: Any) -> TransitionDistribution:
+        """Calculate the transition probability distribution."""
+        result = self.target_func(state)
+
+        if result is None:
+            return {}
+
+        if isinstance(result, str):
+            return {result: 1.0}
+
+        if isinstance(result, dict):
+            weights = list(result.values())
+            total_weight = sum(weights)
+            if total_weight <= 0:
+                return {}
+            return {node: weight / total_weight for node, weight in result.items()}
+
+        msg = f"Invalid transition result type: {type(result)}"
+        raise ValueError(msg)
+
     def route(self, state: Any) -> tuple[str | None, float]:
         """Determine the next node ID and the transition probability.
 
         If the router returns a distribution, performs weighted random selection.
         Returns (next_node_id, probability).
         """
-        result = self.target_func(state)
+        distribution = self.get_distribution(state)
 
-        if result is None:
+        if not distribution:
             return None, 1.0
 
-        if isinstance(result, str):
-            return result, 1.0
+        nodes = list(distribution.keys())
+        weights = list(distribution.values())
 
-        if isinstance(result, dict):
-            # Markov Transition Logic
-            nodes = list(result.keys())
-            weights = list(result.values())
+        # Weighted random selection
+        selected_node = random.choices(  # noqa: S311
+            nodes, weights=weights, k=1
+        )[0]
 
-            # Normalize weights to ensure they sum to 1.0
-            total_weight = sum(weights)
-            if total_weight <= 0:
-                return None, 0.0
+        # Find the probability of the selected node
+        probability = distribution[selected_node]
 
-            normalized_weights = [w / total_weight for w in weights]
+        # Record probability in state if it's a Markov State
+        if hasattr(state, "record_probability") and callable(state.record_probability):
+            state.record_probability(
+                self.source, probability, distribution=distribution
+            )
 
-            # Weighted random selection
-            if not nodes:
-                return None, 1.0
-
-            selected_node = random.choices(  # noqa: S311
-                nodes, weights=normalized_weights, k=1
-            )[0]
-
-            # Find the probability of the selected node
-            index = nodes.index(selected_node)
-            probability = normalized_weights[index]
-
-            return selected_node, probability
-
-        msg = f"Invalid transition result type: {type(result)}"
-        raise ValueError(msg)
+        return selected_node, probability
 
 
 class ProbabilisticEdge(Edge):
