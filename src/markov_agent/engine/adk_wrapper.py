@@ -580,3 +580,12 @@ class ADKController:
             session_id=session_id,
         )
         return session.events if session else []
+
+
+def model_config(
+    name: str,
+    temperature: float = 0.7,
+    **kwargs: Any,
+) -> ADKConfig:
+    """Helper to create an ADKConfig instance, mimicking google-adk's model_config."""
+    return ADKConfig(model_name=name, temperature=temperature, **kwargs)
