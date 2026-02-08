@@ -31,7 +31,9 @@ class BaseState(BaseModel):
         """Record the probability of a chosen transition path."""
         if "path_probabilities" not in self.meta:
             self.meta["path_probabilities"] = []
-        self.meta["path_probabilities"].append({"node": node, "probability": probability})
+        self.meta["path_probabilities"].append(
+            {"node": node, "probability": probability}
+        )
         # Update overall confidence (joint probability of the trace)
         current_conf = self.meta.get("confidence", 1.0)
         self.meta["confidence"] = current_conf * probability

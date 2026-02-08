@@ -1,6 +1,6 @@
 import contextlib
 from collections.abc import AsyncGenerator, Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.artifacts import BaseArtifactService
@@ -61,10 +61,11 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.output_schema = output_schema
         self.samples = samples
         self.sampling_strategy = sampling_strategy
-        
+
         # Resolve Selector
         if isinstance(selector, str):
             from markov_agent.engine.selectors import SELECTOR_REGISTRY
+
             if selector in SELECTOR_REGISTRY:
                 # If it's a class/instance with a .select method, wrap it
                 sel_obj = SELECTOR_REGISTRY[selector]
@@ -77,7 +78,7 @@ class ProbabilisticNode(BaseNode[StateT]):
                 raise ValueError(msg)
         else:
             self.selector = selector
-            
+
         self.verifier_node = verifier_node
         self.retry_policy = retry_policy or RetryPolicy()
         self.state_updater = state_updater
@@ -145,7 +146,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         # This is useful for Majority Voting.
         # We perform selection and verification
         result = await self._verify_results(ctx, results)
-        
+
         # Determine selection confidence (for Majority Voting specifically)
         selection_confidence = 1.0
         if self.samples > 1 and results:
@@ -153,9 +154,11 @@ class ProbabilisticNode(BaseNode[StateT]):
             try:
                 # Helper to normalize/hash result for comparison
                 def _norm(val: Any) -> Any:
-                    if isinstance(val, BaseModel): return val.model_dump_json()
-                    if isinstance(val, (dict, list)): 
+                    if isinstance(val, BaseModel):
+                        return val.model_dump_json()
+                    if isinstance(val, (dict, list)):
                         import json
+
                         return json.dumps(val, sort_keys=True)
                     return val
 
@@ -166,12 +169,16 @@ class ProbabilisticNode(BaseNode[StateT]):
                 selection_confidence = 1.0 / len(results)
 
         # 6. Update State
-        if hasattr(state_obj, "record_probability"):
+        if hasattr(state_obj, "record_probability") and callable(
+            state_obj.record_probability
+        ):
             # This records the confidence of the PPU in its own selection
-            state_obj.record_probability(f"{self.name}_ppu", selection_confidence)
+            cast("Any", state_obj).record_probability(
+                f"{self.name}_ppu", selection_confidence
+            )
             # Sync back
             if hasattr(state_obj, "meta"):
-                ctx.session.state["meta"] = state_obj.meta
+                ctx.session.state["meta"] = cast("Any", state_obj).meta
 
         if self.adk_config.output_key and isinstance(result, (str, BaseModel)):
             val = result if isinstance(result, str) else result.model_dump_json()

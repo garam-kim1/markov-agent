@@ -18,12 +18,15 @@ Phases:
 
 # --- Phase 1: Tools ---
 
+
 def get_weather(city: str) -> str:
     """Returns weather data for a given city."""
     data = {"Tokyo": "sunny", "London": "rainy", "Seattle": "cloudy"}
     return data.get(city, "unknown")
 
+
 # --- Phase 2: State and Dynamic Instructions ---
+
 
 def weather_instruction_provider(context) -> str:
     """Example of a dynamic system prompt based on session state."""
@@ -31,15 +34,17 @@ def weather_instruction_provider(context) -> str:
     user_name = context.session.state.get("user_name", "Explorer")
     return f"You are a helpful weather assistant. Greeting {user_name}. Provide concise updates."
 
+
 # --- Phase 3: Multi-Agent Orchestration ---
 
 # 1. Specialist Agent
 weather_agent = Agent(
     name="weather_worker",
     model=model_config(name="gemini-1.5-flash"),
-    system_prompt="You provide weather updates using the get_weather tool."
+    system_prompt="You provide weather updates using the get_weather tool.",
 )
 weather_agent.add_tool(get_weather)
+
 
 # 2. Handoff Tool
 def call_weather_agent(query: str) -> str:
@@ -48,6 +53,7 @@ def call_weather_agent(query: str) -> str:
     response = weather_agent.run(query)
     return response.text
 
+
 # 3. Router Agent
 router_agent = Agent(
     name="router",
@@ -55,7 +61,7 @@ router_agent = Agent(
     system_prompt=(
         "You are a receptionist. If the user asks about weather, use the "
         "call_weather_agent tool. Otherwise, answer directly and politely."
-    )
+    ),
 )
 router_agent.add_tool(call_weather_agent)
 
@@ -68,8 +74,9 @@ evaluator_agent = Agent(
         "You are a quality control agent. Evaluate if the agent's response "
         "accurately answers the user's question. Output 'PASS' or 'FAIL' "
         "followed by a brief reason."
-    )
+    ),
 )
+
 
 async def run_weather_pipeline(query: str, user_name: str = "Alice"):
     print(f"\n[User ({user_name})]: {query}")
@@ -83,12 +90,10 @@ async def run_weather_pipeline(query: str, user_name: str = "Alice"):
     print(f"[Router]: {response.text}")
 
     # Evaluate the result
-    eval_query = (
-        f"Question: {query}\n"
-        f"Response: {response.text}"
-    )
+    eval_query = f"Question: {query}\nResponse: {response.text}"
     evaluation = evaluator_agent.run(eval_query)
     print(f"[Evaluator]: {evaluation.text}")
+
 
 async def main():
     # Check for API keys
@@ -106,6 +111,7 @@ async def main():
 
     # Test 3: Unknown City
     await run_weather_pipeline("How is the weather in Atlantis?")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

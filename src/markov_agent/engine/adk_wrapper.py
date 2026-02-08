@@ -587,5 +587,5 @@ def model_config(
     temperature: float = 0.7,
     **kwargs: Any,
 ) -> ADKConfig:
-    """Helper to create an ADKConfig instance, mimicking google-adk's model_config."""
+    """Create an ADKConfig instance, mimicking google-adk's model_config."""
     return ADKConfig(model_name=name, temperature=temperature, **kwargs)

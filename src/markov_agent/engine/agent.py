@@ -1,6 +1,6 @@
+import asyncio
 from collections.abc import Callable
 from typing import Any
-import asyncio
 
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController
 from markov_agent.engine.ppu import ProbabilisticNode

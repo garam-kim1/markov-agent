@@ -141,7 +141,7 @@ class Graph(BaseAgent):
             # Find next node
             next_node_id = None
             chosen_prob = 1.0
-            
+
             for edge in self.edges:
                 if edge.source == current_node_id:
                     # Capture both node and probability
@@ -152,9 +152,11 @@ class Graph(BaseAgent):
                             f"Transition: {current_node_id} -> {next_node_id} "
                             f"(p={chosen_prob:.2f})",
                         )
-                        
+
                         # Record probability in state if it's a Markov State
-                        if hasattr(state_obj, "record_probability") and callable(state_obj.record_probability):
+                        if hasattr(state_obj, "record_probability") and callable(
+                            state_obj.record_probability
+                        ):
                             state_obj.record_probability(current_node_id, chosen_prob)
                             # Sync back to session state
                             if hasattr(state_obj, "meta"):
