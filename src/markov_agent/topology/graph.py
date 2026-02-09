@@ -211,7 +211,8 @@ class Graph(BaseAgent):
             pass  # We just consume events, the work happens in session.state
 
         # Update the original state object with results from session
-        return state.update(**session.state)
+        # Use model_validate to ensure all nested types are correctly reconstructed
+        return type(state).model_validate(session.state)
 
     async def run_beam(
         self,

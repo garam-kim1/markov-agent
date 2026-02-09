@@ -119,11 +119,12 @@ async def main():
         return
 
     config = ADKConfig(
-        model_name=model_name,
+        model_name=os.environ.get("MODEL_NAME", "openai/Qwen3-0.6B-Q4_K_M.gguf"),
         api_key=api_key,
-        api_base=api_base,
+        api_base=os.environ.get("API_BASE", "http://192.168.1.213:8080/v1"),
         temperature=0.7,
         enable_logging=True,
+        use_litellm=True,
     )
 
     # --- TOPOLOGY 1: Chapter Workflow (The Nested Graph) ---

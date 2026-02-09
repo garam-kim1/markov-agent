@@ -21,7 +21,10 @@ class BaseState(BaseModel):
 
     def update(self, **kwargs: Any) -> Self:
         """Return a new instance of the state with updated fields."""
-        return self.model_copy(update=kwargs)
+        # Use model_dump + update + model_validate to ensure nested models are correctly handled
+        data = self.model_dump()
+        data.update(kwargs)
+        return self.__class__.model_validate(data)
 
     def record_step(self, step_data: Any) -> None:
         """Append a snapshot or step data to history."""
