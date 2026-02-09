@@ -108,16 +108,22 @@ def update_verification(state: ReportState, result: VerificationOutput) -> Repor
 
 async def main():
     console = Console()
-    api_key = os.environ.get("GEMINI_API_KEY")
+    
+    # Allow overriding via environment variables for local LLM support
+    model_name = os.environ.get("MODEL_NAME", "gemini-3-flash-preview")
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    api_base = os.environ.get("API_BASE")
 
-    if not api_key:
-        console.print("[bold red]Error: GEMINI_API_KEY not set.[/bold red]")
+    if not api_key and not api_base:
+        console.print("[bold red]Error: Neither GEMINI_API_KEY nor API_BASE set.[/bold red]")
         return
 
     config = ADKConfig(
-        model_name="gemini-3-flash-preview",
+        model_name=model_name,
         api_key=api_key,
+        api_base=api_base,
         temperature=0.7,
+        enable_logging=True,
     )
 
     # --- TOPOLOGY 1: Chapter Workflow (The Nested Graph) ---

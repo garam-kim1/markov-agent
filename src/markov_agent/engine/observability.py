@@ -1,5 +1,4 @@
 import logging
-import sys
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -25,8 +24,11 @@ def configure_local_telemetry(service_name: str = "markov-agent") -> None:
 
 def configure_standard_logging(level: int = logging.INFO) -> None:
     """Configure standard Python logging for ADK activity."""
+    from rich.logging import RichHandler
+
     logging.basicConfig(
         level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True)],
     )

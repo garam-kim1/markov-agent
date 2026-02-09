@@ -1,4 +1,5 @@
 import contextlib
+import logging
 from collections.abc import AsyncGenerator, Callable
 from typing import Any, TypeVar, cast
 
@@ -19,6 +20,7 @@ from markov_agent.engine.sampler import (
 from markov_agent.topology.node import BaseNode
 
 StateT = TypeVar("StateT", bound=BaseState)
+logger = logging.getLogger(__name__)
 
 
 class ProbabilisticNode(BaseNode[StateT]):
@@ -108,6 +110,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
         """Execute the PPU logic within the ADK runtime."""
+        logger.info("Node '%s' starting execution.", self.name)
         # 1. Access State (Dict or Typed)
         # ctx.session.state is a dict
         state_dict = ctx.session.state
@@ -122,7 +125,11 @@ class ProbabilisticNode(BaseNode[StateT]):
                     state_obj = self.state_type.construct(**state_dict)
 
         # 2. Render Prompt
-        prompt = self._render_prompt(state_obj)
+        try:
+            prompt = self._render_prompt(state_obj)
+        except Exception:
+            logger.exception("Node '%s' failed to render prompt", self.name)
+            raise
 
         # 3. Generate Varied Configs (Explore/Exploit Strategy)
         base_gen_config = self._get_base_gen_config()
@@ -136,16 +143,27 @@ class ProbabilisticNode(BaseNode[StateT]):
         task_factories = self._create_task_factories(prompt, state_dict, varied_configs)
 
         # 5. Execute Parallel Sampling
-        results = await execute_parallel_sampling(
-            generate_func=task_factories,
-            k=self.samples,
-            selector_func=lambda x: x,  # Get all results to perform verification
+        logger.debug(
+            "Node '%s' executing %s parallel samples.", self.name, self.samples
         )
+        try:
+            results = await execute_parallel_sampling(
+                generate_func=task_factories,
+                k=self.samples,
+                selector_func=lambda x: x,  # Get all results to perform verification
+            )
+        except Exception:
+            logger.exception("Node '%s' parallel sampling failed", self.name)
+            raise
 
         # Calculate Sample Confidence (Ratio of selected result in samples)
         # This is useful for Majority Voting.
         # We perform selection and verification
-        result = await self._verify_results(ctx, results)
+        try:
+            result = await self._verify_results(ctx, results)
+        except Exception:
+            logger.exception("Node '%s' verification/selection failed", self.name)
+            raise
 
         # Determine selection confidence and distribution (for Entropy)
         selection_confidence = 1.0
@@ -253,25 +271,37 @@ class ProbabilisticNode(BaseNode[StateT]):
         return await self._execute_impl(state)
 
     async def _execute_impl(self, state: StateT) -> StateT:
-        prompt = self._render_prompt(state)
-        state_dict = state.model_dump() if isinstance(state, BaseModel) else dict(state)
+        logger.info("Node '%s' starting execution (legacy).", self.name)
+        try:
+            prompt = self._render_prompt(state)
+            state_dict = (
+                state.model_dump() if isinstance(state, BaseModel) else dict(state)
+            )
 
-        base_gen_config = self._get_base_gen_config()
-        varied_configs = generate_varied_configs(
-            base_gen_config,
-            self.samples,
-            self.sampling_strategy,
-        )
+            base_gen_config = self._get_base_gen_config()
+            varied_configs = generate_varied_configs(
+                base_gen_config,
+                self.samples,
+                self.sampling_strategy,
+            )
 
-        task_factories = self._create_task_factories(prompt, state_dict, varied_configs)
+            task_factories = self._create_task_factories(
+                prompt, state_dict, varied_configs
+            )
 
-        result = await execute_parallel_sampling(
-            generate_func=task_factories,
-            k=self.samples,
-            selector_func=self.selector,
-        )
+            logger.debug(
+                "Node '%s' executing %s parallel samples.", self.name, self.samples
+            )
+            result = await execute_parallel_sampling(
+                generate_func=task_factories,
+                k=self.samples,
+                selector_func=self.selector,
+            )
 
-        return self.parse_result(state, result)
+            return self.parse_result(state, result)
+        except Exception:
+            logger.exception("Node '%s' execution failed", self.name)
+            raise
 
     async def deep(self, state: StateT) -> StateT:
         """System 2 reasoning (Think-then-Act).

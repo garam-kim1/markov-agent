@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from google.adk.agents.callback_context import CallbackContext
@@ -5,6 +6,8 @@ from google.adk.plugins.base_plugin import BasePlugin
 from google.adk.tools import ToolContext
 
 from markov_agent.core.events import Event, event_bus
+
+logger = logging.getLogger(__name__)
 
 
 class MarkovBridgePlugin(BasePlugin):
@@ -96,4 +99,5 @@ class MarkovBridgePlugin(BasePlugin):
     async def on_model_error_callback(
         self, error: Exception, *args: Any, **kwargs: Any
     ) -> None:
+        logger.exception("ADK Model Error")
         await event_bus.emit(Event(name="adk.error", payload={"error": str(error)}))

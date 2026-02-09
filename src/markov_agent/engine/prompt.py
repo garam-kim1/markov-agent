@@ -13,5 +13,13 @@ class PromptEngine:
         )
 
     def render(self, template_str: str, **kwargs: Any) -> str:
-        template = self.env.from_string(template_str)
-        return template.render(**kwargs)
+        try:
+            template = self.env.from_string(template_str)
+            return template.render(**kwargs)
+        except Exception as e:
+            from jinja2 import TemplateError
+
+            if isinstance(e, TemplateError):
+                msg = f"Failed to render prompt template: {e}"
+                raise TypeError(msg) from e
+            raise

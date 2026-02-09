@@ -1,9 +1,12 @@
 import asyncio
 import copy
+import logging
 import random
 from collections.abc import Callable
 from enum import StrEnum
 from typing import Any, cast
+
+logger = logging.getLogger(__name__)
 
 
 class SamplingStrategy(StrEnum):
@@ -103,6 +106,12 @@ async def execute_parallel_sampling[T](
     results = await asyncio.gather(*tasks)
 
     valid_results = [r for r in results if not isinstance(r, Exception)]
+    failures = [r for r in results if isinstance(r, Exception)]
+
+    if failures:
+        logger.warning("%s/%s parallel samples failed.", len(failures), len(results))
+        for i, f in enumerate(failures):
+            logger.debug("Failure %s: %s", i + 1, f)
 
     if not valid_results:
         # If all failed, raise the first error

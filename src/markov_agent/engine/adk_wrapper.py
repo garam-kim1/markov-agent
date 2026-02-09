@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import uuid
 from collections.abc import AsyncGenerator, Callable
@@ -24,6 +25,7 @@ from markov_agent.engine.runtime import RunConfig
 from markov_agent.engine.telemetry_plugin import MarkovBridgePlugin
 
 T = TypeVar("T", bound=BaseModel)
+logger = logging.getLogger(__name__)
 
 
 class ADKConfig(BaseModel):
@@ -204,17 +206,39 @@ class ADKController:
 
         # Model Initialization Logic
         model_instance = self.config.model_name
+        use_litellm = self.config.use_litellm
+
+        # Auto-detection for LiteLLM
+        if not use_litellm and isinstance(self.config.model_name, str):
+            if self.config.model_name.startswith("openai/") or self.config.api_base:
+                use_litellm = True
+                logger.info(
+                    "Auto-enabling LiteLLM for model '%s' (api_base: %s)",
+                    self.config.model_name,
+                    self.config.api_base,
+                )
+
         if self.mock_responder:
             model_instance = MockLlm(self.mock_responder, model=self.config.model_name)
-        elif self.config.use_litellm:
+        elif use_litellm:
             from google.adk.models.lite_llm import LiteLlm
 
             # Setup environment for LiteLLM if api_base provided
-            if self.config.api_base and self.config.model_name.startswith("openai/"):
-                # Assuming OpenAI-compatible local server if using openai/ prefix
-                os.environ["OPENAI_API_BASE"] = self.config.api_base
+            if self.config.api_base and isinstance(self.config.model_name, str):
+                if self.config.model_name.startswith("openai/"):
+                    # Assuming OpenAI-compatible local server if using openai/ prefix
+                    os.environ["OPENAI_API_BASE"] = self.config.api_base
+                else:
+                    # For other models, we might need different env vars, 
+                    # but api_base is generic in ADKConfig
+                    os.environ["LITELLM_API_BASE"] = self.config.api_base
+
                 if self.config.api_key:
-                    os.environ["OPENAI_API_KEY"] = self.config.api_key
+                    # Try to set appropriate key
+                    if self.config.model_name.startswith("openai/"):
+                        os.environ["OPENAI_API_KEY"] = self.config.api_key
+                    else:
+                        os.environ["LITELLM_API_KEY"] = self.config.api_key
                 elif "OPENAI_API_KEY" not in os.environ:
                     os.environ["OPENAI_API_KEY"] = "dummy"
 
@@ -451,22 +475,33 @@ class ADKController:
 
         while attempt < controller.retry_policy.max_attempts:
             try:
+                if attempt > 0:
+                    logger.info(
+                        "Retrying generation (attempt %s/%s)...",
+                        attempt + 1,
+                        controller.retry_policy.max_attempts,
+                    )
                 raw_text, final_state = await run_attempt()
 
                 # Parsing Logic
                 result = raw_text
                 if output_schema:
-                    cleaned_text = raw_text.strip()
-                    # Some models might still wrap in markdown
-                    # even with structured output enforced
-                    if cleaned_text.startswith("```json"):
-                        cleaned_text = cleaned_text.replace("```json", "", 1)
-                        cleaned_text = cleaned_text.removesuffix("```")
-                    elif cleaned_text.startswith("```"):
-                        cleaned_text = cleaned_text.replace("```", "", 1)
-                        cleaned_text = cleaned_text.removesuffix("```")
+                    try:
+                        cleaned_text = raw_text.strip()
+                        # Some models might still wrap in markdown
+                        # even with structured output enforced
+                        if cleaned_text.startswith("```json"):
+                            cleaned_text = cleaned_text.replace("```json", "", 1)
+                            cleaned_text = cleaned_text.removesuffix("```")
+                        elif cleaned_text.startswith("```"):
+                            cleaned_text = cleaned_text.replace("```", "", 1)
+                            cleaned_text = cleaned_text.removesuffix("```")
 
-                    result = output_schema.model_validate_json(cleaned_text.strip())
+                        result = output_schema.model_validate_json(cleaned_text.strip())
+                    except Exception:
+                        logger.exception("Failed to parse model output as JSON")
+                        logger.debug("Raw output: %s", raw_text)
+                        raise
 
                 if include_state:
                     return result, final_state
@@ -475,6 +510,12 @@ class ADKController:
             except Exception as e:
                 last_error = e
                 attempt += 1
+                logger.warning(
+                    "Generation attempt %s failed: %s: %s",
+                    attempt,
+                    type(e).__name__,
+                    e,
+                )
                 if attempt < controller.retry_policy.max_attempts:
                     await asyncio.sleep(current_delay)
                     current_delay *= controller.retry_policy.backoff_factor
@@ -482,7 +523,8 @@ class ADKController:
                 break
 
         msg = (
-            f"Failed to generate after {controller.retry_policy.max_attempts} attempts"
+            f"Failed to generate after {controller.retry_policy.max_attempts} attempts. "
+            f"Last error: {type(last_error).__name__}: {last_error}"
         )
         raise RuntimeError(msg) from last_error
 
