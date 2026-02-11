@@ -10,6 +10,7 @@ dependencies = [
     "tenacity>=9.1.4",              # Retry logic
     "jinja2>=3.1.6",                # Prompt Templating
     "numpy>=2.4.2",                # Math/Stats for simulation
+    "pandas>=2.2.3",               # Data analysis for simulation
     "rich>=14.3.2",                # Terminal visualization
     "litellm>=1.81.8",
     "sqlalchemy>=2.0.45",

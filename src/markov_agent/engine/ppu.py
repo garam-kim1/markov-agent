@@ -200,7 +200,9 @@ class ProbabilisticNode(BaseNode[StateT]):
         ):
             # This records the confidence of the PPU in its own selection
             cast("Any", state_obj).record_probability(
-                f"{self.name}_ppu", selection_confidence, distribution=distribution
+                source=f"{self.name}_ppu",
+                probability=selection_confidence,
+                distribution=distribution
             )
             # Sync back
             if hasattr(state_obj, "meta"):

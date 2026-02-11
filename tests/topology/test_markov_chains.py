@@ -28,10 +28,9 @@ def test_probabilistic_edge_routing():
 
     # Run multiple times to verify distribution (deterministic here)
     for _ in range(10):
-        next_node, prob = edge.route({})
+        next_node, prob, _ = edge.route({})
         assert next_node == "B"
         assert prob == 1.0
-
 
 def test_probabilistic_edge_weighted_sampling():
     # Test weighted sampling
@@ -42,7 +41,7 @@ def test_probabilistic_edge_weighted_sampling():
 
     results = []
     for _ in range(100):
-        next_node, prob = edge.route({})
+        next_node, prob, _ = edge.route({})
         results.append(next_node)
         assert prob == 0.5
 

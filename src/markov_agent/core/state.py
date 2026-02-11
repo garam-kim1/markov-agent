@@ -30,18 +30,40 @@ class BaseState(BaseModel):
         """Append a snapshot or step data to history."""
         self.history.append(step_data)
 
+    def get_markov_view(self) -> Any:
+        """Return a view of the state that excludes history and meta.
+
+        This enforces the Markov property by ensuring transitions only depend
+        on the current state's explicitly defined fields.
+        """
+        # Create a proxy that excludes history and meta
+        data = self.model_dump(exclude={"history", "meta"})
+
+        class MarkovView:
+            def __init__(self, d: dict[str, Any]) -> None:
+                self.__dict__.update(d)
+
+            def __repr__(self) -> str:
+                return f"MarkovView({self.__dict__})"
+
+        return MarkovView(data)
+
     def record_probability(
         self,
-        node: str,
-        probability: float,
+        source: str,
+        target: str | None = None,
+        probability: float = 1.0,
         distribution: dict[str, float] | None = None,
     ) -> None:
         """Record the probability of a chosen transition path."""
         if "path_probabilities" not in self.meta:
             self.meta["path_probabilities"] = []
-        self.meta["path_probabilities"].append(
-            {"node": node, "probability": probability}
-        )
+
+        record = {"source": source, "probability": probability, "node": source}
+        if target:
+            record["target"] = target
+
+        self.meta["path_probabilities"].append(record)
 
         # Shannon Entropy calculation: H = -sum(p * log2(p))
         if distribution:

@@ -20,7 +20,9 @@ class Edge:
 
     def get_distribution(self, state: Any) -> TransitionDistribution:
         """Calculate the transition probability distribution."""
-        result = self.target_func(state)
+        # Enforce Task 3: Use Markov View
+        view = state.get_markov_view() if hasattr(state, "get_markov_view") else state
+        result = self.target_func(view)
 
         if result is None:
             return {}
@@ -38,16 +40,16 @@ class Edge:
         msg = f"Invalid transition result type: {type(result)}"
         raise ValueError(msg)
 
-    def route(self, state: Any) -> tuple[str | None, float]:
+    def route(self, state: Any) -> tuple[str | None, float, dict[str, float]]:
         """Determine the next node ID and the transition probability.
 
         If the router returns a distribution, performs weighted random selection.
-        Returns (next_node_id, probability).
+        Returns (next_node_id, probability, distribution).
         """
         distribution = self.get_distribution(state)
 
         if not distribution:
-            return None, 1.0
+            return None, 1.0, {}
 
         nodes = list(distribution.keys())
         weights = list(distribution.values())
@@ -60,13 +62,7 @@ class Edge:
         # Find the probability of the selected node
         probability = distribution[selected_node]
 
-        # Record probability in state if it's a Markov State
-        if hasattr(state, "record_probability") and callable(state.record_probability):
-            state.record_probability(
-                self.source, probability, distribution=distribution
-            )
-
-        return selected_node, probability
+        return selected_node, probability, distribution
 
 
 class ProbabilisticEdge(Edge):

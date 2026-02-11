@@ -134,7 +134,10 @@ class Graph(BaseAgent):
                         self.__dict__ = data
 
                     def __getattr__(self, name: str) -> Any:
-                        return self.__dict__.get(name)
+                        if name in self.__dict__:
+                            return self.__dict__[name]
+                        msg = f"'{self.__class__.__name__}' object has no attribute '{name}'"
+                        raise AttributeError(msg)
 
                 state_obj = StateProxy(ctx.session.state)
 
@@ -144,14 +147,23 @@ class Graph(BaseAgent):
 
             for edge in self.edges:
                 if edge.source == current_node_id:
-                    # Capture both node and probability
-                    next_node_id, chosen_prob = edge.route(state_obj)
+                    # Capture node, probability, and full distribution
+                    next_node_id, chosen_prob, dist = edge.route(state_obj)
 
                     if next_node_id:
                         console.log(
                             f"Transition: {current_node_id} -> {next_node_id} "
                             f"(p={chosen_prob:.2f})",
                         )
+
+                        # Record probability in state if supported
+                        if hasattr(state_obj, "record_probability"):
+                            state_obj.record_probability(
+                                source=current_node_id,
+                                target=next_node_id,
+                                probability=chosen_prob,
+                                distribution=dist,
+                            )
 
                         # Sync back to session state if it was a Markov State
                         if hasattr(state_obj, "meta"):
@@ -277,7 +289,10 @@ class Graph(BaseAgent):
                             child_state = copy.deepcopy(branch_state)
                             if hasattr(child_state, "record_probability"):
                                 child_state.record_probability(
-                                    node_id, prob, distribution=distribution
+                                    source=node_id,
+                                    target=next_node_id,
+                                    probability=prob,
+                                    distribution=distribution
                                 )
                             next_candidates.append((child_state, next_node_id))
                         break
