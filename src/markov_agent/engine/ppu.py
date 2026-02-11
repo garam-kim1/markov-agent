@@ -103,6 +103,7 @@ class ProbabilisticNode(BaseNode[StateT]):
             mock_responder=mock_responder,
             output_schema=self.output_schema,
             artifact_service=self.artifact_service,
+            name=self.name,
         )
 
     async def _run_async_impl(

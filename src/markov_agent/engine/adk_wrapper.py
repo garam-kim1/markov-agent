@@ -42,6 +42,7 @@ class ADKConfig(BaseModel):
     safety_settings: list[Any] = Field(default_factory=list)
     api_base: str | None = None
     api_key: str | None = None
+    name: str | None = None
     tools: list[Any] = Field(default_factory=list)
     instruction: str | Callable[[ReadonlyContext], str] | None = None
     description: str | None = None
@@ -118,10 +119,12 @@ class ADKController:
         mock_responder: Callable[[str], Any] | None = None,
         output_schema: Any | None = None,
         artifact_service: BaseArtifactService | None = None,
+        name: str | None = None,
     ) -> None:
         self.config = config
         self.retry_policy = retry_policy
         self.mock_responder = mock_responder
+        self.name = name or config.name or "agent"
         self.session_service = config.session_service or InMemorySessionService()
         self.memory_service = config.memory_service
         if self.config.enable_memory and not self.memory_service:
@@ -259,7 +262,7 @@ class ADKController:
             tools.append(load_memory_tool)
 
         self.agent = Agent(
-            name="markov_ppu_agent",
+            name=self.name,
             model=model_instance,
             instruction=self.config.instruction or "",
             description=self.config.description or "",
@@ -373,6 +376,7 @@ class ADKController:
             mock_responder=self.mock_responder,
             output_schema=self.output_schema,
             artifact_service=self.artifact_service,
+            name=self.name,
         )
 
     async def generate(
@@ -407,6 +411,7 @@ class ADKController:
                     mock_responder=self.mock_responder,
                     output_schema=self.output_schema,
                     artifact_service=self.artifact_service,
+                    name=self.name,
                 )
             elif run_config.tools:
                 new_config = self.config.model_copy(deep=True)
@@ -417,6 +422,7 @@ class ADKController:
                     mock_responder=self.mock_responder,
                     output_schema=self.output_schema,
                     artifact_service=self.artifact_service,
+                    name=self.name,
                 )
 
         async def run_attempt() -> tuple[Any, dict[str, Any]]:
