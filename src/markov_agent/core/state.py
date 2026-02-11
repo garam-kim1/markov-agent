@@ -39,11 +39,16 @@ class BaseState(BaseModel):
         on the current state's explicitly defined fields.
         """
         # Create a proxy that excludes history and meta
-        data = self.model_dump(exclude={"history", "meta"})
+        # We don't use model_dump because it's recursive and converts nested models to dicts
+        exclude = {"history", "meta"}
+        data = {k: v for k, v in self.__dict__.items() if k not in exclude}
 
         class MarkovView:
             def __init__(self, d: dict[str, Any]) -> None:
                 self.__dict__.update(d)
+
+            def get(self, key: str, default: Any = None) -> Any:
+                return self.__dict__.get(key, default)
 
             def __repr__(self) -> str:
                 return f"MarkovView({self.__dict__})"
