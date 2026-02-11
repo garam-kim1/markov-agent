@@ -30,8 +30,13 @@ async def test_entropy_tracking():
     state = MarkovState()
 
     # route() no longer mutates state, so we manually record for the test
-    _next_node, _prob, dist = edge.route(state)
-    state.record_probability(source="START", target=_next_node, probability=_prob, distribution=dist)
+    result = edge.route(state)
+    state.record_probability(
+        source="START",
+        target=result.next_node,
+        probability=result.probability,
+        distribution=result.distribution,
+    )
     assert "step_entropy" in state.meta
     assert len(state.meta["step_entropy"]) == 1
     assert math.isclose(state.meta["step_entropy"][0], 1.5)

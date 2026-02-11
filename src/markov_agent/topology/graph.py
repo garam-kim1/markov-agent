@@ -49,6 +49,7 @@ class Graph(BaseAgent):
     max_steps: int = 50
     state_type: type[StateT] | None = None
     input_key: str = "input_text"
+    strict_markov: bool = False
 
     def __init__(
         self,
@@ -58,6 +59,8 @@ class Graph(BaseAgent):
         entry_point: str,
         state_type: type[StateT] | None = None,
         input_key: str = "input_text",
+        *,
+        strict_markov: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(name=name, **kwargs)
@@ -66,6 +69,7 @@ class Graph(BaseAgent):
         self.entry_point = entry_point
         self.state_type = state_type
         self.input_key = input_key
+        self.strict_markov = strict_markov
 
     async def _run_async_impl(
         self,
@@ -147,14 +151,31 @@ class Graph(BaseAgent):
 
             for edge in self.edges:
                 if edge.source == current_node_id:
-                    # Capture node, probability, and full distribution
-                    next_node_id, chosen_prob, dist = edge.route(state_obj)
+                    # Enforce Strict Markov if enabled
+                    routing_state = state_obj
+                    if self.strict_markov and hasattr(state_obj, "get_markov_view"):
+                        # Pass a restricted view: only current node and any 'markov_signals'
+                        # For now, we simulate this by using get_markov_view() if available
+                        routing_state = state_obj.get_markov_view()
+
+                    # Capture TransitionResult
+                    result = edge.route(routing_state)
+                    next_node_id = result.next_node
+                    chosen_prob = result.probability
+                    dist = result.distribution
 
                     if next_node_id:
                         console.log(
                             f"Transition: {current_node_id} -> {next_node_id} "
-                            f"(p={chosen_prob:.2f})",
+                            f"(p={chosen_prob:.2f}, entropy={result.entropy:.2f})",
                         )
+
+                        # Log high entropy events
+                        if result.entropy > 1.5:  # Arbitrary threshold for high uncertainty
+                            console.log(
+                                f"[bold yellow]High Uncertainty Event:[/bold yellow] "
+                                f"Entropy {result.entropy:.2f} at {current_node_id}",
+                            )
 
                         # Record probability in state if supported
                         if hasattr(state_obj, "record_probability"):
@@ -280,7 +301,14 @@ class Graph(BaseAgent):
                 found_transition = False
                 for edge in self.edges:
                     if edge.source == node_id:
-                        distribution = edge.get_distribution(branch_state)
+                        # Enforce Strict Markov if enabled
+                        routing_state = branch_state
+                        if self.strict_markov and hasattr(
+                            branch_state, "get_markov_view"
+                        ):
+                            routing_state = branch_state.get_markov_view()
+
+                        distribution = edge.get_distribution(routing_state)
                         if not distribution:
                             continue
 
@@ -292,7 +320,7 @@ class Graph(BaseAgent):
                                     source=node_id,
                                     target=next_node_id,
                                     probability=prob,
-                                    distribution=distribution
+                                    distribution=distribution,
                                 )
                             next_candidates.append((child_state, next_node_id))
                         break
@@ -304,13 +332,16 @@ class Graph(BaseAgent):
                 candidates = []
                 break
 
-            # Sort by confidence and prune
+            # Sort by cumulative_log_prob and prune
             next_candidates.sort(
-                key=lambda x: x[0].meta.get("confidence", 1.0), reverse=True
+                key=lambda x: x[0].meta.get("cumulative_log_prob", -float("inf")),
+                reverse=True,
             )
             candidates = next_candidates[:width]
 
         # Combine results
         all_results = final_states + [c[0] for c in candidates]
-        all_results.sort(key=lambda x: x.meta.get("confidence", 1.0), reverse=True)
+        all_results.sort(
+            key=lambda x: x.meta.get("cumulative_log_prob", -float("inf")), reverse=True
+        )
         return all_results[:width]

@@ -2,6 +2,8 @@ from typing import Any, Self
 
 from pydantic import BaseModel, Field
 
+from markov_agent.core.probability import LogProb
+
 
 class BaseState(BaseModel):
     """The base state object. State is the only source of truth.
@@ -67,13 +69,18 @@ class BaseState(BaseModel):
 
         # Shannon Entropy calculation: H = -sum(p * log2(p))
         if distribution:
-            import math
+            from markov_agent.core.probability import calculate_entropy
 
-            entropy = -sum(p * math.log2(p) for p in distribution.values() if p > 0)
+            entropy = calculate_entropy(distribution)
             if "step_entropy" not in self.meta:
                 self.meta["step_entropy"] = []
             self.meta["step_entropy"].append(entropy)
 
         # Update overall confidence (joint probability of the trace)
-        current_conf = self.meta.get("confidence", 1.0)
-        self.meta["confidence"] = current_conf * probability
+        # Use log-space arithmetic to prevent underflow
+        current_log_prob = self.meta.get("cumulative_log_prob", 0.0)  # log(1.0) = 0.0
+        step_log_prob = LogProb.from_float(probability)
+        new_log_prob = LogProb.multiply(current_log_prob, step_log_prob)
+
+        self.meta["cumulative_log_prob"] = new_log_prob
+        self.meta["confidence"] = LogProb.to_float(new_log_prob)

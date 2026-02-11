@@ -1,11 +1,24 @@
 import random
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
+
+from markov_agent.core.probability import LogProb, calculate_entropy
 
 # Returns next_node_id OR a dict of {next_node_id: probability}
 TransitionDistribution = dict[str, float]
-TransitionResult = str | TransitionDistribution | None
-RouterFunction = Callable[[Any], TransitionResult]
+RouterFunction = Callable[[Any], str | TransitionDistribution | None]
+
+
+@dataclass
+class TransitionResult:
+    """The result of a routing operation."""
+
+    next_node: str | None
+    probability: float
+    distribution: dict[str, float]
+    entropy: float
+    log_prob: float
 
 
 class Edge:
@@ -20,7 +33,7 @@ class Edge:
 
     def get_distribution(self, state: Any) -> TransitionDistribution:
         """Calculate the transition probability distribution."""
-        # Enforce Task 3: Use Markov View
+        # Check if state is a MarkovView or similar
         view = state.get_markov_view() if hasattr(state, "get_markov_view") else state
         result = self.target_func(view)
 
@@ -40,16 +53,21 @@ class Edge:
         msg = f"Invalid transition result type: {type(result)}"
         raise ValueError(msg)
 
-    def route(self, state: Any) -> tuple[str | None, float, dict[str, float]]:
+    def route(self, state: Any) -> TransitionResult:
         """Determine the next node ID and the transition probability.
 
         If the router returns a distribution, performs weighted random selection.
-        Returns (next_node_id, probability, distribution).
         """
         distribution = self.get_distribution(state)
 
         if not distribution:
-            return None, 1.0, {}
+            return TransitionResult(
+                next_node=None,
+                probability=1.0,
+                distribution={},
+                entropy=0.0,
+                log_prob=0.0,
+            )
 
         nodes = list(distribution.keys())
         weights = list(distribution.values())
@@ -62,7 +80,16 @@ class Edge:
         # Find the probability of the selected node
         probability = distribution[selected_node]
 
-        return selected_node, probability, distribution
+        entropy = calculate_entropy(distribution)
+        log_prob = LogProb.from_float(probability)
+
+        return TransitionResult(
+            next_node=selected_node,
+            probability=probability,
+            distribution=distribution,
+            entropy=entropy,
+            log_prob=log_prob,
+        )
 
 
 class ProbabilisticEdge(Edge):
