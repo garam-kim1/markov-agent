@@ -209,14 +209,17 @@ class ADKController:
         use_litellm = self.config.use_litellm
 
         # Auto-detection for LiteLLM
-        if not use_litellm and isinstance(self.config.model_name, str):
-            if self.config.model_name.startswith("openai/") or self.config.api_base:
-                use_litellm = True
-                logger.info(
-                    "Auto-enabling LiteLLM for model '%s' (api_base: %s)",
-                    self.config.model_name,
-                    self.config.api_base,
-                )
+        if (
+            not use_litellm
+            and isinstance(self.config.model_name, str)
+            and (self.config.model_name.startswith("openai/") or self.config.api_base)
+        ):
+            use_litellm = True
+            logger.info(
+                "Auto-enabling LiteLLM for model '%s' (api_base: %s)",
+                self.config.model_name,
+                self.config.api_base,
+            )
 
         if self.mock_responder:
             model_instance = MockLlm(self.mock_responder, model=self.config.model_name)
@@ -229,7 +232,7 @@ class ADKController:
                     # Assuming OpenAI-compatible local server if using openai/ prefix
                     os.environ["OPENAI_API_BASE"] = self.config.api_base
                 else:
-                    # For other models, we might need different env vars, 
+                    # For other models, we might need different env vars,
                     # but api_base is generic in ADKConfig
                     os.environ["LITELLM_API_BASE"] = self.config.api_base
 
@@ -258,13 +261,8 @@ class ADKController:
         self.agent = Agent(
             name="markov_ppu_agent",
             model=model_instance,
-            instruction=self.config.instruction
-            or (
-                "You are a probabilistic processing unit in a Markov Engine. "
-                "Execute the requested task accurately."
-            ),
-            description=self.config.description
-            or "Markov Agent PPU for stochastic processing.",
+            instruction=self.config.instruction or "",
+            description=self.config.description or "",
             tools=tools,
             generate_content_config=types.GenerateContentConfig(**safe_config),
             output_schema=output_schema,

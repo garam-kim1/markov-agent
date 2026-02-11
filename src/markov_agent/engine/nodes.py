@@ -20,7 +20,7 @@ class SearchNode(ProbabilisticNode):
         prompt_template: str,
         output_schema: type[BaseModel] | None = None,
         state_type: type[Any] | None = None,
-        force_search: bool = False,
+        force_search: bool = False,  # noqa: FBT001, FBT002
         **kwargs: Any,
     ):
         # Create a copy to avoid polluting the original config
@@ -32,9 +32,10 @@ class SearchNode(ProbabilisticNode):
 
         # Logic to determine if we should add the search tool
         is_google_model = True
-        if isinstance(adk_config.model_name, str):
-            if adk_config.model_name.startswith("openai/") or adk_config.api_base:
-                is_google_model = False
+        if isinstance(adk_config.model_name, str) and (
+            adk_config.model_name.startswith("openai/") or adk_config.api_base
+        ):
+            is_google_model = False
 
         if is_google_model or force_search:
             # Add Google Search Tool if not present

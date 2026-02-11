@@ -50,4 +50,4 @@ async def test_ppu_verifier_selection():
         pass
 
     # The result in session state should be "good" because verifier selected it
-    assert ctx.session.state["history"][-1]["output"] == "good"
+    assert ctx.session.state["history"][-1]["output"] == "good"  # type: ignore

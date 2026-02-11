@@ -60,7 +60,8 @@ def test_adk_controller_default_overrides():
         ADKController(config, retry)
 
         _args, _kwargs = MockAgent.call_args
-        # Should default to "You are a probabilistic processing unit..."
+        assert _kwargs["instruction"] == ""
+        assert _kwargs["description"] == ""
 
 
 def test_adk_controller_observability_flags():
