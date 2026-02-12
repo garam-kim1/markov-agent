@@ -95,8 +95,27 @@ async def run_topology_demo():
     for node, prob in zip(analyzer.nodes, stationary, strict=True):
         console.print(f"  {node}: {prob:.4f}")
 
+    # NEW: Advanced Markov Diagnostics
+    console.print("\n[bold green]2. Advanced Markov Diagnostics[/bold green]")
+    is_ergodic = analyzer.is_ergodic(matrix)
+    console.print(f"Is Ergodic (Irreducible & Aperiodic): [bold]{is_ergodic}[/bold]")
+
+    mixing_time = analyzer.calculate_mixing_time(matrix)
+    console.print(f"Mixing Time (approx. steps to equilibrium): [bold]{mixing_time}[/bold]")
+
+    # Calculate probability of a specific trajectory
+    sample_traj = ["START", "RESEARCH", "VERIFY", "PUBLISH"]
+    traj_prob = analyzer.simulate_trajectory_probability(sample_traj, matrix)
+    console.print(f"Likelihood of trajectory {sample_traj}: [bold]{traj_prob:.4f}[/bold]")
+
+    # Generate Mermaid Diagram
+    console.print("\n[bold green]3. Topology Visualization (Mermaid)[/bold green]")
+    mermaid = analyzer.generate_mermaid_graph(matrix, threshold=0.05)
+    console.print("Copy-paste into Mermaid Live Editor:")
+    console.print(f"[dim]\n{mermaid}\n[/dim]")
+
     # 3. Demonstrate Log-Space Probability and Beam Search
-    console.print("\n[bold green]2. Beam Search & Log-Space Probability[/bold green]")
+    console.print("\n[bold green]4. Beam Search & Log-Space Probability[/bold green]")
     initial_state = ResearchState(topic="Topology Engineering")
 
     # Run beam search to find top 3 most likely trajectories
