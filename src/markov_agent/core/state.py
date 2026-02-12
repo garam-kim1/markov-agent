@@ -22,10 +22,33 @@ class BaseState(BaseModel):
     )
 
     def update(self, **kwargs: Any) -> Self:
-        """Return a new instance of the state with updated fields."""
-        # Use model_dump + update + model_validate to ensure nested models are correctly handled
+        """Return a new instance of the state with updated fields.
+
+        Supports 'behavior="append"' in Field metadata (via json_schema_extra).
+        If a field is marked with behavior="append", new values will be
+        appended to lists or concatenated to strings instead of replacing them.
+        """
         data = self.model_dump()
-        data.update(kwargs)
+        for key, value in kwargs.items():
+            field = self.__class__.model_fields.get(key)
+            # Check for behavior="append" in json_schema_extra
+            behavior = None
+            if field and field.json_schema_extra:
+                behavior = field.json_schema_extra.get("behavior")
+
+            if behavior == "append" and key in data and data[key] is not None:
+                if isinstance(data[key], list):
+                    if isinstance(value, list):
+                        data[key].extend(value)
+                    else:
+                        data[key].append(value)
+                elif isinstance(data[key], str):
+                    data[key] += str(value)
+                else:
+                    data[key] = value
+            else:
+                data[key] = value
+
         return self.__class__.model_validate(data)
 
     def record_step(self, step_data: Any) -> None:

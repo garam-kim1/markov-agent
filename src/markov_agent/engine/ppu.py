@@ -444,5 +444,12 @@ class ProbabilisticNode(BaseNode[StateT]):
         if isinstance(result, BaseModel):
             output_payload = result.model_dump()
 
+        # Record in history
         state.record_step({"node": self.name, "output": output_payload})
+
+        # Auto-merge if it's a dict (from model_dump or raw)
+        if isinstance(output_payload, dict):
+            # We use state.update which now handles 'append' behavior
+            return state.update(**output_payload)
+
         return state

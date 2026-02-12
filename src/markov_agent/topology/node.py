@@ -44,8 +44,26 @@ class BaseNode[StateT](BaseAgent, ABC):
         Bridges the Pydantic State to ADK's InvocationContext/Session.
         """
 
-    # We must implement _run_async_impl from BaseAgent (or run_async_impl per SDK)
-    # Python SDK usually uses _run_async_impl
+    def __rshift__(self, other: Any) -> Any:
+        """Support operator overloading for flow definition."""
+        from markov_agent.topology.edge import Edge, Flow
+
+        if isinstance(other, (BaseNode, str)):
+            target_name = other.name if hasattr(other, "name") else other
+            new_edge = Edge(source=self.name, target=target_name)
+            return Flow([new_edge], last_node=other)
+
+        if isinstance(other, Edge):
+            other.source = self.name
+            # If edge has a target, we can return a Flow.
+            # If it doesn't (like writer >> Edge(cond=...)), it will be completed by another >>
+            if other.target:
+                return Flow([other], last_node=other.target)
+            return other
+
+        msg = f"Cannot link {self.name} with {type(other)}"
+        raise TypeError(msg)
+
     async def _run_async_impl(
         self,
         ctx: InvocationContext,

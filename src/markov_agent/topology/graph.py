@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from typing import Any, TypeVar
 
 from google.adk.agents import BaseAgent
@@ -50,26 +50,129 @@ class Graph(BaseAgent):
     state_type: type[StateT] | None = None
     input_key: str = "input_text"
     strict_markov: bool = False
+    default_adk_config: Any = Field(default=None, exclude=True)
 
     def __init__(
         self,
         name: str,
-        nodes: dict[str, BaseNode],
-        edges: list[Edge],
-        entry_point: str,
+        nodes: dict[str, BaseNode] | None = None,
+        edges: list[Edge] | None = None,
+        entry_point: str = "",
         state_type: type[StateT] | None = None,
         input_key: str = "input_text",
         *,
         strict_markov: bool = False,
+        default_adk_config: Any | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(name=name, **kwargs)
-        self.nodes = nodes
-        self.edges = edges
+        self.nodes = nodes or {}
+        self.edges = edges or []
         self.entry_point = entry_point
         self.state_type = state_type
         self.input_key = input_key
         self.strict_markov = strict_markov
+        self.default_adk_config = default_adk_config
+
+    def node(
+        self,
+        adk_config: Any | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Define and register a ProbabilisticNode via decorator.
+
+        Can be used as @graph.node or @graph.node(adk_config=...).
+        """
+        if callable(adk_config):
+            # @graph.node case
+            return self._node_decorator(adk_config)
+
+        def decorator(func: Callable[..., Any]) -> Any:
+            return self._node_decorator(func, adk_config=adk_config, **kwargs)
+
+        return decorator
+
+    def _node_decorator(
+        self,
+        func: Callable[..., Any],
+        adk_config: Any | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        import inspect
+        import textwrap
+
+        from markov_agent.engine.ppu import ProbabilisticNode
+
+        sig = inspect.signature(func)
+        params = list(sig.parameters.values())
+
+        # state_type from first param annotation if present
+        state_type = self.state_type
+        if params and params[0].annotation is not inspect.Parameter.empty:
+            state_type = params[0].annotation
+
+        # output_schema from return annotation if present
+        output_schema = None
+        if sig.return_annotation is not inspect.Signature.empty:
+            output_schema = sig.return_annotation
+
+        prompt_template = func.__doc__ or ""
+        if prompt_template:
+            prompt_template = textwrap.dedent(prompt_template).strip()
+
+        node_name = getattr(func, "__name__", str(func))
+
+        # Create the PPU node
+        ppu_node = ProbabilisticNode(
+            name=node_name,
+            adk_config=adk_config or self.default_adk_config,
+            prompt_template=prompt_template,
+            output_schema=output_schema,
+            state_type=state_type,
+            state_updater=func,
+            **kwargs,
+        )
+
+        # Register it
+        self.nodes[node_name] = ppu_node
+
+        # Set entry point if not set
+        if not self.entry_point:
+            self.entry_point = node_name
+
+        return ppu_node
+
+    def to_mermaid(self) -> str:
+        """Export the graph topology as a Mermaid.js flowchart."""
+        lines = ["flowchart TD"]
+
+        # Add Nodes
+        for node_id in self.nodes:
+            # Style nodes based on role
+            if node_id == self.entry_point:
+                shape = f"{{{{ {node_id} }}}}"  # Hexagon for entry
+            else:
+                # Check if it's a terminal node (no outgoing edges)
+                is_terminal = True
+                for edge in self.edges:
+                    if edge.source == node_id:
+                        is_terminal = False
+                        break
+                shape = f"([ {node_id} ])" if is_terminal else f"[{node_id}]"
+
+            lines.append(f"    {node_id}{shape}")
+
+        # Add Edges
+        for edge in self.edges:
+            label = ""
+            if edge.condition:
+                label = f"|{edge.condition.__name__ if hasattr(edge.condition, '__name__') else 'condition'}|"
+            elif edge.default:
+                label = "|default|"
+
+            lines.append(f"    {edge.source} -->{label} {edge.target or '???'}")
+
+        return "\n".join(lines)
 
     async def _run_async_impl(
         self,

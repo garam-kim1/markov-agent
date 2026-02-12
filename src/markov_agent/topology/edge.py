@@ -27,15 +27,42 @@ class Edge:
     Supports both deterministic (str) and probabilistic (TransitionDistribution) transitions.
     """
 
-    def __init__(self, source: str, target_func: RouterFunction):
+    def __init__(
+        self,
+        source: str | None = None,
+        target: str | RouterFunction | None = None,
+        target_func: RouterFunction | None = None,
+        condition: Callable[[Any], bool] | None = None,
+        *,
+        default: bool = False,
+    ):
         self.source = source
-        self.target_func = target_func
+        # Backward compatibility for Edge(source, target_func)
+        if callable(target) and target_func is None:
+            self.target_func = target
+            self.target = None
+        else:
+            self.target = target if isinstance(target, str) else None
+            self.target_func = target_func
+
+        self.condition = condition
+        self.default = default
 
     def get_distribution(self, state: Any) -> TransitionDistribution:
         """Calculate the transition probability distribution."""
         # Check if state is a MarkovView or similar
         view = state.get_markov_view() if hasattr(state, "get_markov_view") else state
-        result = self.target_func(view)
+
+        if self.target_func:
+            return self._get_distribution_from_func(view)
+
+        if self.target:
+            return self._get_distribution_from_target(view)
+
+        return {}
+
+    def _get_distribution_from_func(self, view: Any) -> TransitionDistribution:
+        result = self.target_func(view) if self.target_func else None
 
         if result is None:
             return {}
@@ -52,6 +79,21 @@ class Edge:
 
         msg = f"Invalid transition result type: {type(result)}"
         raise ValueError(msg)
+
+    def _get_distribution_from_target(self, view: Any) -> TransitionDistribution:
+        if not self.target:
+            return {}
+
+        if self.condition:
+            try:
+                if self.condition(view):
+                    return {self.target: 1.0}
+            except Exception:
+                return {}
+        elif self.default or not self.condition:
+            return {self.target: 1.0}
+
+        return {}
 
     def route(self, state: Any) -> TransitionResult:
         """Determine the next node ID and the transition probability.
@@ -90,6 +132,58 @@ class Edge:
             entropy=entropy,
             log_prob=log_prob,
         )
+
+    def __rshift__(self, other: Any) -> "Edge":
+        """Support Edge >> Node syntax to set target."""
+        from markov_agent.topology.node import BaseNode
+
+        if isinstance(other, BaseNode):
+            self.target = other.name
+        elif isinstance(other, str):
+            self.target = other
+        else:
+            msg = f"Cannot set target of Edge to {type(other)}"
+            raise TypeError(msg)
+        return self
+
+
+class Flow(list):
+    """A collection of edges with a pointer to the last node for chaining."""
+
+    def __init__(self, edges: list[Edge] | None = None, last_node: Any = None) -> None:
+        super().__init__(edges or [])
+        self.last_node = last_node
+
+    def __rshift__(self, other: Any) -> "Flow":
+        """Link nodes or edges into a flow using the >> operator."""
+        from markov_agent.topology.node import BaseNode
+
+        # If last_node was an Edge and we are giving it a target
+        if (
+            isinstance(self.last_node, Edge)
+            and not self.last_node.target
+            and isinstance(other, (BaseNode, str))
+        ):
+            self.last_node.target = other.name if hasattr(other, "name") else other
+            return Flow(list(self), last_node=other)
+
+        source_name = (
+            self.last_node.name
+            if hasattr(self.last_node, "name")
+            else str(self.last_node)
+        )
+
+        if isinstance(other, (BaseNode, str)):
+            target_name = other.name if hasattr(other, "name") else other
+            new_edge = Edge(source=source_name, target=target_name)
+            return Flow([*list(self), new_edge], last_node=other)
+
+        if isinstance(other, Edge):
+            other.source = source_name
+            return Flow([*list(self), other], last_node=other)
+
+        msg = f"Cannot link {source_name} with {type(other)}"
+        raise TypeError(msg)
 
 
 class ProbabilisticEdge(Edge):
