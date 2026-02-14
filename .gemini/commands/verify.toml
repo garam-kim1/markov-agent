@@ -1,0 +1,12 @@
+description = "Auto-fix and verify."
+prompt = """
+Run full verification suite.
+
+1. `uv run ruff check --fix`
+2. `uv run ruff format`
+3. `uvx ty check`
+4. `uv run pytest`
+
+If any step fails, FIX IT automatically. If unfixable, output error and stop.
+Otherwise, output: "Verification Passed".
+"""

@@ -1,0 +1,11 @@
+description = "Test and auto-repair."
+prompt = """
+Execute `uv run pytest {{args}}`.
+
+On failure:
+1. Identify root cause.
+2. Fix code/test.
+3. Retry once.
+
+Output summary only.
+"""

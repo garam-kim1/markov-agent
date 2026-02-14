@@ -1,0 +1,11 @@
+description = "Direct context-aware git commit."
+prompt = """
+Perform a git commit with the following logic:
+
+1. SILENTLY analyze `git status`, `git diff`, and `git log -n 5`.
+2. Stage relevant changes.
+3. Generate a concise, descriptive commit message based on context and '{{args}}'.
+4. Execute `git commit -m "<message>"`.
+
+Do not explain your steps. Just execute and show the result of the commit command.
+"""
