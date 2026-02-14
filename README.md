@@ -82,34 +82,47 @@ coder_node = ProbabilisticNode(
 ```
 
 ### 3. Assemble the Topology
-Use **Containers** for common patterns (Chain, Loop, Parallel) or a manual **Graph** for complex FSMs.
+Use the **Fluent API** for rapid, readable assembly. Decorators and operators make complex graphs feel natural.
 
 ```python
-from markov_agent.containers.self_correction import SelfCorrectionLoop
+from markov_agent.topology.graph import Graph
 
-# A loop that runs 'coder' then 'reviewer' until 'is_valid' is True
-agent = SelfCorrectionLoop(
-    worker=coder_node,
-    reviewer=reviewer_node,
-    max_iterations=3
-)
+g = Graph("MyAgent", state_type=CodingState)
+
+@g.node()
+async def developer(state: CodingState):
+    """Write Python code for: {{ requirement }}"""
+
+@g.task
+async def linter(state: CodingState):
+    # Deterministic Python logic
+    return {"is_valid": "print" not in state.code}
+
+# Connect nodes using the >> operator
+g.connect(developer >> linter)
+
+# Add conditional branching
+g.route("linter", {
+    "developer": lambda s: not s.is_valid, # Loop back on failure
+    "END": None                            # Default to termination
+})
+
+g.visualize() # Print Mermaid topology
 ```
 
 ### 4. Engineer Reliability (Simulation)
-Never deploy a raw agent. Run it through the **MonteCarloRunner** to calculate its $pass@k$ metrics.
+Never deploy a raw agent. Use integrated simulation tools to calculate its statistical performance.
 
 ```python
-from markov_agent.simulation.runner import MonteCarloRunner
-
-runner = MonteCarloRunner(
-    graph=agent,
+# Run a Monte Carlo simulation
+results = await g.simulate(
     dataset=[CodingState(requirement="Sort a list"), ...],
     n_runs=10,
     success_criteria=lambda s: s.is_valid
 )
 
-results = await runner.run_simulation()
-print(f"Reliability: {sum(r.success for r in results) / len(results):.2%}")
+# Analyze the Markov properties
+metrics = g.analyze().calculate_stationary_distribution(g.analyze().extract_matrix())
 ```
 
 ---
@@ -163,8 +176,11 @@ asyncio.run(main())
 
 ## 📚 Documentation Index
 
+*   [**Getting Started**](docs/guides/getting_started.md): Quick start and basic concepts.
+*   [**Fluent API**](docs/guides/fluent_api.md): Using decorators and operators for rapid assembly.
 *   [**Building Coding Agents**](docs/guides/building_coding_agents.md): Constructing self-correcting software agents.
 *   [**Topology Engineering**](docs/guides/topology_engineering.md): Designing structural architectures for logic.
+*   [**Markovian Routing**](docs/guides/markovian_probabilistic_routing.md): Probabilistic transitions and entropy analysis.
 *   [**Reliability Engineering**](docs/guides/reliability_engineering.md): Quantifying uncertainty with $pass@k$.
 *   [**Advanced Deliberative Logic**](docs/guides/deliberative_logic.md): "System 2" reasoning and MCTS.
 *   [**Architecture Deep Dive**](docs/architecture/overview.md): MDP formalization and the Cognitive Kernel.

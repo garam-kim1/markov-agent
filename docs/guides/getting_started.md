@@ -51,10 +51,30 @@ uv run examples/code_improver_agent.py
 1.  **Define State:** Subclass `BaseState` in `src/markov_agent/core/state.py` (or your own file) to define your agent's memory.
 2.  **Create Nodes:** Subclass `ProbabilisticNode` or `Node` to implement specific steps (e.g., "Draft", "Review").
 3.  **Compose Topology:**
-    *   **Option A (Manual):** Use `Graph` to connect your nodes with edges.
-    *   **Option B (Containers):** Use high-level patterns like `Chain`, `Loop`, or `Parallel` for rapid assembly.
+    *   **Option A (Fluent Decorators):** Use the `@graph.node` and `@graph.task` decorators for rapid prototyping.
+    *   **Option B (Connect & Route):** Use `g.connect(a >> b >> c)` and `g.route(src, targets)` for clear control flow.
+    *   **Option C (Containers):** Use high-level patterns like `Chain`, `Loop`, or `Parallel` for rapid assembly.
+
     ```python
-    from markov_agent.containers.chain import Chain
-    agent = Chain(nodes=[draft_node, review_node])
+    from markov_agent.topology.graph import Graph
+
+    g = Graph("Agent", state_type=MyState)
+
+    @g.node()
+    async def brainstorm(state: MyState):
+        """Generate 3 ideas for {{ topic }}"""
+
+    @g.node()
+    async def select(state: MyState):
+        """Pick the best idea from: {{ ideas }}"""
+
+    # Linear connection
+    g.connect(brainstorm >> select)
+
+    # Visualization
+    g.visualize()
     ```
-4.  **Simulate:** Use `MonteCarloRunner` to verify your agent's reliability ($pass@k$ and $pass\wedge k$) before deployment. "If you didn't test it 50 times, it doesn't work."
+4.  **Simulate:** Use `g.simulate()` to verify your agent's reliability before deployment. "If you didn't test it 50 times, it doesn't work."
+    ```python
+    results = await g.simulate(dataset=my_dataset, n_runs=50)
+    ```
