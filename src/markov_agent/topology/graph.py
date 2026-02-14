@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator, Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -134,13 +134,75 @@ class Graph(BaseAgent):
         )
 
         # Register it
-        self.nodes[node_name] = ppu_node
-
-        # Set entry point if not set
-        if not self.entry_point:
-            self.entry_point = node_name
+        self.add_node(ppu_node)
 
         return ppu_node
+
+    def task(
+        self,
+        func: Callable[..., Any] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Define and register a FunctionalNode via decorator.
+
+        Can be used as @graph.task or @graph.task(description=...).
+        """
+        if func is not None and callable(func):
+            # @graph.task case
+            return self._task_decorator(func, **kwargs)
+
+        def decorator(f: Callable[..., Any]) -> Any:
+            return self._task_decorator(f, **kwargs)
+
+        return decorator
+
+    def _task_decorator(self, func: Callable[..., Any], **kwargs: Any) -> Any:
+        from markov_agent.topology.node import FunctionalNode
+
+        node_name = getattr(func, "__name__", str(func))
+        node = FunctionalNode(
+            name=node_name,
+            func=func,
+            state_type=self.state_type,
+            **kwargs,
+        )
+        self.add_node(node)
+        return node
+
+    def add_node(self, node: BaseNode) -> None:
+        """Register a node in the graph."""
+        self.nodes[node.name] = node
+        if not self.entry_point:
+            self.entry_point = node.name
+
+    def add_transition(
+        self,
+        source: str,
+        target: str | Callable[[StateT], str | dict[str, float] | None],
+        condition: Callable[[StateT], bool] | None = None,
+        *,
+        default: bool = False,
+    ) -> None:
+        """Add a transition between nodes."""
+        edge_target = target if isinstance(target, str) else None
+        edge_func = (
+            cast("Any", target)
+            if callable(target) and not isinstance(target, str)
+            else None
+        )
+        edge = Edge(
+            source=source,
+            target=edge_target,
+            target_func=edge_func,
+            condition=condition,
+            default=default,
+        )
+        self.edges.append(edge)
+
+    def chain(self, nodes: list[str]) -> None:
+        """Chain a sequence of nodes together with linear transitions."""
+        for i in range(len(nodes) - 1):
+            self.add_transition(nodes[i], nodes[i + 1])
 
     def to_mermaid(self) -> str:
         """Export the graph topology as a Mermaid.js flowchart."""

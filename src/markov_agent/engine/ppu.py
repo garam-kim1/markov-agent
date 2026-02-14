@@ -448,9 +448,38 @@ class ProbabilisticNode(BaseNode[StateT]):
         # Record in history
         state.record_step({"node": self.name, "output": output_payload})
 
-        # Auto-merge if it's a dict (from model_dump or raw)
+        # Smart Mapping Logic
         if isinstance(output_payload, dict):
+            update_data = {}
+            matched_any = False
+
+            # If we have an output schema and state type, we can be smart
+            if (
+                self.output_schema
+                and hasattr(self.output_schema, "model_fields")
+                and self.state_type
+                and hasattr(self.state_type, "model_fields")
+            ):
+                output_fields = self.output_schema.model_fields
+                state_fields = self.state_type.model_fields
+
+                for field_name in output_fields:
+                    if field_name in state_fields:
+                        update_data[field_name] = output_payload.get(field_name)
+                        matched_any = True
+
+                if not matched_any:
+                    logger.warning(
+                        "Node '%s': No matching fields found between output_schema and state_type, "
+                        "and no state_updater was provided. Falling back to dict merge.",
+                        self.name,
+                    )
+                    update_data = output_payload
+            else:
+                # Fallback to current behavior if schema info is missing
+                update_data = output_payload
+
             # We use state.update which now handles 'append' behavior
-            return state.update(**output_payload)
+            return state.update(**update_data)
 
         return state

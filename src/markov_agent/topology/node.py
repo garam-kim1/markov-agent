@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any, Self, TypeVar, cast
 
 from google.adk.agents import BaseAgent
@@ -124,3 +124,54 @@ class BaseNode[StateT](BaseAgent, ABC):
 
         # Default behavior: generic event
         yield Event(author=self.name, actions=EventActions())
+
+
+class FunctionalNode[StateT](BaseNode[StateT]):
+    """A node that executes a deterministic Python function."""
+
+    def __init__(
+        self,
+        name: str,
+        func: Callable[
+            [StateT],
+            StateT | dict[str, Any] | None | Awaitable[StateT | dict[str, Any] | None],
+        ],
+        description: str = "",
+        state_type: type[StateT] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(name, description=description, state_type=state_type, **kwargs)
+        self.func = func
+
+    async def execute(self, state: StateT) -> StateT:
+        import inspect
+
+        if inspect.iscoroutinefunction(self.func):
+            result = await cast("Awaitable[Any]", self.func(state))
+        else:
+            result = self.func(state)
+
+        if result is None:
+            return state
+
+        if isinstance(result, BaseState):
+            return cast("StateT", result)
+
+        if isinstance(result, dict):
+            # Use the update method of the state if available
+            update_func = getattr(state, "update", None)
+            if update_func and callable(update_func):
+                return cast("StateT", update_func(**cast("dict[str, Any]", result)))
+
+            # Fallback for dict-based states
+            if hasattr(state, "model_dump"):
+                state_dict = cast("Any", state).model_dump()
+            else:
+                state_dict = dict(cast("Any", state))
+
+            state_dict.update(result)
+            if self.state_type:
+                return self.state_type.model_validate(state_dict)
+            return cast("StateT", state_dict)
+
+        return state
