@@ -2,9 +2,11 @@ import asyncio
 import copy
 import logging
 import random
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Any, cast
+
+from markov_agent.engine.diversity import DiversityMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +83,7 @@ def generate_varied_configs(
 async def execute_parallel_sampling[T](
     generate_func: Callable[[], Any] | list[Callable[[], Any]],
     k: int = 5,
-    selector_func: Callable[[list[Any]], T] | None = None,
+    selector_func: Callable[[list[Any]], T | Awaitable[T]] | None = None,
 ) -> T:
     """Implement pass@k logic with optional task variance.
 
@@ -128,6 +130,73 @@ async def execute_parallel_sampling[T](
 
     # Default: return the first valid result (highest confidence / first completed)
     return valid_results[0]
+
+
+async def execute_diverse_sampling[T](
+    generate_factory: Callable[[dict[str, Any]], Awaitable[T]],
+    base_config: dict[str, Any],
+    k: int = 5,
+    diversity_threshold: float = 0.3,
+    max_retries: int = 2,
+) -> list[T]:
+    """Execute sampling and ensure the output set is diverse.
+
+    If diversity is below threshold, it retries with increased temperature.
+    """
+    current_config = copy.deepcopy(base_config)
+    best_results: list[T] = []
+    best_diversity = -1.0
+
+    for attempt in range(max_retries + 1):
+        # Generate varied configs for this attempt
+        configs = generate_varied_configs(
+            current_config, k, strategy=SamplingStrategy.DIVERSE
+        )
+
+        # Execute parallel sampling
+        tasks = [generate_factory(cfg) for cfg in configs]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        valid_results = [
+            r for r in results if not isinstance(r, (Exception, BaseException))
+        ]
+
+        if not valid_results:
+            continue
+
+        # We can safely cast because we filtered out exceptions
+        typed_results = cast("list[T]", valid_results)
+
+        # Calculate diversity
+        texts = [str(r) for r in typed_results]
+        metrics = DiversityMetrics(texts)
+        # Use Jaccard as primary diversity metric
+        diversity = metrics.jaccard
+
+        logger.info(
+            "Sampling Attempt %s: Diversity = %.2f (Threshold: %.2f)",
+            attempt + 1,
+            diversity,
+            diversity_threshold,
+        )
+
+        if diversity >= diversity_threshold:
+            return typed_results
+
+        if diversity > best_diversity:
+            best_diversity = diversity
+            best_results = typed_results
+
+        # Increase temperature for next attempt to force more exploration
+        current_temp = current_config.get("temperature", 0.7)
+        current_config["temperature"] = min(current_temp + 0.2, 1.5)
+
+    logger.warning(
+        "Could not reach diversity threshold %.2f after %s attempts. Best was %.2f",
+        diversity_threshold,
+        max_retries + 1,
+        best_diversity,
+    )
+    return best_results
 
 
 async def _safe_generate(func: Callable[[], Any]) -> Any:

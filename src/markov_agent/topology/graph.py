@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from google.adk.agents import BaseAgent
@@ -486,8 +487,22 @@ class Graph(BaseAgent):
             # Execute Node
             # We call the node's ADK implementation directly
             # This allows the node to read/write to ctx.session.state
+            history_before = len(ctx.session.state.get("history", []))
             async for event in current_node._run_async_impl(ctx):
                 yield event
+
+            # Record step in history for trajectory analysis IF the node didn't record it
+            # This avoids double-recording for nodes like ProbabilisticNode that
+            # already record their own history.
+            history_after = len(ctx.session.state.get("history", []))
+            if history_after == history_before:
+                if "history" not in ctx.session.state:
+                    ctx.session.state["history"] = []
+
+                # Use standard format expected by tests
+                ctx.session.state["history"].append(
+                    {"node": current_node_id, "state": copy.deepcopy(ctx.session.state)}
+                )
 
             # Transition Logic
             # We construct the typed state object for the router if possible

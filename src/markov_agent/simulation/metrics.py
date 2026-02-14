@@ -1,7 +1,36 @@
 from collections import defaultdict
 from typing import Any
 
+from markov_agent.engine.diversity import calculate_jaccard_diversity
 from markov_agent.simulation.runner import SimulationResult
+
+
+def calculate_trajectory_diversity(results: list[SimulationResult]) -> float:
+    """Calculate how diverse the trajectories are for the same case.
+
+    Measures the divergence of visited states across multiple runs of the same
+    input.
+    """
+    if not results or len(results) < 2:
+        return 0.0
+
+    # Represent each trajectory as a concatenated string of state keys or values
+    # for simple Jaccard comparison.
+    trajectories = []
+    for r in results:
+        # Simplistic: stringify the sequence of visited nodes or state snapshots
+        # In a real system, we'd use a more robust state hash or embedding.
+        path = []
+        for step in r.trajectory:
+            if isinstance(step, dict):
+                # Try to find a 'node' or 'current_node' key
+                node = step.get("meta", {}).get("node", "unknown")
+                path.append(node)
+            else:
+                path.append(str(step))
+        trajectories.append(" ".join(path))
+
+    return calculate_jaccard_diversity(trajectories)
 
 
 def calculate_pass_at_k_estimator(n: int, c: int, k: int) -> float:
@@ -142,12 +171,23 @@ def calculate_metrics(results: list[SimulationResult]) -> dict[str, Any]:
             sum_pow_k / valid_cases_for_k if valid_cases_for_k > 0 else 0.0
         )
 
+    # Calculate trajectory diversity per case
+    case_diversity = {}
+    for case_id, case_results in cases.items():
+        case_diversity[case_id] = calculate_trajectory_diversity(case_results)
+
+    avg_trajectory_diversity = (
+        sum(case_diversity.values()) / len(case_diversity) if case_diversity else 0.0
+    )
+
     return {
         "accuracy": accuracy,
         "consistency": global_consistency,
         "reliability": global_reliability,
         "pass_at_k": pass_at_k_scores,
         "pass_pow_k": pass_pow_k_scores,
+        "trajectory_diversity": avg_trajectory_diversity,
+        "case_diversity": case_diversity,
         "total_cases": total_cases,
         "total_runs": total_runs,
         "consistent_cases": consistent_cases,

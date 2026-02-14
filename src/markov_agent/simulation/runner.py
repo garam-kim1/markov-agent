@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from markov_agent.core.state import BaseState
 from markov_agent.topology.graph import Graph
@@ -17,6 +17,7 @@ class SimulationResult(BaseModel):
     success: bool
     error: str | None = None
     steps: int = 0
+    trajectory: list[Any] = Field(default_factory=list)
 
 
 class MonteCarloRunner(BaseModel):
@@ -47,11 +48,14 @@ class MonteCarloRunner(BaseModel):
         try:
             final_state = await self.graph.run(initial_state)
             success = self.success_criteria(final_state)
+            trajectory = getattr(final_state, "history", [])
             return SimulationResult(
                 case_id=case_id,
                 input_state=initial_state,
                 final_state=final_state,
                 success=success,
+                trajectory=trajectory,
+                steps=len(trajectory),
             )
         except Exception as e:
             return SimulationResult(
