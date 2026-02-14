@@ -559,7 +559,7 @@ class Graph(BaseAgent):
                         # Sync back to session state if it was a Markov State
                         if hasattr(state_obj, "meta"):
                             ctx.session.state["meta"] = state_obj.meta
-                    break
+                        break
 
             if next_node_id is None:
                 console.log(

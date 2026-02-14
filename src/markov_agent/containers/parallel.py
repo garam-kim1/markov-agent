@@ -116,14 +116,25 @@ class ParallelNode(BaseNode[StateT]):
 
         merged_updates = self._get_merged_updates(dict(initial_state), final_states)
 
-        # 4. Update Main State
-        # Note: ctx.session.state.update() might not trigger Pydantic validation if it's a dict proxy
-        # but BaseState.update logic handles the actual list extension if we pass a list.
-        # However, BaseState.update expects the *value to append*, not the full list.
-        # Our `_get_merged_updates` returns a list of *new items*.
-        # So calling update(**merged_updates) on the base state works perfectly.
+        # 4. Update Main State respecting append behavior for session state
+        for key, value in merged_updates.items():
+            is_append = False
+            if key in self._schema_fields:
+                field = self._schema_fields[key]
+                if (
+                    field.json_schema_extra
+                    and field.json_schema_extra.get("behavior") == "append"
+                ):
+                    is_append = True
 
-        ctx.session.state.update(merged_updates)
+            if is_append and key in ctx.session.state and isinstance(value, list):
+                # Manually append to the session state list
+                if isinstance(ctx.session.state[key], list):
+                    ctx.session.state[key].extend(value)
+                else:
+                    ctx.session.state[key] = value
+            else:
+                ctx.session.state[key] = value
 
     async def execute(self, state: StateT) -> StateT:
         """Run all sub-nodes in parallel using the initial state."""

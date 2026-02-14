@@ -92,3 +92,37 @@ def test_probabilistic_node_render_prompt_with_dict():
     # Test with dict that might fail validation but should still work via construct/dict
     prompt = node._render_prompt({"input": "universe", "extra": "ignored"})
     assert prompt == "Hello universe"
+
+
+@pytest.mark.asyncio
+async def test_ppu_majority_voting():
+    """Test that ProbabilisticNode uses majority voting when configured."""
+    from markov_agent.engine.adk_wrapper import ADKConfig
+
+    # Mock responder that returns alternating responses
+    count = 0
+
+    def alternating_mock(p):
+        nonlocal count
+        count += 1
+        # Returns "A", "B", "A"
+        return "A" if count % 2 != 0 else "B"
+
+    config = ADKConfig(model_name="mock")
+    node = ProbabilisticNode(
+        name="voter",
+        adk_config=config,
+        prompt_template="test",
+        samples=3,
+        selector="majority",
+        mock_responder=alternating_mock,
+        state_type=SimpleState,
+    )
+
+    state = SimpleState(input="test")
+    # Execute will call mock 3 times: "A", "B", "A"
+    # Majority should be "A"
+    new_state = await node.execute(state)
+
+    # The output key in history should be "A"
+    assert new_state.history[-1]["output"] == "A"
