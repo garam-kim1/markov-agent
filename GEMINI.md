@@ -1,50 +1,63 @@
-# MARKOV-AGENT CONTEXT (LLM ONLY)
+# MARKOV-AGENT TECHNICAL CONTEXT (LLM-ONLY)
 
-## IDENTITY
-PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology + Stochastic LLM nodes. Goal: Prompt Eng -> Markov/Reliability Eng.
+## ESSENCE
+PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph) + Stochastic Transitions (LLM Nodes). Focus: Shifting Prompt Eng to Markov/Reliability Engineering.
 
-## STACK
-* **Lang:** Python 3.12+ (Strict Type Hints).
-* **Pkg:** `uv` (NO pip/poetry).
-* **Lint/Fmt:** `ruff`.
-* **Types:** `ty` (pyright).
-* **Test:** `pytest`.
-* **Core:** `google-adk`, `pydantic` v2, `asyncio`, `tenacity`.
-* **Verification:** `uvx ty check && uv run ruff check --fix && uv run ruff format && uv run pytest`.
+## TECH STACK
+* **Runtime:** Python 3.12+ (Strict Type Hints).
+* **Package/Env:** `uv` (FORBIDDEN: `pip`, `poetry`).
+* **Lint/Format:** `ruff` (Strict compliance).
+* **Static Analysis:** `ty` (pyright via `uvx ty`).
+* **Test:** `pytest` (Async-heavy).
+* **Core:** `google-adk`, `pydantic` v2, `asyncio`, `tenacity`, `jinja2`.
+* **Verify Cmd:** `uvx ty check && uv run ruff check --fix && uv run ruff format && uv run pytest`.
 
 ## ARCHITECTURE (TOPOLOGY)
-* **S (State):** `BaseState`. Immutable history.
-* **G (Graph):** `Graph`. FSM runner.
-* **T (Node):** `BaseNode` / `ProbabilisticNode` (PPU). $S_t \to S_{t+1}$.
-* **E (Edge):** `Edge`. Router func $f(S) \to next\_id$.
+* **S (State):** `BaseState`. Pydantic model with immutable `history` and `meta` (confidence/entropy).
+* **G (Graph):** `Graph`. ADK-compatible FSM runner. Handles node transitions and Mermaid exports.
+* **T (Node):** `BaseNode` -> `ProbabilisticNode` (PPU) or `FunctionalNode`. $S_t \to S_{t+1}$.
+* **E (Edge):** `Edge`. Router logic $f(S) \to (next\_id, p)$. Supports condition-based or probabilistic routing.
 
-## DIRECTORY MAP
-* `src/markov_agent/`
-  * `core/`: {state (BaseState), events (Bus), registry, probability}
-  * `topology/`: {graph (Runner), node (T), edge (E), gate (Branch), analysis}
-  * `engine/`: {ppu (PPU), adk_wrapper, runtime, sampler, prompt, nodes, selectors, mcts, eig}
-  * `containers/`: {chain, loop, nested, parallel, swarm, sequential, self_correction}
-  * `tools/`: {agent_tool, database, mcp, search}
-  * `governance/`: {cost (Governor)}
-  * `simulation/`: {runner (MonteCarlo), batch, metrics, analysis}
+## DIRECTORY MAP (`src/markov_agent/`)
+* **`core/`**: Foundation
+    * `state.py`: `BaseState` with history tracking & Markov view.
+    * `events.py`: `EventBus` for async observability/telemetry.
+    * `probability.py`: Log-space math, Shannon entropy, distributions.
+    * `registry.py`: Component/plugin registration system.
+* **`topology/`**: FSM Structure
+    * `graph.py`: Main execution engine & Mermaid generator.
+    * `node.py`: Base abstractions for all graph nodes.
+    * `edge.py`: Routing logic & transition probability.
+    * `gate.py`: Conditional branching & multiplexing gates.
+* **`engine/`**: PPU & ADK Bridge
+    * `ppu.py`: `ProbabilisticNode` for LLM-driven transitions.
+    * `adk_wrapper.py`: `ADKConfig`, `ADKController` for GenAI integration.
+    * `sampler.py`: Parallel $k$-sampling strategies (Uniform, etc.).
+    * `prompt.py`: Jinja2-based `PromptEngine`.
+    * `runtime.py`: ADK runtime/session integration.
+    * `selectors.py`: Result selection logic (Majority Vote, etc.).
+* **`containers/`**: FSM Patterns
+    * `chain.py`, `loop.py`, `parallel.py`, `self_correction.py`, `swarm.py`: Common topology patterns.
+* **`tools/`**: External Integration
+    * `mcp.py`, `search.py`, `database.py`: MCP and external tool wrappers.
+* **`simulation/`**: Reliability Engineering
+    * `runner.py`: Monte Carlo simulation for topology verification.
+    * `metrics.py`: Reliability, accuracy, and latency tracking.
 
-## CODING PATTERNS
-* **ADKConfig:** Mandatory for PPU. `model_name="gemini-3-flash-preview"` preferred.
-* **PPU Logic:** Parallel sampling ($k$ times) -> `execute_parallel_sampling`.
-* **Strict Construction:** No defaults. Explicit `ADKConfig`, `RetryPolicy`.
-* **Bridge Plugins:** `MarkovBridgePlugin` requires `name` in `super().__init__`.
-* **Testing:** Use `MockLLM` for CI/unit tests to bypass API keys.
-* **Events:** Emit via `event_bus`. Observability via `rich`.
+## CODING RULES
+* **Initialization:** Explicit `ADKConfig` and `RetryPolicy`. No magic defaults.
+* **PPU Logic:** Favor parallel sampling (`execute_parallel_sampling`) for reliability.
+* **Async:** All LLM and Graph operations MUST be `async`.
+* **Events:** Emit via `event_bus`. Use `rich` for CLI observability.
+* **Typing:** Strict `typing.Any` avoidance where possible. Use `TypeVar(bound=BaseState)`.
+* **Testing:** Use `MockLLM` for unit tests. No live API calls in CI.
+* **Forbidden:**
+    1. `print()` -> Use `rich.console` or `logging`.
+    2. Magic Strings -> Use constants or templates.
+    3. Global Mutable State -> State must live in `BaseState` or `InvocationContext`.
+    4. Sync LLM calls -> Use `await` and `asyncio`.
+    5. Direct `python/pip` -> Use `uv run` and `uv add`.
 
-## FORBIDDEN
-1. `print()` (Use `rich` or logging).
-2. Magic strings (Use templates/consts).
-3. Global mutable state.
-4. Sync LLM calls (Blocking).
-5. Direct `python`/`pip` (Use `uv run`).
-
-## MATH
-* $S$: State Vector.
-* $T(s, a) \to s'$ : Transition.
-* $P(Success) = 1 - (1 - p)^k$.
-* $H$: Entropy. High $H \to$ Clarification loop.
+## RELIABILITY MATH
+* $P(Success) = 1 - (1 - p)^k$ where $k$ is sample count.
+* $H = -\sum p_i \log_2 p_i$ (Entropy). High $H \implies$ Graph needs refinement or clarification.
