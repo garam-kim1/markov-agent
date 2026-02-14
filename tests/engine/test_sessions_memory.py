@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from google.adk.memory import InMemoryMemoryService
 from google.adk.sessions import InMemorySessionService
-from google.adk.tools import load_memory_tool
+from google.adk.tools import load_memory as load_memory_tool
 
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
 

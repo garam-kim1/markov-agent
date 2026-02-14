@@ -44,6 +44,8 @@ async def test_ppu_verifier_selection():
     # Mock ADK Context
     ctx = MagicMock()
     ctx.session.state = {"val": "start"}
+    ctx.artifact_service = None
+    ctx.session_service = None
 
     # Run the internal impl
     async for _ in node._run_async_impl(ctx):

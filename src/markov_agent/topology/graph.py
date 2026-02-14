@@ -697,7 +697,9 @@ class Graph(BaseAgent):
 
         import uuid
 
-        from google.adk.sessions import InMemorySessionService, Session
+        from google.adk.sessions import Session
+
+        from markov_agent.core.services import ServiceRegistry
 
         # Initialize session with the Pydantic state dumped as dict
         session = Session(
@@ -707,11 +709,11 @@ class Graph(BaseAgent):
             state=state.model_dump(),
         )
 
-        service_to_use = artifact_service or InMemoryArtifactService()
+        service_to_use = artifact_service or ServiceRegistry.get_artifact_service()
 
         context = InvocationContext(
             session=session,
-            session_service=InMemorySessionService(),
+            session_service=ServiceRegistry.get_session_service(),
             invocation_id=str(uuid.uuid4()),
             agent=self,
             artifact_service=service_to_use,
@@ -735,7 +737,6 @@ class Graph(BaseAgent):
         import copy
         import uuid
 
-        from google.adk.artifacts import InMemoryArtifactService
         from google.adk.sessions import InMemorySessionService, Session
 
         # candidates stores (state, current_node_id)

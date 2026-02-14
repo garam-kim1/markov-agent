@@ -172,7 +172,14 @@ class ProbabilisticNode(BaseNode[StateT]):
         )
 
         # 4. Create Generation Tasks (Factories)
-        task_factories = self._create_task_factories(prompt, state_dict, varied_configs)
+        # Inherit services from context if available
+        task_factories = self._create_task_factories(
+            prompt,
+            state_dict,
+            varied_configs,
+            artifact_service=ctx.artifact_service,
+            session_service=getattr(ctx, "session_service", None),
+        )
 
         # 5. Execute Parallel Sampling
         logger.debug(
@@ -412,13 +419,27 @@ class ProbabilisticNode(BaseNode[StateT]):
         prompt: str,
         state_dict: dict[str, Any],
         varied_configs: list[dict[str, Any]],
+        artifact_service: BaseArtifactService | None = None,
+        session_service: Any | None = None,
     ) -> list[Callable[[], Any]]:
         task_factories = []
         for cfg in varied_configs:
+            # If we have shared services from context, ensure the controller uses them
             if self.sampling_strategy == SamplingStrategy.UNIFORM:
-                controller_to_use = self.controller
+                if artifact_service or session_service:
+                    controller_to_use = self.controller.create_variant(
+                        {},
+                        artifact_service=artifact_service,
+                        session_service=session_service,
+                    )
+                else:
+                    controller_to_use = self.controller
             else:
-                controller_to_use = self.controller.create_variant(cfg)
+                controller_to_use = self.controller.create_variant(
+                    cfg,
+                    artifact_service=artifact_service,
+                    session_service=session_service,
+                )
 
             def make_task(c: ADKController = controller_to_use) -> Any:
                 return c.generate(

@@ -3,7 +3,6 @@ from typing import Any
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.run_config import RunConfig as ADKRunConfig
 from google.adk.apps.app import App
-from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
 from google.adk.auth.credential_service.in_memory_credential_service import (
     InMemoryCredentialService,
 )
@@ -13,8 +12,6 @@ from google.adk.evaluation.in_memory_eval_sets_manager import InMemoryEvalSetsMa
 from google.adk.evaluation.local_eval_set_results_manager import (
     LocalEvalSetResultsManager,
 )
-from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -99,6 +96,7 @@ class AdkWebServer:
     """
 
     def __init__(self, agent: Any):
+        from markov_agent.core.services import ServiceRegistry
         from markov_agent.engine.adk_wrapper import ADKController
 
         self.agent_instance = agent
@@ -109,13 +107,17 @@ class AdkWebServer:
         else:
             self.app_or_agent = agent
 
-        # Setup internal ADK Web Server with in-memory services
+        # Setup internal ADK Web Server with services
         self.internal_server = InternalAdkWebServer(
             agent_loader=SimpleAgentLoader(self.app_or_agent),
-            session_service=getattr(agent, "session_service", InMemorySessionService()),
-            memory_service=getattr(agent, "memory_service", InMemoryMemoryService()),
+            session_service=getattr(
+                agent, "session_service", ServiceRegistry.get_session_service()
+            ),
+            memory_service=getattr(
+                agent, "memory_service", ServiceRegistry.get_memory_service()
+            ),
             artifact_service=getattr(
-                agent, "artifact_service", InMemoryArtifactService()
+                agent, "artifact_service", ServiceRegistry.get_artifact_service()
             ),
             credential_service=InMemoryCredentialService(),
             eval_sets_manager=InMemorySetsManager(),

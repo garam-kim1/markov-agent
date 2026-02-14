@@ -8,18 +8,19 @@ from typing import Any, TypeVar, override
 from google.adk.agents import Agent, LiveRequestQueue
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.apps import App
-from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
+from google.adk.artifacts import BaseArtifactService
 from google.adk.events import Event
-from google.adk.memory import BaseMemoryService, InMemoryMemoryService
+from google.adk.memory import BaseMemoryService
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
-from google.adk.sessions import BaseSessionService, InMemorySessionService
-from google.adk.tools import load_memory_tool
+from google.adk.sessions import BaseSessionService
+from google.adk.tools import load_memory as load_memory_tool
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field
 
+from markov_agent.core.services import ServiceRegistry
 from markov_agent.engine.plugins import BasePlugin
 from markov_agent.engine.runtime import RunConfig
 from markov_agent.engine.telemetry_plugin import MarkovBridgePlugin
@@ -57,6 +58,7 @@ class ADKConfig(BaseModel):
     enable_tracing: bool = False
     session_service: BaseSessionService | None = None
     memory_service: BaseMemoryService | None = None
+    artifact_service: BaseArtifactService | None = None
     enable_memory: bool = False
 
 
@@ -125,12 +127,20 @@ class ADKController:
         self.retry_policy = retry_policy
         self.mock_responder = mock_responder
         self.name = name or config.name or "agent"
-        self.session_service = config.session_service or InMemorySessionService()
-        self.memory_service = config.memory_service
-        if self.config.enable_memory and not self.memory_service:
-            self.memory_service = InMemoryMemoryService()
 
-        self.artifact_service = artifact_service or InMemoryArtifactService()
+        # Resolve Services using ServiceRegistry as fallback
+        self.session_service = (
+            config.session_service or ServiceRegistry.get_session_service()
+        )
+        self.memory_service = config.memory_service
+        if self.memory_service is None and self.config.enable_memory:
+            self.memory_service = ServiceRegistry.get_memory_service()
+
+        self.artifact_service = (
+            artifact_service
+            or config.artifact_service
+            or ServiceRegistry.get_artifact_service()
+        )
 
         # Configure environment if needed
         api_key = (
@@ -343,12 +353,22 @@ class ADKController:
     def create_variant(
         self,
         generation_config_override: dict[str, Any],
+        artifact_service: BaseArtifactService | None = None,
+        session_service: BaseSessionService | None = None,
+        memory_service: BaseMemoryService | None = None,
     ) -> "ADKController":
-        """Create a new ADKController instance with specific generation config overrides.
+        """Create a new ADKController instance with specific overrides.
 
-        Useful for adaptive sampling (changing temperature/top_p).
+        Useful for adaptive sampling or sharing services across nodes.
         """
         new_config = self.config.model_copy(deep=True)
+        if artifact_service:
+            new_config.artifact_service = artifact_service
+        if session_service:
+            new_config.session_service = session_service
+        if memory_service:
+            new_config.memory_service = memory_service
+
         if new_config.generation_config is None:
             new_config.generation_config = {}
 
@@ -375,7 +395,7 @@ class ADKController:
             retry_policy=self.retry_policy,
             mock_responder=self.mock_responder,
             output_schema=self.output_schema,
-            artifact_service=self.artifact_service,
+            artifact_service=artifact_service or self.artifact_service,
             name=self.name,
         )
 
@@ -387,6 +407,9 @@ class ADKController:
         *,
         include_state: bool = False,
         run_config: RunConfig | None = None,
+        artifact_service: BaseArtifactService | None = None,
+        session_service: BaseSessionService | None = None,
+        memory_service: BaseMemoryService | None = None,
     ) -> Any | tuple[Any, dict[str, Any]]:
         """Generate content with retry logic using the ADK Runner.
 
@@ -395,35 +418,37 @@ class ADKController:
         if include_state is True.
         """
         controller = self
-        if run_config and (run_config.model or run_config.tools):
-            if run_config.model:
-                # This is a bit tricky as create_variant expects a dict of overrides
-                # for ADKConfig fields that map to generation_config.
-                # But ADKConfig.model_name is a top-level field.
-                # Let's assume we want to change the model for this run.
-                new_config = self.config.model_copy(deep=True)
+
+        # Handle Overrides
+        if (
+            artifact_service
+            or session_service
+            or memory_service
+            or (run_config and (run_config.model or run_config.tools))
+        ):
+            # Since create_variant logic is complex for top-level fields not in generation_config,
+            # and we need to handle services, let's just create a new one if needed.
+            new_config = self.config.model_copy(deep=True)
+            if run_config and run_config.model:
                 new_config.model_name = run_config.model
-                if run_config.tools:
-                    new_config.tools = run_config.tools
-                controller = ADKController(
-                    config=new_config,
-                    retry_policy=self.retry_policy,
-                    mock_responder=self.mock_responder,
-                    output_schema=self.output_schema,
-                    artifact_service=self.artifact_service,
-                    name=self.name,
-                )
-            elif run_config.tools:
-                new_config = self.config.model_copy(deep=True)
+            if run_config and run_config.tools:
                 new_config.tools = run_config.tools
-                controller = ADKController(
-                    config=new_config,
-                    retry_policy=self.retry_policy,
-                    mock_responder=self.mock_responder,
-                    output_schema=self.output_schema,
-                    artifact_service=self.artifact_service,
-                    name=self.name,
-                )
+
+            if artifact_service:
+                new_config.artifact_service = artifact_service
+            if session_service:
+                new_config.session_service = session_service
+            if memory_service:
+                new_config.memory_service = memory_service
+
+            controller = ADKController(
+                config=new_config,
+                retry_policy=self.retry_policy,
+                mock_responder=self.mock_responder,
+                output_schema=self.output_schema,
+                artifact_service=artifact_service or self.artifact_service,
+                name=self.name,
+            )
 
         async def run_attempt() -> tuple[Any, dict[str, Any]]:
             final_prompt = prompt

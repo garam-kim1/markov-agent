@@ -170,9 +170,9 @@ async def test_temperature_variation_in_diverse_sampling():
     original_create_variant = node.controller.create_variant
     created_variants = []
 
-    def spy_create_variant(gen_config_override):
+    def spy_create_variant(gen_config_override, *args, **kwargs):
         created_variants.append(gen_config_override)
-        return original_create_variant(gen_config_override)
+        return original_create_variant(gen_config_override, *args, **kwargs)
 
     node.controller.create_variant = spy_create_variant  # type: ignore
 

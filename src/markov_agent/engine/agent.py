@@ -72,6 +72,7 @@ class Agent(ProbabilisticNode):
             mock_responder=self.mock_responder,
             output_schema=self.output_schema,
             artifact_service=self.artifact_service,
+            name=self.name,
         )
 
     def run(self, query: str) -> Any:
