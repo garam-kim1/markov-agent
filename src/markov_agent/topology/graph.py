@@ -159,7 +159,14 @@ class Graph(BaseAgent):
     def _task_decorator(self, func: Callable[..., Any], **kwargs: Any) -> Any:
         from markov_agent.topology.node import FunctionalNode
 
-        node_name = getattr(func, "__name__", str(func))
+        if "name" in kwargs:
+            node_name = kwargs.pop("name")
+        else:
+            node_name = getattr(func, "__name__", str(func))
+
+        if node_name == "<lambda>":
+            node_name = f"lambda_{id(func):x}"
+
         node = FunctionalNode(
             name=node_name,
             func=func,
@@ -203,6 +210,90 @@ class Graph(BaseAgent):
         """Chain a sequence of nodes together with linear transitions."""
         for i in range(len(nodes) - 1):
             self.add_transition(nodes[i], nodes[i + 1])
+
+    def subgraph(
+        self,
+        graph: "Graph",
+        name: str | None = None,
+        **kwargs: Any,
+    ) -> BaseNode:
+        """Add a nested graph as a node."""
+        from markov_agent.containers.nested import NestedGraphNode
+
+        node_name = name or graph.name
+        node = NestedGraphNode(
+            name=node_name,
+            graph=graph,
+            state_type=self.state_type,
+            **kwargs,
+        )
+        self.add_node(node)
+        return node
+
+    def parallel(
+        self,
+        branches: list[Any],
+        name: str = "parallel_block",
+        **kwargs: Any,
+    ) -> BaseNode:
+        """Add a parallel execution block.
+
+        Automatically converts Graphs to NestedGraphNodes and Callables to FunctionalNodes.
+        """
+        from markov_agent.containers.nested import NestedGraphNode
+        from markov_agent.containers.parallel import ParallelNode
+        from markov_agent.topology.node import FunctionalNode
+
+        processed_branches: list[BaseNode] = []
+
+        for i, branch in enumerate(branches):
+            if isinstance(branch, BaseNode):
+                processed_branches.append(branch)
+            elif isinstance(branch, Graph):
+                # Auto-wrap Graph
+                processed_branches.append(
+                    NestedGraphNode(
+                        name=branch.name or f"{name}_subgraph_{i}",
+                        graph=branch,
+                        state_type=self.state_type,
+                    )
+                )
+            elif callable(branch):
+                # Auto-wrap Callable
+                func_name = getattr(branch, "__name__", f"func_{i}")
+                if func_name == "<lambda>":
+                    func_name = f"lambda_func_{i}"
+
+                processed_branches.append(
+                    FunctionalNode(
+                        name=func_name,
+                        func=branch,
+                        state_type=self.state_type,
+                    )
+                )
+            else:
+                msg = f"Unsupported branch type: {type(branch)}"
+                raise TypeError(msg)
+
+        node = ParallelNode(
+            name=name,
+            nodes=processed_branches,
+            state_type=self.state_type,
+            **kwargs,
+        )
+        self.add_node(node)
+        return node
+
+    def as_node(self, name: str | None = None, **kwargs: Any) -> BaseNode:
+        """Convert this graph into a NestedGraphNode."""
+        from markov_agent.containers.nested import NestedGraphNode
+
+        return NestedGraphNode(
+            name=name or self.name,
+            graph=self,
+            state_type=self.state_type,
+            **kwargs,
+        )
 
     def to_mermaid(self) -> str:
         """Export the graph topology as a Mermaid.js flowchart."""

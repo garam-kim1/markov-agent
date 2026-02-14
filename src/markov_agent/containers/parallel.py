@@ -27,16 +27,55 @@ class ParallelNode(BaseNode[StateT]):
     ):
         super().__init__(name=name, state_type=state_type)
         self.nodes = nodes
+        self._schema_fields = {}
+        if self.state_type and hasattr(self.state_type, "model_fields"):
+            self._schema_fields = self.state_type.model_fields
+
+    def _get_merged_updates(
+        self,
+        initial_state: dict[str, Any],
+        results: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Merge updates from multiple branches respecting 'append' behavior."""
+        merged_updates: dict[str, Any] = {}
+
+        for res_dump in results:
+            for key, value in res_dump.items():
+                old_val = initial_state.get(key)
+                if value == old_val:
+                    continue
+
+                # Check behavior
+                is_append = False
+                if key in self._schema_fields:
+                    field = self._schema_fields[key]
+                    if (
+                        field.json_schema_extra
+                        and field.json_schema_extra.get("behavior") == "append"
+                    ):
+                        is_append = True
+
+                if is_append and isinstance(value, list) and isinstance(old_val, list):
+                    # Append logic: calculate new items
+                    new_items = value[len(old_val) :]
+                    if not new_items:
+                        continue
+
+                    if key in merged_updates:
+                        merged_updates[key].extend(new_items)
+                    else:
+                        merged_updates[key] = list(new_items)
+                else:
+                    # Last write wins
+                    merged_updates[key] = value
+
+        return merged_updates
 
     async def _run_async_impl(
         self,
         ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
-        """Execute sub-nodes in parallel with state isolation.
-
-        We snapshot the state, run each node in its own isolated context,
-        and then merge the updates back to the main session.
-        """
+        """Execute sub-nodes in parallel with state isolation."""
         from google.adk.sessions import Session
 
         # 1. Snapshot State
@@ -45,9 +84,6 @@ class ParallelNode(BaseNode[StateT]):
         async def run_node_isolated(
             node: BaseNode,
         ) -> tuple[list[Event], dict[str, Any]]:
-            # Create isolated session/context
-            # Note: We share session_service but use a distinct session ID
-            # logic or just a transient session object
             isolated_session = Session(
                 id=f"{ctx.session.id}_{node.name}",
                 app_name=ctx.session.app_name,
@@ -72,47 +108,33 @@ class ParallelNode(BaseNode[StateT]):
         )
 
         # 3. Process Results and Merge
-        merged_updates = {}
+        final_states = []
         for events, final_node_state in results:
-            # Yield events
             for event in events:
                 yield event
+            final_states.append(final_node_state)
 
-            # Identify changes
-            merged_updates.update(
-                {
-                    key: value
-                    for key, value in final_node_state.items()
-                    if value != initial_state.get(key)
-                }
-            )
+        merged_updates = self._get_merged_updates(dict(initial_state), final_states)
 
         # 4. Update Main State
+        # Note: ctx.session.state.update() might not trigger Pydantic validation if it's a dict proxy
+        # but BaseState.update logic handles the actual list extension if we pass a list.
+        # However, BaseState.update expects the *value to append*, not the full list.
+        # Our `_get_merged_updates` returns a list of *new items*.
+        # So calling update(**merged_updates) on the base state works perfectly.
+
         ctx.session.state.update(merged_updates)
 
     async def execute(self, state: StateT) -> StateT:
-        """Run all sub-nodes in parallel using the initial state.
-
-        Then merges the changes from each branch back into the main state.
-        """
+        """Run all sub-nodes in parallel using the initial state."""
         # 1. Execute all nodes concurrently
         results = await asyncio.gather(*(node.execute(state) for node in self.nodes))
 
         # 2. Merge strategies
-        # Since State is immutable (Pydantic), we detect changes by comparing
-        # the result state dictionaries with the initial state dictionary.
         initial_dump = state.model_dump()
+        result_dumps = [res.model_dump() for res in results]
 
-        merged_updates = {}
-        for res in results:
-            res_dump = res.model_dump()
-            merged_updates.update(
-                {
-                    key: value
-                    for key, value in res_dump.items()
-                    if value != initial_dump.get(key)
-                }
-            )
+        merged_updates = self._get_merged_updates(initial_dump, result_dumps)
 
         # 3. Create new state with merged updates
         return state.update(**merged_updates)
