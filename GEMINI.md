@@ -13,6 +13,10 @@
     * `uvx ty check`
 * **Test:** `pytest`.
     * `uv run pytest`
+* **Workflow:** ALWAYS run verification after any code modification:
+    1. `uvx ty check` (Type checking)
+    2. `uv run ruff check` (Linting)
+    3. `uv run pytest` (Tests)
 * **Async:** `asyncio` required (I/O & parallel trajectories).
 * **Validation:** `pydantic` v2.x (Models ONLY, NO unstructured dicts).
 * **Engine:** `google-adk` (Model/Tool/Agent primitives).
