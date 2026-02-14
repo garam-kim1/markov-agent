@@ -1,5 +1,6 @@
-from collections.abc import AsyncGenerator, Callable
-from typing import Any, TypeVar, cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -10,6 +11,9 @@ from pydantic import ConfigDict, Field
 from markov_agent.core.state import BaseState
 from markov_agent.topology.edge import Edge
 from markov_agent.topology.node import BaseNode
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Callable
 
 try:
     from rich.console import Console
@@ -112,8 +116,12 @@ class Graph(BaseAgent):
             state_type = params[0].annotation
 
         # output_schema from return annotation if present
-        output_schema = None
-        if sig.return_annotation is not inspect.Signature.empty:
+        # but decorator kwargs take precedence
+        output_schema = kwargs.pop("output_schema", None)
+        if (
+            output_schema is None
+            and sig.return_annotation is not inspect.Signature.empty
+        ):
             output_schema = sig.return_annotation
 
         prompt_template = func.__doc__ or ""
@@ -122,14 +130,19 @@ class Graph(BaseAgent):
 
         node_name = getattr(func, "__name__", str(func))
 
+        # Only use as state_updater if it takes (state, result)
+        state_updater = None
+        if len(params) == 2:
+            state_updater = func
+
         # Create the PPU node
         ppu_node = ProbabilisticNode(
             name=node_name,
-            adk_config=adk_config or self.default_adk_config,
             prompt_template=prompt_template,
+            adk_config=adk_config or self.default_adk_config,
             output_schema=output_schema,
             state_type=state_type,
-            state_updater=func,
+            state_updater=state_updater,
             **kwargs,
         )
 
@@ -213,7 +226,7 @@ class Graph(BaseAgent):
 
     def subgraph(
         self,
-        graph: "Graph",
+        graph: Graph,
         name: str | None = None,
         **kwargs: Any,
     ) -> BaseNode:
@@ -284,6 +297,28 @@ class Graph(BaseAgent):
         self.add_node(node)
         return node
 
+    def self_correction(
+        self,
+        primary: BaseNode,
+        critique: BaseNode,
+        name: str = "self_correction_block",
+        max_retries: int = 3,
+        **kwargs: Any,
+    ) -> BaseNode:
+        """Add a self-correction block."""
+        from markov_agent.containers.self_correction import SelfCorrectionNode
+
+        node = SelfCorrectionNode(
+            name=name,
+            primary=primary,
+            critique=critique,
+            max_retries=max_retries,
+            state_type=self.state_type,
+            **kwargs,
+        )
+        self.add_node(node)
+        return node
+
     def as_node(self, name: str | None = None, **kwargs: Any) -> BaseNode:
         """Convert this graph into a NestedGraphNode."""
         from markov_agent.containers.nested import NestedGraphNode
@@ -294,6 +329,83 @@ class Graph(BaseAgent):
             state_type=self.state_type,
             **kwargs,
         )
+
+    def loop(
+        self,
+        body: BaseNode | Graph | Callable[[StateT], Any],
+        condition: Callable[[StateT], bool],
+        name: str = "loop_block",
+        max_iterations: int = 10,
+        **kwargs: Any,
+    ) -> BaseNode:
+        """Add a loop execution block.
+
+        Repeats the body until condition(state) returns True.
+        """
+        from markov_agent.containers.loop import LoopNode
+        from markov_agent.containers.nested import NestedGraphNode
+        from markov_agent.topology.node import FunctionalNode
+
+        processed_body: BaseNode
+        if isinstance(body, BaseNode):
+            processed_body = body
+        elif isinstance(body, Graph):
+            processed_body = NestedGraphNode(
+                name=body.name or f"{name}_body",
+                graph=body,
+                state_type=self.state_type,
+            )
+        elif callable(body):
+            func_name = getattr(body, "__name__", f"{name}_func")
+            if func_name == "<lambda>":
+                func_name = f"lambda_{id(body):x}"
+
+            processed_body = FunctionalNode(
+                name=func_name,
+                func=body,
+                state_type=self.state_type,
+            )
+        else:
+            msg = f"Unsupported body type: {type(body)}"
+            raise TypeError(msg)
+
+        node = LoopNode(
+            name=name,
+            body=processed_body,
+            condition=condition,
+            max_iterations=max_iterations,
+            state_type=self.state_type,
+            **kwargs,
+        )
+        self.add_node(node)
+        return node
+
+    def if_else(
+        self,
+        condition: Callable[[StateT], bool],
+        then_node: str | BaseNode,
+        else_node: str | BaseNode | None = None,
+        source: str | None = None,
+    ) -> None:
+        """Add a conditional branch from a source node (or the last added node)."""
+        if source is None:
+            if not self.nodes:
+                msg = "No nodes in graph to branch from."
+                raise ValueError(msg)
+            # Use the most recently added node as source
+            source = list(self.nodes.keys())[-1]
+
+        target_then = then_node.name if isinstance(then_node, BaseNode) else then_node
+        self.add_transition(source, target_then, condition=condition)
+
+        if else_node:
+            target_else = (
+                else_node.name if isinstance(else_node, BaseNode) else else_node
+            )
+            # Add default transition if condition is false
+            self.add_transition(
+                source, target_else, condition=lambda s: not condition(s)
+            )
 
     def to_mermaid(self) -> str:
         """Export the graph topology as a Mermaid.js flowchart."""

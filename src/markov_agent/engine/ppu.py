@@ -44,8 +44,11 @@ class ProbabilisticNode(BaseNode[StateT]):
     def __init__(
         self,
         name: str,
-        adk_config: ADKConfig,
         prompt_template: str,
+        adk_config: ADKConfig | None = None,
+        model_name: str | None = None,
+        tools: list[Any] | None = None,
+        output_key: str | None = None,
         output_schema: type[BaseModel] | None = None,
         samples: int = 1,
         sampling_strategy: SamplingStrategy = SamplingStrategy.UNIFORM,
@@ -58,6 +61,23 @@ class ProbabilisticNode(BaseNode[StateT]):
         artifact_service: BaseArtifactService | None = None,
     ) -> None:
         super().__init__(name, state_type=state_type)
+
+        if adk_config is None:
+            if model_name is None:
+                model_name = "gemini-3-flash-preview"
+            adk_config = ADKConfig(
+                model_name=model_name, tools=tools or [], output_key=output_key
+            )
+        elif model_name or tools or output_key:
+            # Override if both provided
+            adk_config = adk_config.model_copy(deep=True)
+            if model_name:
+                adk_config.model_name = model_name
+            if tools:
+                adk_config.tools = (adk_config.tools or []) + tools
+            if output_key:
+                adk_config.output_key = output_key
+
         self.adk_config = adk_config
         self.prompt_template = prompt_template
         self.output_schema = output_schema
@@ -211,7 +231,20 @@ class ProbabilisticNode(BaseNode[StateT]):
 
         if self.adk_config.output_key and isinstance(result, (str, BaseModel)):
             val = result if isinstance(result, str) else result.model_dump_json()
+            logger.info(
+                "Node '%s' mapping output to state['%s']",
+                self.name,
+                self.adk_config.output_key,
+            )
             ctx.session.state[self.adk_config.output_key] = val
+            # Also update state_obj to keep it in sync for parse_result
+            if (
+                isinstance(state_obj, BaseModel)
+                and self.adk_config.output_key in state_obj.model_fields
+            ):
+                setattr(state_obj, self.adk_config.output_key, val)
+            elif isinstance(state_obj, dict):
+                state_obj[self.adk_config.output_key] = val
 
         output_payload = result
         if isinstance(result, BaseModel):

@@ -112,3 +112,16 @@ class BaseState(BaseModel):
 
         self.meta["cumulative_log_prob"] = new_log_prob
         self.meta["confidence"] = LogProb.to_float(new_log_prob)
+
+    def save(self, path: str) -> None:
+        """Save the state to a JSON file."""
+        from pathlib import Path
+
+        Path(path).write_text(self.model_dump_json(indent=2))
+
+    @classmethod
+    def load(cls, path: str) -> Self:
+        """Load the state from a JSON file."""
+        from pathlib import Path
+
+        return cls.model_validate_json(Path(path).read_text())
