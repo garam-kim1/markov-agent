@@ -58,7 +58,7 @@ async def test_diverse_sampling():
         mock_gen,
         base_config={"temperature": 0.7},
         k=3,
-        diversity_threshold=0.5,
+        diversity_threshold=0.9,
         max_retries=1,
     )
 
