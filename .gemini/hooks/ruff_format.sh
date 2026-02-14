@@ -20,9 +20,10 @@ if [[ "$TOOL_NAME" == "write_file" || "$TOOL_NAME" == "replace" ]] && [[ "$FILE_
 
     # Check if file exists and ends with .py
     if [[ -f "$FULL_PATH" && "$FULL_PATH" == *.py ]]; then
-        # Run ruff format
+        # Run ruff check with fix (exit zero to not block format) and ruff format
+        uv run ruff check --fix --exit-zero "$FULL_PATH" > /dev/null 2>&1
         if uv run ruff format "$FULL_PATH" > /dev/null 2>&1; then
-            echo "Successfully formatted $FULL_PATH using ruff" >&2
+            echo "Successfully formatted and fixed $FULL_PATH using ruff" >&2
         else
             echo "Ruff format failed for $FULL_PATH" >&2
         fi
