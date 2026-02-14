@@ -148,7 +148,9 @@ def print_metrics_table(title: str, metrics: dict):
 
     for k_str in sorted(pass_at_k.keys(), key=lambda x: int(x.split("@")[1])):
         k = k_str.split("@")[1]
-        table.add_row(k, f"{pass_at_k[f'pass@{k}']:.2%}", f"{pass_pow_k[f'pass^{k}']:.2%}")
+        table.add_row(
+            k, f"{pass_at_k[f'pass@{k}']:.2%}", f"{pass_pow_k[f'pass^{k}']:.2%}"
+        )
 
     console.print(table)
 

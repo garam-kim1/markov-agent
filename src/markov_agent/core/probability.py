@@ -76,10 +76,12 @@ def apply_temperature(dist: dict[Any, float], temperature: float) -> dict[Any, f
 
     """
     if temperature <= 0:
-        # Greedy: argmax
+        # Use greedy selection (argmax)
         max_val = max(dist.values())
         max_keys = [k for k, v in dist.items() if v == max_val]
-        return normalize_distribution({k: (1.0 if k in max_keys else 0.0) for k in dist})
+        return normalize_distribution(
+            {k: (1.0 if k in max_keys else 0.0) for k in dist}
+        )
 
     if temperature == 1.0:
         return dist
@@ -97,7 +99,9 @@ def apply_temperature(dist: dict[Any, float], temperature: float) -> dict[Any, f
     return normalize_distribution(exp_dist)
 
 
-def kl_divergence(p: dict[Any, float], q: dict[Any, float], epsilon: float = 1e-10) -> float:
+def kl_divergence(
+    p: dict[Any, float], q: dict[Any, float], epsilon: float = 1e-10
+) -> float:
     """Calculate Kullback-Leibler divergence D_KL(P || Q).
 
     Measures how much policy P differs from reference policy Q.

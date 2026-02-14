@@ -274,7 +274,9 @@ class Graph(BaseAgent):
                         )
 
                         # Log high entropy events
-                        if result.entropy > 1.5:  # Arbitrary threshold for high uncertainty
+                        if (
+                            result.entropy > 1.5
+                        ):  # Arbitrary threshold for high uncertainty
                             console.log(
                                 f"[bold yellow]High Uncertainty Event:[/bold yellow] "
                                 f"Entropy {result.entropy:.2f} at {current_node_id}",

@@ -70,7 +70,9 @@ class PolicyCheckCallback(AfterModelCallback):
 @tool(confirmation=True)
 def refund_user(transaction_id: str, amount: float) -> str:
     """Processes a refund for a user. Requires human confirmation."""
-    return f"Successfully processed refund of ${amount} for transaction {transaction_id}."
+    return (
+        f"Successfully processed refund of ${amount} for transaction {transaction_id}."
+    )
 
 
 # --- 3. Main Execution Demo ---

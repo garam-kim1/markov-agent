@@ -12,6 +12,7 @@ from markov_agent.topology.node import BaseNode
 
 class ResearchState(BaseState):
     """State for a simulated research agent."""
+
     topic: str = "Markov Chains"
     depth: int = 0
     uncertainty: float = 0.5
@@ -19,6 +20,7 @@ class ResearchState(BaseState):
 
 class ActionNode(BaseNode[ResearchState]):
     """Simulates an action that might increase depth or change uncertainty."""
+
     async def execute(self, state: ResearchState) -> ResearchState:
         # Simulate some work
         new_state = state.update(depth=state.depth + 1)
@@ -28,7 +30,9 @@ class ActionNode(BaseNode[ResearchState]):
 
 async def run_topology_demo():
     console = rich.get_console()
-    console.print("[bold cyan]Advanced Topology & Probability Analysis Demo[/bold cyan]")
+    console.print(
+        "[bold cyan]Advanced Topology & Probability Analysis Demo[/bold cyan]"
+    )
 
     # 1. Define a Graph with Probabilistic Branching
     node_start = ActionNode(name="START", state_type=ResearchState)
@@ -40,16 +44,13 @@ async def run_topology_demo():
         # 3-way branch with varied entropy
         return {
             "RESEARCH": 0.4,  # Continue researching
-            "VERIFY": 0.5,    # Move to verification
-            "PUBLISH": 0.1    # Early publish (unlikely)
+            "VERIFY": 0.5,  # Move to verification
+            "PUBLISH": 0.1,  # Early publish (unlikely)
         }
 
     def verify_router(state: ResearchState):
         # High uncertainty branch
-        return {
-            "RESEARCH": 0.5,
-            "PUBLISH": 0.5
-        }
+        return {"RESEARCH": 0.5, "PUBLISH": 0.5}
 
     graph = Graph(
         name="research_agent",
@@ -57,7 +58,7 @@ async def run_topology_demo():
             "START": node_start,
             "RESEARCH": node_research,
             "VERIFY": node_verify,
-            "PUBLISH": node_publish
+            "PUBLISH": node_publish,
         },
         edges=[
             Edge(source="START", target_func=lambda _: "RESEARCH"),
@@ -66,7 +67,7 @@ async def run_topology_demo():
         ],
         entry_point="START",
         state_type=ResearchState,
-        strict_markov=True  # Enforce Markov property
+        strict_markov=True,  # Enforce Markov property
     )
 
     # 2. Analyze the Topology Statically
@@ -101,12 +102,16 @@ async def run_topology_demo():
     console.print(f"Is Ergodic (Irreducible & Aperiodic): [bold]{is_ergodic}[/bold]")
 
     mixing_time = analyzer.calculate_mixing_time(matrix)
-    console.print(f"Mixing Time (approx. steps to equilibrium): [bold]{mixing_time}[/bold]")
+    console.print(
+        f"Mixing Time (approx. steps to equilibrium): [bold]{mixing_time}[/bold]"
+    )
 
     # Calculate probability of a specific trajectory
     sample_traj = ["START", "RESEARCH", "VERIFY", "PUBLISH"]
     traj_prob = analyzer.simulate_trajectory_probability(sample_traj, matrix)
-    console.print(f"Likelihood of trajectory {sample_traj}: [bold]{traj_prob:.4f}[/bold]")
+    console.print(
+        f"Likelihood of trajectory {sample_traj}: [bold]{traj_prob:.4f}[/bold]"
+    )
 
     # Generate Mermaid Diagram
     console.print("\n[bold green]3. Topology Visualization (Mermaid)[/bold green]")
@@ -125,7 +130,9 @@ async def run_topology_demo():
         conf = traj.meta.get("confidence", 0.0)
         log_p = traj.meta.get("cumulative_log_prob", -float("inf"))
 
-        console.print(f"\n[bold]Trajectory #{i+1}[/bold] (p={conf:.4f}, log_p={log_p:.2f})")
+        console.print(
+            f"\n[bold]Trajectory #{i + 1}[/bold] (p={conf:.4f}, log_p={log_p:.2f})"
+        )
         path = " -> ".join([h["node"] for h in traj.history])
         console.print(f"  Path: {path}")
 
@@ -135,7 +142,9 @@ async def run_topology_demo():
             console.print(f"  Entropy Profile: {entropy_str}")
 
     # 4. Demonstrate High Uncertainty Logging
-    console.print("\n[bold green]3. Live Execution with Uncertainty Tracking[/bold green]")
+    console.print(
+        "\n[bold green]3. Live Execution with Uncertainty Tracking[/bold green]"
+    )
     # Run a single path
     final_state = await graph.run(initial_state)
     console.print(f"\nFinal State Depth: {final_state.depth}")

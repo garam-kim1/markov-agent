@@ -32,6 +32,7 @@ def test_probabilistic_edge_routing():
         assert result.next_node == "B"
         assert result.probability == 1.0
 
+
 def test_probabilistic_edge_weighted_sampling():
     # Test weighted sampling
     def router(state):

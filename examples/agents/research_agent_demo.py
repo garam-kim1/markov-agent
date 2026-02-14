@@ -62,7 +62,13 @@ class ResearchMockResponder:
     def __call__(self, prompt: str) -> str:
         if "Plan research" in prompt:
             return json.dumps(
-                {"questions": ["History of topic?", "Current state?", "Future outlook?"]},
+                {
+                    "questions": [
+                        "History of topic?",
+                        "Current state?",
+                        "Future outlook?",
+                    ]
+                },
             )
         if "Research these questions" in prompt:
             return json.dumps(

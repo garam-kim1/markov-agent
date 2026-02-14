@@ -12,12 +12,16 @@ from markov_agent.topology.node import BaseNode
 
 class DemoState(BaseState):
     """Simple state for transition matrix demonstration."""
+
     value: int = 0
+
 
 class NoOpNode(BaseNode[DemoState]):
     """A node that does nothing but pass the state."""
+
     async def execute(self, state: DemoState) -> DemoState:
         return state
+
 
 async def run_demo():
     console = rich.get_console()
@@ -38,26 +42,18 @@ async def run_demo():
 
     graph = Graph(
         name="demo_graph",
-        nodes={
-            "START": node_start,
-            "BRANCH": node_branch,
-            "END": node_end
-        },
+        nodes={"START": node_start, "BRANCH": node_branch, "END": node_end},
         edges=[
             Edge(source="START", target_func=lambda _: "BRANCH"),
             Edge(source="BRANCH", target_func=branch_router),
         ],
         entry_point="START",
-        state_type=DemoState
+        state_type=DemoState,
     )
 
     # Run Monte Carlo Simulation
     console.print("\nRunning 50 Monte Carlo simulations...")
-    runner = MonteCarloRunner(
-        graph=graph,
-        dataset=[DemoState()],
-        n_runs=50
-    )
+    runner = MonteCarloRunner(graph=graph, dataset=[DemoState()], n_runs=50)
 
     results = await runner.run_simulation()
 
@@ -68,7 +64,10 @@ async def run_demo():
     console.print("\n[bold green]Empirical Transition Matrix:[/bold green]")
     console.print(matrix)
 
-    console.print("\n[dim]Note: Matrix values represent the probability P(next|current) observed during simulation.[/dim]")
+    console.print(
+        "\n[dim]Note: Matrix values represent the probability P(next|current) observed during simulation.[/dim]"
+    )
+
 
 if __name__ == "__main__":
     asyncio.run(run_demo())

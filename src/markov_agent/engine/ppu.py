@@ -86,6 +86,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.state_updater = state_updater
         self.prompt_engine = PromptEngine()
         self.artifact_service = artifact_service
+        self.mock_responder = mock_responder
 
         # Inject native JSON support if schema is provided
         if self.output_schema:
@@ -202,7 +203,7 @@ class ProbabilisticNode(BaseNode[StateT]):
             cast("Any", state_obj).record_probability(
                 source=f"{self.name}_ppu",
                 probability=selection_confidence,
-                distribution=distribution
+                distribution=distribution,
             )
             # Sync back
             if hasattr(state_obj, "meta"):

@@ -12,9 +12,11 @@ from markov_agent.topology.node import BaseNode
 class MarkovState(BaseState):
     val: int = 0
 
+
 class SimpleNode(BaseNode[MarkovState]):
     async def execute(self, state: MarkovState) -> MarkovState:
         return state.update(val=state.val + 1)
+
 
 @pytest.mark.asyncio
 async def test_log_prob_and_entropy():
@@ -26,17 +28,22 @@ async def test_log_prob_and_entropy():
     assert state.meta.get("confidence", 1.0) == 1.0
 
     # Record a step with p=0.5
-    state.record_probability(source="A", target="B", probability=0.5, distribution={"B": 0.5, "C": 0.5})
+    state.record_probability(
+        source="A", target="B", probability=0.5, distribution={"B": 0.5, "C": 0.5}
+    )
 
     assert state.meta["cumulative_log_prob"] == math.log(0.5)
     assert math.isclose(state.meta["confidence"], 0.5)
-    assert math.isclose(state.meta["step_entropy"][0], 1.0) # - (0.5*log2(0.5) + 0.5*log2(0.5)) = 1.0
+    assert math.isclose(
+        state.meta["step_entropy"][0], 1.0
+    )  # - (0.5*log2(0.5) + 0.5*log2(0.5)) = 1.0
 
     # Record another step with p=0.5
     state.record_probability(source="B", target="D", probability=0.5)
 
     assert math.isclose(state.meta["cumulative_log_prob"], math.log(0.25))
     assert math.isclose(state.meta["confidence"], 0.25)
+
 
 @pytest.mark.asyncio
 async def test_strict_markov_mode():
@@ -50,7 +57,7 @@ async def test_strict_markov_mode():
         # Actually, the requirement said "only current_node_id and specific markov_signals"
         # My implementation used get_markov_view() which keeps defined fields but excludes history/meta.
         if hasattr(state, "val"):
-             return {"B": 1.0}
+            return {"B": 1.0}
         return None
 
     graph = Graph(
@@ -59,7 +66,7 @@ async def test_strict_markov_mode():
         edges=[Edge(source="A", target_func=router)],
         entry_point="A",
         strict_markov=True,
-        state_type=MarkovState
+        state_type=MarkovState,
     )
 
     state = MarkovState()
@@ -67,6 +74,7 @@ async def test_strict_markov_mode():
 
     assert final_state.val == 1
     assert any(p["target"] == "B" for p in final_state.meta["path_probabilities"])
+
 
 @pytest.mark.asyncio
 async def test_beam_search_log_prob():
@@ -83,7 +91,7 @@ async def test_beam_search_log_prob():
         nodes={"A": node_a, "B": node_b, "C": node_c},
         edges=[Edge(source="A", target_func=route_a)],
         entry_point="A",
-        state_type=MarkovState
+        state_type=MarkovState,
     )
 
     initial_state = MarkovState()
@@ -91,9 +99,12 @@ async def test_beam_search_log_prob():
 
     assert len(results) == 2
     # First result should be the more probable one (B)
-    assert results[0].meta["cumulative_log_prob"] > results[1].meta["cumulative_log_prob"]
+    assert (
+        results[0].meta["cumulative_log_prob"] > results[1].meta["cumulative_log_prob"]
+    )
     assert math.isclose(results[0].meta["confidence"], 0.7)
     assert math.isclose(results[1].meta["confidence"], 0.3)
+
 
 def test_topology_analyzer():
     node_a = SimpleNode(name="A")
@@ -108,7 +119,7 @@ def test_topology_analyzer():
         nodes={"A": node_a, "B": node_b},
         edges=[Edge(source="A", target_func=route_a)],
         entry_point="A",
-        state_type=MarkovState
+        state_type=MarkovState,
     )
 
     analyzer = TopologyAnalyzer(graph)
@@ -121,7 +132,7 @@ def test_topology_analyzer():
 
     assert math.isclose(matrix[idx_a, idx_a], 0.2)
     assert math.isclose(matrix[idx_a, idx_b], 0.8)
-    assert math.isclose(matrix[idx_b, idx_b], 1.0) # B is terminal
+    assert math.isclose(matrix[idx_b, idx_b], 1.0)  # B is terminal
 
     absorbing = analyzer.detect_absorbing_states(matrix)
     assert "B" in absorbing

@@ -1,0 +1,28 @@
+description = "Research and implement coding instructions."
+prompt = """
+Follow this workflow to process coding instructions:
+
+1. **Analyze & Research**:
+   - Carefully analyze the provided instruction.
+   - Use `google_web_search` to verify if the instructions (e.g., library usage, API calls, technical concepts) are accurate and up-to-date.
+   - If the instruction seems based on hallucinations or outdated information, explain why and ask for clarification.
+
+2. **Plan**:
+   - If verified, create a detailed implementation plan.
+   - Mimic the project's existing style, structure, and conventions.
+
+3. **Implement**:
+   - Modify or create source code files.
+   - Add comprehensive tests for the new functionality.
+
+4. **Verify**:
+   - Run the project's verification suite:
+     - `uv run ruff check --fix`
+     - `uv run ruff format`
+     - `uvx ty check`
+     - `uv run pytest`
+   - Fix any issues that arise during verification.
+
+5. **Finalize**:
+   - Provide a summary of the changes and the verification results.
+"""

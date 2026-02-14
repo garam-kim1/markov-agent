@@ -49,7 +49,9 @@ class TopologyAnalyzer:
                             if target_id in self.node_to_idx:
                                 j = self.node_to_idx[target_id]
                                 # Average probability across all edges and samples
-                                matrix[i, j] += prob / (len(relevant_edges) * sample_count)
+                                matrix[i, j] += prob / (
+                                    len(relevant_edges) * sample_count
+                                )
 
         # Normalize rows to ensure they sum to 1 (for stochastic matrix)
         row_sums = matrix.sum(axis=1)
@@ -144,7 +146,7 @@ class TopologyAnalyzer:
         prob = 1.0 / len(self.nodes)  # Initial state probability (uniform assumption)
         for i in range(len(trajectory) - 1):
             src = trajectory[i]
-            dst = trajectory[i+1]
+            dst = trajectory[i + 1]
             if src not in self.node_to_idx or dst not in self.node_to_idx:
                 return 0.0
             prob *= matrix[self.node_to_idx[src], self.node_to_idx[dst]]

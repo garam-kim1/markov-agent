@@ -4,6 +4,7 @@ from typing import Any
 
 from markov_agent.engine.adk_wrapper import ADKConfig, ADKController
 from markov_agent.engine.ppu import ProbabilisticNode
+from markov_agent.tools.search import GoogleSearchTool
 
 
 class Agent(ProbabilisticNode):
@@ -17,6 +18,7 @@ class Agent(ProbabilisticNode):
         name: str,
         model: ADKConfig | str | None = None,
         system_prompt: str | Callable[..., str] | None = None,
+        tools: list[Any] | None = None,
         **kwargs: Any,
     ) -> None:
         # Handle string model name or ADKConfig
@@ -31,6 +33,9 @@ class Agent(ProbabilisticNode):
         # Map 'system_prompt' to 'adk_config.instruction'
         if system_prompt:
             adk_config.instruction = system_prompt
+
+        if tools:
+            adk_config.tools = tools
 
         # Default prompt_template to just passing the query if not provided
         prompt_template = kwargs.pop("prompt_template", "{{ query }}")
@@ -64,6 +69,7 @@ class Agent(ProbabilisticNode):
         self.controller = ADKController(
             self.adk_config,
             self.retry_policy,
+            mock_responder=self.mock_responder,
             output_schema=self.output_schema,
             artifact_service=self.artifact_service,
         )
@@ -105,3 +111,36 @@ class Agent(ProbabilisticNode):
         """Asynchronous version of run that returns text directly."""
         result = await self.controller.generate(query)
         return str(result)
+
+
+class VerifiedAgent(Agent):
+    """An Agent that automatically performs research to verify instructions before acting.
+
+    It uses a research phase to ensure technical accuracy and minimize hallucinations.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        model: ADKConfig | str | None = None,
+        system_prompt: str | Callable[..., str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(name, model, system_prompt, **kwargs)
+        self.add_tool(GoogleSearchTool().as_tool_list()[0])
+
+    async def run_verified(self, query: str) -> str:
+        """Run the agent with an explicit verification/research step."""
+        research_prompt = (
+            f"Research the following instruction to verify its technical accuracy and feasibility: {query}\n"
+            "Search for official documentation, recent community discussions, and potential pitfalls. "
+            "Identify if any part of the instruction seems like a hallucination or is outdated."
+        )
+        research_result = await self.run_async_text(research_prompt)
+
+        implementation_prompt = (
+            f"Based on the following research:\n{research_result}\n\n"
+            f"Implement the original instruction: {query}\n"
+            "If the research suggests the instruction is invalid or harmful, explain why instead of implementing."
+        )
+        return await self.run_async_text(implementation_prompt)

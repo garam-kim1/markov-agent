@@ -17,6 +17,7 @@ class MockNode(BaseNode):
     async def execute(self, state):
         return state
 
+
 def test_probability_primitives():
     # Normalization
     d1 = {"a": 1, "b": 1}
@@ -40,21 +41,19 @@ def test_probability_primitives():
     assert jensen_shannon_divergence(p, q) > 0
     assert jensen_shannon_divergence(p, q) == jensen_shannon_divergence(q, p)
 
+
 def test_topology_diagnostics():
     # Create a simple ergodic graph: A -> B, B -> A
-    nodes = {
-        "A": MockNode(name="A"),
-        "B": MockNode(name="B")
-    }
+    nodes = {"A": MockNode(name="A"), "B": MockNode(name="B")}
     edges = [
         Edge(source="A", target_func=lambda _: "B"),
-        Edge(source="B", target_func=lambda _: "A")
+        Edge(source="B", target_func=lambda _: "A"),
     ]
     graph = Graph(name="test", nodes=nodes, edges=edges, entry_point="A")
     analyzer = TopologyAnalyzer(graph)
 
     matrix = analyzer.extract_matrix(sample_count=1)
-    # P = [[0, 1], [1, 0]]
+    # Expected transition matrix is [[0, 1], [1, 0]]
     assert np.allclose(matrix, [[0, 1], [1, 0]])
 
     # This matrix is NOT ergodic because it is periodic (period 2)
@@ -75,6 +74,7 @@ def test_topology_diagnostics():
     traj_prob = analyzer.simulate_trajectory_probability(["A", "B", "A"], matrix)
     assert 0 < traj_prob < 1
 
+
 def test_empirical_recorder():
     recorder = EmpiricalTransitionRecorder(["A", "B"])
     recorder.observe_transition("A", "B")
@@ -85,6 +85,7 @@ def test_empirical_recorder():
     # A -> B twice, A -> A zero: P[A, B] = 1.0, P[A, A] = 0.0
     # B -> A once, B -> B zero: P[B, A] = 1.0, P[B, B] = 0.0
     assert np.allclose(matrix, [[0, 1], [1, 0]])
+
 
 def test_mermaid_generation():
     nodes = {"A": MockNode(name="A"), "B": MockNode(name="B")}
