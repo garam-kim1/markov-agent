@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import random
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from google.adk.agents import BaseAgent
@@ -9,12 +10,16 @@ from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
 from google.adk.events import Event, EventActions
 from pydantic import ConfigDict, Field
 
+from markov_agent.core.probability import calculate_entropy
 from markov_agent.core.state import BaseState
-from markov_agent.topology.edge import Edge
+from markov_agent.topology.edge import Edge, Flow
 from markov_agent.topology.node import BaseNode
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable
+
+    from markov_agent.simulation.runner import SimulationResult
+    from markov_agent.topology.analysis import TopologyAnalyzer
 
 try:
     from rich.console import Console
@@ -25,6 +30,7 @@ try:
     def panel(x: Any, title: str | None = None) -> Any:
         return RichPanel(x, title=title)
 except ImportError:
+    # ... (rest of rich fallback remains same)
 
     class Console:
         def log(self, *args: Any, **kwargs: Any) -> None:
@@ -199,8 +205,8 @@ class Graph(BaseAgent):
     def add_transition(
         self,
         source: str,
-        target: str | Callable[[StateT], str | dict[str, float] | None],
-        condition: Callable[[StateT], bool] | None = None,
+        target: str | Callable[[Any], str | dict[str, float] | None],
+        condition: Callable[[Any], bool] | None = None,
         *,
         default: bool = False,
     ) -> None:
@@ -219,6 +225,63 @@ class Graph(BaseAgent):
             default=default,
         )
         self.edges.append(edge)
+
+    def connect(self, flow: Flow | Edge | list[Edge]) -> None:
+        """Add edges from a Flow, Edge, or list of Edges to the graph."""
+        if isinstance(flow, Edge):
+            self.edges.append(flow)
+        elif isinstance(flow, (list, Flow)):
+            self.edges.extend(list(flow))
+        else:
+            msg = f"Unsupported flow type: {type(flow)}"
+            raise TypeError(msg)
+
+    def route(
+        self,
+        source: str,
+        targets: dict[str, str | Callable[[Any], bool] | None],
+    ) -> None:
+        """Add multiple conditional transitions from a single source.
+
+        Args:
+            source: The name of the source node.
+            targets: A dict mapping target node names to conditions.
+                     Use None for a default transition.
+
+        """
+        for target, condition in targets.items():
+            if condition is None:
+                self.add_transition(source, target, default=True)
+            elif callable(condition):
+                self.add_transition(source, target, condition=cast("Any", condition))
+            else:
+                msg = (
+                    f"Unsupported condition type for target {target}: {type(condition)}"
+                )
+                raise TypeError(msg)
+
+    def analyze(self) -> TopologyAnalyzer:
+        """Return a TopologyAnalyzer for this graph."""
+        from markov_agent.topology.analysis import TopologyAnalyzer
+
+        return TopologyAnalyzer(self)
+
+    async def simulate(
+        self,
+        dataset: list[Any],
+        n_runs: int = 1,
+        success_criteria: Callable[[Any], bool] | None = None,
+    ) -> list[SimulationResult]:
+        """Run a Monte Carlo simulation on the graph."""
+        from markov_agent.simulation.runner import MonteCarloRunner
+
+        runner = MonteCarloRunner(
+            graph=self,
+            dataset=dataset,
+            n_runs=n_runs,
+            success_criteria=success_criteria or (lambda _: True),
+        )
+        return await runner.run_simulation()
 
     def chain(self, nodes: list[str]) -> None:
         """Chain a sequence of nodes together with linear transitions."""
@@ -440,6 +503,14 @@ class Graph(BaseAgent):
 
         return "\n".join(lines)
 
+    def visualize(self) -> None:
+        """Print the graph topology to the console."""
+        console.print(panel(self.to_mermaid(), title=f"Topology: {self.name}"))
+
+    async def __call__(self, state: StateT) -> StateT:
+        """Async execution shortcut."""
+        return await self.run(state)
+
     async def _run_async_impl(
         self,
         ctx: InvocationContext,
@@ -531,50 +602,72 @@ class Graph(BaseAgent):
             # Find next node
             next_node_id = None
             chosen_prob = 1.0
+            aggregated_dist: dict[str, float] = {}
+
+            # Aggregate all matching edges for this source
+            matching_non_default: list[dict[str, float]] = []
+            matching_default: list[dict[str, float]] = []
 
             for edge in self.edges:
                 if edge.source == current_node_id:
                     # Enforce Strict Markov if enabled
                     routing_state = state_obj
                     if self.strict_markov and hasattr(state_obj, "get_markov_view"):
-                        # Pass a restricted view: only current node and any 'markov_signals'
-                        # For now, we simulate this by using get_markov_view() if available
                         routing_state = state_obj.get_markov_view()
 
-                    # Capture TransitionResult
-                    result = edge.route(routing_state)
-                    next_node_id = result.next_node
-                    chosen_prob = result.probability
-                    dist = result.distribution
+                    # Get distribution from this edge
+                    edge_dist = edge.get_distribution(routing_state)
+                    if edge_dist:
+                        if edge.default:
+                            matching_default.append(edge_dist)
+                        else:
+                            matching_non_default.append(edge_dist)
 
-                    if next_node_id:
-                        console.log(
-                            f"Transition: {current_node_id} -> {next_node_id} "
-                            f"(p={chosen_prob:.2f}, entropy={result.entropy:.2f})",
-                        )
+            # Prioritize non-default edges
+            final_matches = matching_non_default or matching_default
 
-                        # Log high entropy events
-                        if (
-                            result.entropy > 1.5
-                        ):  # Arbitrary threshold for high uncertainty
-                            console.log(
-                                f"[bold yellow]High Uncertainty Event:[/bold yellow] "
-                                f"Entropy {result.entropy:.2f} at {current_node_id}",
-                            )
+            for dist in final_matches:
+                for target, prob in dist.items():
+                    aggregated_dist[target] = aggregated_dist.get(target, 0.0) + prob
 
-                        # Record probability in state if supported
-                        if hasattr(state_obj, "record_probability"):
-                            state_obj.record_probability(
-                                source=current_node_id,
-                                target=next_node_id,
-                                probability=chosen_prob,
-                                distribution=dist,
-                            )
+            if aggregated_dist:
+                # Normalize distribution
+                total = sum(aggregated_dist.values())
+                if total > 0:
+                    for target in aggregated_dist:
+                        aggregated_dist[target] /= total
 
-                        # Sync back to session state if it was a Markov State
-                        if hasattr(state_obj, "meta"):
-                            ctx.session.state["meta"] = state_obj.meta
-                        break
+                # Weighted random selection from aggregated distribution
+                nodes = list(aggregated_dist.keys())
+                weights = list(aggregated_dist.values())
+                next_node_id = random.choices(nodes, weights=weights, k=1)[0]  # noqa: S311
+                chosen_prob = aggregated_dist[next_node_id]
+                entropy = calculate_entropy(aggregated_dist)
+
+                console.log(
+                    f"Transition: {current_node_id} -> {next_node_id} "
+                    f"(p={chosen_prob:.2f}, entropy={entropy:.2f})",
+                )
+
+                # Log high entropy events
+                if entropy > 1.5:  # Arbitrary threshold for high uncertainty
+                    console.log(
+                        f"[bold yellow]High Uncertainty Event:[/bold yellow] "
+                        f"Entropy {entropy:.2f} at {current_node_id}",
+                    )
+
+                # Record probability in state if supported
+                if hasattr(state_obj, "record_probability"):
+                    state_obj.record_probability(
+                        source=current_node_id,
+                        target=next_node_id,
+                        probability=chosen_prob,
+                        distribution=aggregated_dist,
+                    )
+
+                # Sync back to session state if it was a Markov State
+                if hasattr(state_obj, "meta"):
+                    ctx.session.state["meta"] = state_obj.meta
 
             if next_node_id is None:
                 console.log(

@@ -20,15 +20,15 @@ class SimulationResult(BaseModel):
     trajectory: list[Any] = Field(default_factory=list)
 
 
-class MonteCarloRunner(BaseModel):
+class MonteCarloRunner[StateT: BaseState](BaseModel):
     """Runs the dataset through the graph N times to ensure reliability."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     graph: Graph
-    dataset: list[BaseState]
+    dataset: list[StateT]
     n_runs: int = 1  # Number of times to run EACH item in dataset
-    success_criteria: Callable[[BaseState], bool] = lambda s: True
+    success_criteria: Callable[[StateT], bool] = Field(default=lambda _: True)
 
     async def run_simulation(self) -> list[SimulationResult]:
 

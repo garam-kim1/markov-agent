@@ -41,6 +41,16 @@ class ProbabilisticNode(BaseNode[StateT]):
     state_updater: Any = Field(default=None)
     artifact_service: BaseArtifactService | None = Field(default=None)
 
+    @classmethod
+    def from_prompt(
+        cls,
+        name: str,
+        prompt: str,
+        **kwargs: Any,
+    ) -> "ProbabilisticNode":
+        """Create a ProbabilisticNode with just a name and a prompt."""
+        return cls(name=name, prompt_template=prompt, **kwargs)
+
     def __init__(
         self,
         name: str,
