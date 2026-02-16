@@ -9,7 +9,7 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
 * **Lint/Format:** `ruff` (Strict compliance).
 * **Static Analysis:** `ty` (pyright via `uvx ty`).
 * **Test:** `pytest` (Async-heavy).
-* **Core:** `google-adk`, `pydantic` v2, `asyncio`, `tenacity`, `jinja2`.
+* **Core:** `google-adk`, `pydantic` v2, `asyncio`, `tenacity`, `jinja2`, `litellm`, `numpy`, `pandas`, `sqlalchemy`, `mcp`.
 * **Verify Cmd:** `uvx ty check && uv run ruff check --fix && uv run ruff format && uv run pytest`.
 
 ## ARCHITECTURE (TOPOLOGY)
@@ -24,33 +24,43 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
     * `events.py`: `EventBus` for async observability/telemetry.
     * `probability.py`: Log-space math, Shannon entropy, distributions.
     * `registry.py`: Component/plugin registration system.
+    * `services.py`: Shared service management (Session, Memory, Artifact).
+    * `logging.py`, `monitoring.py`: Observability foundation.
 * **`topology/`**: FSM Structure
     * `graph.py`: Main execution engine & Mermaid generator.
     * `node.py`: Base abstractions for all graph nodes.
     * `edge.py`: Routing logic & transition probability.
     * `gate.py`: Conditional branching & multiplexing gates.
+    * `analysis.py`, `evolution.py`: Graph analysis and self-evolving topologies.
 * **`engine/`**: PPU & ADK Bridge
     * `ppu.py`: `ProbabilisticNode` for LLM-driven transitions.
-    * `adk_wrapper.py`: `ADKConfig`, `ADKController` for GenAI integration.
+    * `adk_wrapper.py`: `ADKConfig`, `ADKController` for GenAI integration. Supports LiteLLM.
     * `sampler.py`: Parallel $k$-sampling strategies (Uniform, etc.).
     * `prompt.py`: Jinja2-based `PromptEngine`.
-    * `runtime.py`: ADK runtime/session integration.
-    * `selectors.py`: Result selection logic (Majority Vote, etc.).
+    * `runtime.py`, `agent.py`: ADK runtime/session and agent abstractions.
+    * `selectors.py`, `trajectory.py`: Result selection and path tracking.
+    * `observability.py`, `plugins.py`, `callbacks.py`: Extension system.
 * **`containers/`**: FSM Patterns
-    * `chain.py`, `loop.py`, `parallel.py`, `self_correction.py`, `swarm.py`: Common topology patterns.
+    * `chain.py`, `loop.py`, `parallel.py`, `self_correction.py`, `swarm.py`, `nested.py`, `sequential.py`.
+* **`governance/`**: Guardrails & Constraints
+    * `cost.py`: Budget tracking and spending limits.
+    * `resource.py`: Token usage and rate limiting.
 * **`tools/`**: External Integration
-    * `mcp.py`, `search.py`, `database.py`: MCP and external tool wrappers.
+    * `mcp.py`: Model Context Protocol support.
+    * `search.py`, `database.py`, `agent_tool.py`: Standard tool implementations.
 * **`simulation/`**: Reliability Engineering
     * `runner.py`: Monte Carlo simulation for topology verification.
-    * `metrics.py`: Reliability, accuracy, and latency tracking.
+    * `metrics.py`, `analysis.py`: Reliability, accuracy, and latency tracking.
+    * `scenario.py`, `twin.py`: Digital twin and evaluation scenarios.
 
 ## CODING RULES
-* **Initialization:** Explicit `ADKConfig` and `RetryPolicy`. No magic defaults.
+* **Initialization:** Explicit `ADKConfig` and `RetryPolicy` preferred.
+    * **Note:** `ProbabilisticNode` defaults to `gemini-3-flash-preview` if no config/model is provided, but explicit configuration is recommended for production.
     * **Gemini Example:**
       ```python
       ADKConfig(model_name="gemini-3-flash-preview", api_key=os.environ.get("GEMINI_API_KEY"))
       ```
-    * **Local LLM Example:**
+    * **Local/LiteLLM Example:**
       ```python
       ADKConfig(
           model_name="openai/Qwen3-0.6B-Q4_K_M.gguf",

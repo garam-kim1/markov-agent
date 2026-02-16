@@ -1,13 +1,14 @@
 description = "Regenerate GEMINI.md to provide an optimized, token-efficient context for LLM agents."
 prompt = """
-Update `GEMINI.md` to serve as a high-density technical context for LLM agents. 
+Update `GEMINI.md` to serve as a high-density technical context for LLM agents.
 
-1. **Project Essence**: 1-2 sentences on core philosophy (Markov Agents, Stochastic PPUs).
-2. **Tech Stack**: Strict constraints (Python 3.12+, uv, ruff, pytest, ty, pydantic v2, google-adk).
-3. **Architecture**: FSM/Topology paradigm (State, Graph, Node/PPU, Edge).
-4. **Directory Map**: Deep-scan `src/markov_agent/`. For each module, list key files and 3-5 word explanations of their role.
-5. **Coding Rules**: Mandatory patterns (ADKConfig, explicit constructors, async, event-driven) and FORBIDDEN (print, magic strings, sync LLM).
-6. **Token Efficiency**: Use abbreviations and concise technical language. No conversational filler or human-centric readability fluff.
+1. **Preserve Persistent Knowledge**: Read the existing `GEMINI.md`. Identify and RETAIN sections containing non-obvious technical decisions, "gotchas", historical context, or "tribal knowledge" that cannot be easily inferred from a fresh scan of the current codebase.
+2. **Project Essence**: 1-2 sentences on core philosophy (Markov Agents, Stochastic PPUs).
+3. **Tech Stack**: Strict constraints (Python 3.12+, uv, ruff, pytest, ty, pydantic v2, google-adk).
+4. **Architecture**: FSM/Topology paradigm (State, Graph, Node/PPU, Edge).
+5. **Directory Map**: Deep-scan `src/markov_agent/`. For each module, list key files and 3-5 word explanations of their role.
+6. **Coding Rules**: Mandatory patterns (ADKConfig, explicit constructors, async, event-driven) and FORBIDDEN (print, magic strings, sync LLM).
+7. **Token Efficiency**: Use abbreviations and concise technical language. Avoid over-aggressive compression that sacrifices clarity on critical details. No conversational filler.
 
-Goal: Provide a complete, compact operational manual for an agent to work on this repo with minimal token overhead.
+Goal: Provide a complete, compact operational manual that balances density with the retention of vital project-specific insights.
 """

@@ -1,9 +1,10 @@
 description = "Check if GEMINI.md is out of sync with the current codebase."
 prompt = """
-Verify if `GEMINI.md` accurately reflects the current state of the project.
+Verify if `GEMINI.md` accurately reflects the current state of the project while retaining vital context.
 
 1. **Scan Files**: Check if all directories and key modules in `src/markov_agent/` are represented.
-2. **Scan Config**: Check if tech stack constraints match `pyproject.toml` (e.g., Python 3.12+, dependencies like litellm, mcp) and other config files.
-3. **Scan Patterns**: Check if mentioned coding patterns are still the standard.
-4. **Report**: List discrepancies and recommend updates. Use concise, token-efficient language. No conversational filler.
+2. **Scan Config**: Check if tech stack constraints match `pyproject.toml` (e.g., Python 3.12+, dependencies) and other config files.
+3. **Verify Retention**: Check if critical "non-obvious" knowledge, gotchas, or architectural justifications previously documented are still present or if they have been lost in over-aggressive shortening.
+4. **Scan Patterns**: Check if mentioned coding patterns are still the standard.
+5. **Report**: List discrepancies (missing new info OR accidentally deleted old info) and recommend updates. Use concise, token-efficient language. No conversational filler.
 """
