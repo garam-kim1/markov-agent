@@ -56,7 +56,9 @@ class ScenarioManager:
         base_state: StateT,
         scenarios: list[Scenario],
         success_criteria: Callable[[Any], bool] | None = None,
+        reward_extractor: Callable[[Any], float] | None = None,
         max_concurrency: int = 10,
+        memory_threshold: float = 90.0,
     ) -> list[ScenarioResult]:
         """Run multiple scenarios in sequence and aggregate results."""
         results = []
@@ -80,6 +82,7 @@ class ScenarioManager:
                     n_runs=scenario.n_runs,
                     success_criteria=success_criteria,
                     max_concurrency=max_concurrency,
+                    memory_threshold=memory_threshold,
                 )
 
                 # 4. Aggregate
@@ -88,8 +91,12 @@ class ScenarioManager:
 
                 total_reward = 0.0
                 for r in sim_results:
-                    # Check explicit reward field first, then meta
-                    if hasattr(r.final_state, "reward"):
+                    if r.final_state is None:
+                        continue
+
+                    if reward_extractor:
+                        total_reward += reward_extractor(r.final_state)
+                    elif hasattr(r.final_state, "reward"):
                         total_reward += r.final_state.reward
                     else:
                         total_reward += r.final_state.meta.get("reward", 0.0)

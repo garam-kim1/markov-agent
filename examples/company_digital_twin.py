@@ -1,355 +1,325 @@
 import asyncio
+import json
 import os
+import random
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from markov_agent import ADKConfig, BaseDigitalTwin, ResourceGovernor, setup_llm_logging
+from markov_agent.containers.swarm import Swarm
 from markov_agent.core.state import BaseState
-from markov_agent.engine.adk_wrapper import ADKConfig
-from markov_agent.simulation.scenario import Scenario, ScenarioManager
-from markov_agent.simulation.twin import BaseDigitalTwin
 from markov_agent.topology.graph import Graph
 
 # ==============================================================================
-# 1. State Definition (The "DNA")
+# 1. Setup Logging (Save all LLM logs to ./xxx.log)
+# ==============================================================================
+setup_llm_logging(log_file="./xxx.log")
+
+# ==============================================================================
+# 2. State Definition (Complex Corporate Metrics)
 # ==============================================================================
 
 
 class CompanyState(BaseState):
-    """The complete state of the company simulation."""
+    """Global state for the complex corporate swarm."""
 
-    # Resources
-    budget: float = Field(default=1_000_000.0, description="Available capital in USD.")
-    reputation: float = Field(default=100.0, description="Brand score (0-100).")
+    # Financials
+    budget: float = Field(default=2_000_000.0)
+    revenue: float = Field(default=0.0)
+    burn_rate: float = Field(default=100_000.0)  # Fixed quarterly overhead
 
-    # Project Status
-    project_name: str = "Project Phoenix"
-    features: list[str] = Field(default_factory=list)
-    risk_level: Literal["Low", "Medium", "High", "Critical"] = "Medium"
-    compliance_score: float = 100.0
+    # Market & Product
+    market_share: float = Field(default=2.0)
+    reputation: float = Field(default=70.0)
+    product_quality: float = Field(default=60.0)
+    technical_debt: float = Field(default=20.0)
 
-    # Workflow Flags
-    is_approved_by_finance: bool = False
-    is_approved_by_legal: bool = False
-    is_launched: bool = False
+    # Human Capital
+    talent_index: float = Field(default=50.0)  # 0-100
+    employee_happiness: float = Field(default=75.0)
 
-    # Audit Trail
+    # Control Flow
+    next_action: str = "CEO"
+    quarter: int = 1
+    max_quarters: int = 4
+    is_bankrupt: bool = False
+    is_finished: bool = False
+
+    department_reports: dict[str, str] = Field(default_factory=dict)
     logs: list[str] = Field(
         default_factory=list, json_schema_extra={"behavior": "append"}
     )
 
 
 # ==============================================================================
-# 2. Structured Output Schemas
+# 3. Local LLM Configuration
 # ==============================================================================
 
-
-class EngineeringOutput(BaseModel):
-    cost: float = Field(description="Total estimated development cost.")
-    reasoning: str = Field(description="Reasoning for the cost estimate.")
-
-
-class FinanceOutput(BaseModel):
-    is_approved: bool = Field(description="Whether the budget is approved.")
-    reasoning: str = Field(description="CFO's reasoning.")
+local_adk_config = ADKConfig(
+    model_name="openai/Qwen3-0.6B-Q4_K_M.gguf",
+    api_base=os.environ.get("LOCAL_LLM_API_BASE", "http://192.168.1.213:8080/v1"),
+    api_key="no-key",
+    use_litellm=True,
+    temperature=0.7,
+)
 
 
-class LegalOutput(BaseModel):
-    is_approved: bool = Field(description="Whether the project is legally compliant.")
-    compliance_fix_applied: bool = Field(
-        default=False, description="Whether legal fixes were applied."
+def complex_local_llm_mock(prompt: str) -> str:
+    lp = prompt.lower()
+    if "ceo" in lp or "strategy" in lp:
+        # Complex logic for CEO mock
+        choices = ["Marketing", "Engineering", "HR", "Operations"]
+        next_dept = random.choice(choices)
+        if "quarter 4" in lp:
+            next_dept = "EndSimulation"
+        return json.dumps(
+            {
+                "next_action": next_dept,
+                "strategy": f"Focusing on {next_dept} to stabilize the company.",
+            }
+        )
+
+    if "marketing" in lp:
+        return json.dumps(
+            {
+                "cost": 250000.0,
+                "report": "Omnichannel campaign 'Phoenix' launched successfully.",
+                "metrics": {"reputation": 8.5, "market_share": 1.2},
+            }
+        )
+
+    if "engineering" in lp:
+        return json.dumps(
+            {
+                "cost": 400000.0,
+                "report": "Refactored core engine and added 3 major features.",
+                "metrics": {"product_quality": 12.0, "technical_debt": -5.0},
+            }
+        )
+
+    if "hr" in lp:
+        return json.dumps(
+            {
+                "cost": 150000.0,
+                "report": "New equity package and remote work policy implemented.",
+                "metrics": {"talent_index": 10.0, "employee_happiness": 5.0},
+            }
+        )
+
+    if "operations" in lp:
+        return json.dumps(
+            {
+                "cost": 100000.0,
+                "report": "Optimized cloud costs and vendor contracts.",
+                "metrics": {"burn_rate": -15000.0},
+            }
+        )
+
+    # Generic response that fits DeptOutput if everything else fails
+    return json.dumps(
+        {
+            "cost": 50000.0,
+            "report": "Standard operational task completed.",
+            "metrics": {},
+        }
     )
-    reputation_hit: float = Field(
-        default=0.0, description="Reputation loss due to privacy concerns."
-    )
-    reasoning: str = Field(description="General Counsel's reasoning.")
+
+
+mock_provider = (
+    None if os.environ.get("USE_REAL_LLM") == "true" else complex_local_llm_mock
+)
+
+# ==============================================================================
+# 4. Output Schemas
+# ==============================================================================
+
+
+class CEOOutput(BaseModel):
+    next_action: Literal[
+        "Marketing", "Engineering", "HR", "Operations", "EndSimulation"
+    ]
+    strategy: str
+
+
+class DeptOutput(BaseModel):
+    cost: float
+    report: str
+    metrics: dict[str, float]
 
 
 # ==============================================================================
-# 3. Digital Twin (The "Shell" / Laws)
+# 5. World Model & Digital Twin (Physics of Business)
 # ==============================================================================
 
 
-class CompanyConstitution(BaseDigitalTwin[CompanyState]):
-    """Enforces the immutable laws of the corporation."""
+class BusinessTwin(BaseDigitalTwin[CompanyState]):
+    """Simulates market dynamics and enforces constraints."""
 
     async def validate_transition(
         self, current: CompanyState, proposed: CompanyState
     ) -> bool:
-        # Law 1: Bankruptcy Protection
+        # Check for bankruptcy
         if proposed.budget < 0:
-            print(f"❌ [Twin] VETO: Budget cannot be negative ({proposed.budget})")
+            print("🛑 [Twin] VETO: Immediate bankruptcy prevented. Reverting.")
             return False
-
-        # Law 2: Compliance Floor
-        if proposed.is_launched and proposed.compliance_score < 50:
-            print(
-                f"❌ [Twin] VETO: Cannot launch illegal product (Compliance: {proposed.compliance_score})"
-            )
-            return False
-
         return True
 
+    async def evolve_world(self, state: CompanyState) -> CompanyState:
+        """Simulate revenue generation and decay between turns."""
+        # Revenue depends on (Market Share * Reputation * Product Quality)
+        base_revenue = state.market_share * 200_000
+        quality_multiplier = state.product_quality / 50
+        reputation_multiplier = state.reputation / 70
+        talent_multiplier = state.talent_index / 50
+
+        generated_revenue = (
+            base_revenue
+            * quality_multiplier
+            * reputation_multiplier
+            * talent_multiplier
+        )
+
+        # Apply burn rate and taxes (15%)
+        net_revenue = generated_revenue * 0.85
+        new_budget = state.budget + net_revenue - state.burn_rate
+
+        # Natural Decay
+        new_reputation = max(0, state.reputation - 2)  # Market forgetfulness
+        new_debt = state.technical_debt + 1  # Entropy
+
+        return state.update(
+            budget=new_budget,
+            revenue=state.revenue + generated_revenue,
+            reputation=new_reputation,
+            technical_debt=new_debt,
+            logs=[f"Market: Generated ${generated_revenue:,.0f} revenue."],
+        )
+
 
 # ==============================================================================
-# 4. Department Logic (The "Nodes")
+# 6. Topology Construction
 # ==============================================================================
 
-# Common ADK Config
-adk_config = ADKConfig(
-    model_name="gemini-3-flash-preview", api_key=os.environ.get("GEMINI_API_KEY")
-)
 
+def build_complex_corp() -> Swarm:
+    # 1. Resource Protection
+    governor = ResourceGovernor(memory_threshold_percent=85.0)
 
-# Mock Responder for when API key is missing
-def mock_company_responder(prompt: str) -> str:
-    import json
+    # 2. CEO Node
+    ceo = Graph(name="CEO", default_adk_config=local_adk_config)
 
-    if "CTO" in prompt:
-        cost = 100_000.0
-        if "Surveillance" in prompt:
-            cost = 500_000.0
-        return json.dumps(
-            {"cost": cost, "reasoning": "Estimated based on feature complexity."}
+    @ceo.node(name="Strategy", output_schema=CEOOutput, mock_responder=mock_provider)
+    def ceo_strategy(state: CompanyState, result: CEOOutput):
+        """CEO Strategic Decision Node.
+        Current Quarter: {{state.quarter}}
+        Budget: {{state.budget}}
+        Metrics: Share={{state.market_share}}%, Quality={{state.product_quality}}%
+        """
+        return state.update(
+            next_action=result.next_action,
+            logs=[f"CEO: {result.strategy}"],
         )
-    if "CFO" in prompt:
-        is_approved = True
-        # If budget is very low, reject
-        if (
-            "budget: 200000" in prompt.lower()
-            or "budget: 600000" in prompt.lower()
-            or "budget: 5000000" in prompt.lower()
-        ):
-            is_approved = True
-        else:
-            is_approved = False
-        return json.dumps(
-            {"is_approved": is_approved, "reasoning": "Budget looks acceptable."}
-        )
-    if "General Counsel" in prompt:
-        is_approved = True
-        return json.dumps(
-            {
-                "is_approved": is_approved,
-                "compliance_fix_applied": False,
-                "reputation_hit": 10.0 if "Surveillance" in prompt else 0.0,
-                "reasoning": "Compliance review completed.",
+
+    ceo.entry_point = "Strategy"
+
+    # 3. Department Factory
+    def create_dept(name: str, task: str) -> Graph:
+        g = Graph(name=name, default_adk_config=local_adk_config)
+
+        @g.node(name="Execute", output_schema=DeptOutput, mock_responder=mock_provider)
+        def exec_dept(state: CompanyState, result: DeptOutput):
+            """Execute department task.
+            Budget: {{state.budget}}
+            """
+            updates = {
+                "budget": state.budget - result.cost,
+                "next_action": "CEO",
+                "logs": [f"{name}: {result.report}"],
             }
-        )
-    return "{}"
+            # Merge metrics
+            for k, v in result.metrics.items():
+                if hasattr(state, k):
+                    curr = getattr(state, k)
+                    updates[k] = curr + v
 
+            return state.update(**updates)
 
-# --- Department: Product ---
-def product_strategy(state: CompanyState) -> CompanyState:
-    """Product Manager defines the scope."""
-    s = state.update()
+        g.entry_point = "Execute"
+        return g
 
-    if s.risk_level == "High" and "AI-Powered Surveillance" not in s.features:
-        # We use a list for logs so it appends
-        return s.update(
-            features=[*s.features, "AI-Powered Surveillance"],
-            compliance_score=s.compliance_score - 30,
-            logs=["Product added 'AI Surveillance' feature."],
-        )
-    if "AI Chatbot" not in s.features:
-        return s.update(
-            features=[*s.features, "AI Chatbot"],
-            logs=["Product added 'AI Chatbot' feature."],
-        )
+    marketing = create_dept("Marketing", "Boost reputation and market share.")
+    engineering = create_dept("Engineering", "Improve quality and reduce debt.")
+    hr = create_dept("HR", "Hire talent and improve happiness.")
+    ops = create_dept("Operations", "Reduce burn rate.")
 
-    return s
-
-
-# --- LLM Prompts ---
-
-engineering_prompt = """
-You are the CTO. Analyze the requested features: {{state.features}}.
-Estimate the development cost.
-- 'AI-Powered Surveillance' costs $500,000.
-- 'AI Chatbot' costs $100,000.
-
-Return the total cost and your reasoning.
-"""
-
-finance_prompt = """
-You are the CFO. Review the current budget: ${{state.budget}} and risk level: {{state.risk_level}}.
-Decision Policy:
-- If Budget < $100,000, REJECT.
-- If Risk is 'Critical', REJECT.
-- Otherwise, APPROVE.
-
-Return your decision and reasoning.
-"""
-
-legal_prompt = """
-You are General Counsel. Review 'compliance_score' ({{state.compliance_score}}) and 'features'.
-Policy:
-- If compliance_score < 70, require changes.
-- If features contains "Surveillance", decrease 'reputation' by 10.
-- If compliance_score >= 70, approve.
-
-Return your decision and any adjustments.
-"""
-
-# ==============================================================================
-# 5. Topology Setup
-# ==============================================================================
-
-
-def build_company_graph() -> Graph:
-    graph = Graph(
-        name="CorpSim_v1", state_type=CompanyState, twin=CompanyConstitution()
+    # 4. Assembly
+    return Swarm(
+        name="ComplexCorp",
+        supervisor=ceo.as_node(),
+        workers=[
+            marketing.as_node(),
+            engineering.as_node(),
+            hr.as_node(),
+            ops.as_node(),
+        ],
+        router_func=lambda s: (
+            s.next_action if s.next_action != "EndSimulation" else None
+        ),
+        state_type=CompanyState,
+        governor=governor,
+        twin=BusinessTwin(),
     )
-
-    # Register Nodes
-    graph.task(product_strategy, name="ProductStrategy")
-
-    mock = None if os.environ.get("GEMINI_API_KEY") else mock_company_responder
-
-    @graph.node(
-        adk_config=adk_config,
-        name="EngineeringDept",
-        output_schema=EngineeringOutput,
-        mock_responder=mock,
-    )
-    def engineering_dept(state: CompanyState, result: EngineeringOutput):
-        return state.update(
-            budget=state.budget - result.cost,
-            logs=[f"CTO: {result.reasoning} (Cost: ${result.cost:,.2f})"],
-        )
-
-    engineering_dept.__doc__ = engineering_prompt
-
-    @graph.node(
-        adk_config=adk_config,
-        name="FinanceDept",
-        output_schema=FinanceOutput,
-        mock_responder=mock,
-    )
-    def finance_dept(state: CompanyState, result: FinanceOutput):
-        return state.update(
-            is_approved_by_finance=result.is_approved,
-            logs=[f"CFO: {result.reasoning} (Approved: {result.is_approved})"],
-        )
-
-    finance_dept.__doc__ = finance_prompt
-
-    @graph.node(
-        adk_config=adk_config,
-        name="LegalDept",
-        output_schema=LegalOutput,
-        mock_responder=mock,
-    )
-    def legal_dept(state: CompanyState, result: LegalOutput):
-        new_compliance = state.compliance_score
-        if result.compliance_fix_applied:
-            new_compliance += 10
-
-        return state.update(
-            is_approved_by_legal=result.is_approved,
-            reputation=state.reputation - result.reputation_hit,
-            compliance_score=new_compliance,
-            logs=[f"Legal: {result.reasoning} (Approved: {result.is_approved})"],
-        )
-
-    legal_dept.__doc__ = legal_prompt
-
-    @graph.task
-    def launch_day(state: CompanyState):
-        s = state.update(is_launched=True, logs=["🚀 PRODUCT LAUNCHED!"])
-        s.record_reward(100.0)
-        return s
-
-    @graph.task
-    def bankruptcy(state: CompanyState):
-        s = state.update(logs=["💀 COMPANY BANKRUPT."])
-        s.record_reward(-100.0)
-        return s
-
-    @graph.task
-    def market_simulation(state: CompanyState):
-        if state.reputation > 80:
-            s = state.update(
-                budget=state.budget + 500_000, logs=["Market loves it! Revenue +$500k"]
-            )
-            s.record_reward(50.0)
-            return s
-        return state.update(logs=["Market backlash. Revenue stagnant."])
-
-    @graph.task(name="CEO_Office")
-    def ceo_node(state: CompanyState):
-        return state
-
-    graph.add_transition("ProductStrategy", "EngineeringDept")
-    graph.add_transition("EngineeringDept", "FinanceDept")
-    graph.add_transition("FinanceDept", "CEO_Office")
-    graph.add_transition("LegalDept", "CEO_Office")
-
-    graph.route(
-        "CEO_Office",
-        {
-            "ProductStrategy": lambda s: (
-                not s.is_approved_by_finance and s.budget >= 50_000
-            ),
-            "Bankruptcy": lambda s: not s.is_approved_by_finance and s.budget < 50_000,
-            "LegalDept": lambda s: (
-                s.is_approved_by_finance and not s.is_approved_by_legal
-            ),
-            "LaunchDay": lambda s: s.is_approved_by_finance and s.is_approved_by_legal,
-        },
-    )
-
-    graph.add_transition("LaunchDay", "MarketSimulation")
-    graph.entry_point = "ProductStrategy"
-
-    return graph
 
 
 # ==============================================================================
-# 6. Execution & Analysis
+# 7. Main Loop
 # ==============================================================================
 
 
 async def main():
-    print("\n🏢 Initializing Company Digital Twin...")
-    graph = build_company_graph()
+    print("🏢 Starting Complex Corporate Simulation...")
+    swarm = build_complex_corp()
+    twin = BusinessTwin()
 
-    manager = ScenarioManager(graph)
-    base_state = CompanyState()
+    state = CompanyState(
+        budget=1_500_000.0,
+        logs=["Simulation Start: Seed capital $1.5M"],
+    )
 
-    scenarios = [
-        Scenario(
-            name="Safe Mode",
-            state_overrides={"risk_level": "Low", "budget": 200_000.0},
-            n_runs=1,
-        ),
-        Scenario(
-            name="Crisis Mode",
-            state_overrides={"risk_level": "High", "budget": 600_000.0},
-            n_runs=1,
-        ),
-        Scenario(
-            name="Deep Pockets",
-            state_overrides={"risk_level": "High", "budget": 5_000_000.0},
-            n_runs=1,
-        ),
-    ]
+    # Simulation runs for 4 Quarters
+    for q in range(1, 5):
+        print(f"\n--- Quarter {q} ---")
+        state = state.update(quarter=q)
 
-    print("🧠 Running Strategic Analysis (Monte Carlo)...")
-    results = await manager.run_scenarios(base_state, scenarios, max_concurrency=2)
+        # Run Swarm for 3 steps per quarter (multiple decisions)
+        for _step in range(3):
+            try:
+                state = await swarm.run(state)
+                if state.next_action == "EndSimulation":
+                    break
+            except MemoryError as e:
+                print(f"🚨 RESOURCE HALT: {e}")
+                return
 
-    print("\n📊 --- ANALYSIS REPORT ---")
-    for res in results:
-        print(f"\nScenario: {res.scenario_name}")
-        print(f"  Success Rate (Launch): {res.success_rate:.1%}")
-        print(f"  Avg Reward: {res.avg_reward:.2f}")
-        print(f"  Avg Steps: {res.avg_steps:.1f}")
+        # End of Quarter Market Evolution
+        state = await twin.evolve_world(state)
 
-        if res.runs:
-            example = res.runs[0]
-            print("  Trace Excerpt:")
-            for log in example.final_state.logs[-3:]:
-                print(f"    - {log}")
+        print(f"Budget: ${state.budget:,.0f} | Revenue: ${state.revenue:,.0f}")
+        print(
+            f"Share: {state.market_share:.1f}% | Quality: {state.product_quality:.1f}"
+        )
+
+        if state.budget < 0:
+            print("💸 BANKRUPTCY. Company dissolved.")
+            break
+
+    print("\n📊 --- Final Results ---")
+    print(f"Total Revenue: ${state.revenue:,.2f}")
+    print(f"Final Market Share: {state.market_share:.2f}%")
+    print(f"Final Talent Index: {state.talent_index:.1f}")
+
+    print("\n✅ Check ./xxx.log for detailed LLM logs.")
 
 
 if __name__ == "__main__":

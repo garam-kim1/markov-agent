@@ -31,6 +31,7 @@ class MonteCarloRunner[StateT: BaseState](BaseModel):
     n_runs: int = 1  # Number of times to run EACH item in dataset
     success_criteria: Callable[[StateT], bool] = Field(default=lambda _: True)
     max_concurrency: int = 10
+    memory_threshold: float = 90.0
 
     async def run_simulation(self) -> list[SimulationResult]:
         semaphore = asyncio.Semaphore(self.max_concurrency)
@@ -38,7 +39,7 @@ class MonteCarloRunner[StateT: BaseState](BaseModel):
         async def _sem_run(state: StateT, case_id: str) -> SimulationResult:
             async with semaphore:
                 # Check memory before starting
-                await memory_guard()
+                await memory_guard(self.memory_threshold)
                 return await self._run_single(state, case_id)
 
         tasks = [

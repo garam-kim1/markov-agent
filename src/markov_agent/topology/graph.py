@@ -12,6 +12,7 @@ from pydantic import ConfigDict, Field
 
 from markov_agent.core.probability import calculate_entropy
 from markov_agent.core.state import BaseState
+from markov_agent.governance.resource import ResourceGovernor  # noqa: TC001
 from markov_agent.topology.edge import Edge, Flow
 from markov_agent.topology.node import BaseNode
 
@@ -63,6 +64,7 @@ class Graph(BaseAgent):
     strict_markov: bool = False
     default_adk_config: Any = Field(default=None, exclude=True)
     twin: Any = Field(default=None, exclude=True)
+    governor: ResourceGovernor | None = Field(default=None, exclude=True)
 
     def __init__(
         self,
@@ -76,6 +78,7 @@ class Graph(BaseAgent):
         strict_markov: bool = False,
         default_adk_config: Any | None = None,
         twin: Any | None = None,
+        governor: ResourceGovernor | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(name=name, **kwargs)
@@ -87,6 +90,7 @@ class Graph(BaseAgent):
         self.strict_markov = strict_markov
         self.default_adk_config = default_adk_config
         self.twin = twin
+        self.governor = governor
 
     def node(
         self,
@@ -277,6 +281,7 @@ class Graph(BaseAgent):
         n_runs: int = 1,
         success_criteria: Callable[[Any], bool] | None = None,
         max_concurrency: int = 10,
+        memory_threshold: float = 90.0,
     ) -> list[SimulationResult]:
         """Run a Monte Carlo simulation on the graph."""
         from markov_agent.simulation.runner import MonteCarloRunner
@@ -287,6 +292,7 @@ class Graph(BaseAgent):
             n_runs=n_runs,
             success_criteria=success_criteria or (lambda _: True),
             max_concurrency=max_concurrency,
+            memory_threshold=memory_threshold,
         )
         return await runner.run_simulation()
 
@@ -549,6 +555,10 @@ class Graph(BaseAgent):
         # ctx.session.state is a MutableMapping (dict-like)
 
         while steps < self.max_steps:
+            # Resource Safety Enforcement
+            if self.governor:
+                self.governor.enforce()
+
             if current_node_id not in self.nodes:
                 yield Event(author=self.name, actions=EventActions(escalate=True))
                 break
@@ -608,8 +618,12 @@ class Graph(BaseAgent):
                     ctx.session.state["history"] = []
 
                 # Use standard format expected by tests
+                # Crucial: Exclude 'history' from the state snapshot to prevent O(N^2) growth
+                snapshot = {
+                    k: v for k, v in ctx.session.state.items() if k != "history"
+                }
                 ctx.session.state["history"].append(
-                    {"node": current_node_id, "state": copy.deepcopy(ctx.session.state)}
+                    {"node": current_node_id, "state": copy.deepcopy(snapshot)}
                 )
 
             # Transition Logic

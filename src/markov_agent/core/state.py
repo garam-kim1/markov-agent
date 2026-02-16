@@ -33,28 +33,31 @@ class BaseState(BaseModel):
         If a field is marked with behavior="append", new values will be
         appended to lists or concatenated to strings instead of replacing them.
         """
-        data = self.model_dump()
+        updates = {}
         for key, value in kwargs.items():
             field = self.__class__.model_fields.get(key)
-            # Check for behavior="append" in json_schema_extra
             behavior = None
             if field and field.json_schema_extra:
                 behavior = field.json_schema_extra.get("behavior")
 
-            if behavior == "append" and key in data and data[key] is not None:
-                if isinstance(data[key], list):
+            if behavior == "append" and hasattr(self, key):
+                current_val = getattr(self, key)
+                if isinstance(current_val, list):
                     if isinstance(value, list):
-                        data[key].extend(value)
+                        updates[key] = current_val + value
                     else:
-                        data[key].append(value)
-                elif isinstance(data[key], str):
-                    data[key] += str(value)
+                        updates[key] = [*current_val, value]
+                elif isinstance(current_val, str):
+                    updates[key] = (current_val or "") + str(value)
                 else:
-                    data[key] = value
+                    updates[key] = value
             else:
-                data[key] = value
+                updates[key] = value
 
-        return self.__class__.model_validate(data)
+        # Use model_copy for performance.
+        # We perform a deep copy to ensure the new state instance is independent,
+        # but model_copy is generally more efficient than model_dump + model_validate.
+        return self.model_copy(update=updates, deep=True)
 
     def record_step(self, step_data: Any) -> None:
         """Append a snapshot or step data to history."""

@@ -159,6 +159,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         # 2. Render Prompt
         try:
             prompt = self._render_prompt(state_obj)
+            logger.debug("Node '%s' rendered prompt: %s", self.name, prompt)
         except Exception:
             logger.exception("Node '%s' failed to render prompt", self.name)
             raise

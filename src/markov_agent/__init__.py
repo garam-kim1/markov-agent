@@ -5,6 +5,7 @@ Treats LLMs as Probabilistic Processing Units (PPUs) within a deterministic topo
 
 __version__ = "0.1.0"
 
+from markov_agent.core.logging import setup_llm_logging
 from markov_agent.engine.adk_wrapper import (
     ADKConfig,
     ADKController,
@@ -22,6 +23,7 @@ from markov_agent.engine.callbacks import (
     BeforeToolCallback,
     CallbackError,
 )
+from markov_agent.engine.logging_plugin import FileLoggingPlugin
 from markov_agent.engine.plugins import (
     BasePlugin,
     BaseTool,
@@ -32,6 +34,7 @@ from markov_agent.engine.plugins import (
     types,
 )
 from markov_agent.engine.runtime import AdkWebServer, RunConfig
+from markov_agent.governance.resource import ResourceGovernor
 from markov_agent.simulation.twin import BaseDigitalTwin, DigitalTwin, WorldModel
 from markov_agent.topology.evolution import TopologyOptimizer
 
@@ -53,13 +56,16 @@ __all__ = [
     "CallbackContext",
     "CallbackError",
     "DigitalTwin",
+    "FileLoggingPlugin",
     "LlmRequest",
     "LlmResponse",
+    "ResourceGovernor",
     "RetryPolicy",
     "RunConfig",
     "ToolContext",
     "TopologyOptimizer",
     "WorldModel",
     "model_config",
+    "setup_llm_logging",
     "types",
 ]
