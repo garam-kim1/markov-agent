@@ -18,6 +18,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
 from google.adk.tools import load_memory as load_memory_tool
 from google.genai import types
+from json_repair import repair_json
 from pydantic import BaseModel, ConfigDict, Field
 
 from markov_agent.core.services import ServiceRegistry
@@ -526,9 +527,34 @@ class ADKController:
                             cleaned_text = cleaned_text.replace("```", "", 1)
                             cleaned_text = cleaned_text.removesuffix("```")
 
-                        result = output_schema.model_validate_json(cleaned_text.strip())
+                        # Use repair_json for more robustness
+                        # We try with schema guidance first
+                        try:
+                            repaired_obj = repair_json(
+                                cleaned_text.strip(),
+                                return_objects=True,
+                                schema=output_schema,
+                            )
+                        except Exception:
+                            # Fallback to standard repair if guided fails
+                            repaired_obj = repair_json(
+                                cleaned_text.strip(),
+                                return_objects=True,
+                            )
+
+                        if isinstance(repaired_obj, str) and repaired_obj == "":
+                            # If it's still an empty string, try standard validation
+                            # which might give a better error message or handle
+                            # cases we didn't expect.
+                            result = output_schema.model_validate_json(
+                                cleaned_text.strip()
+                            )
+                        else:
+                            result = output_schema.model_validate(repaired_obj)
                     except Exception:
-                        logger.exception("Failed to parse model output as JSON")
+                        logger.exception(
+                            "Failed to parse model output as JSON (even with repair)"
+                        )
                         logger.debug("Raw output: %s", raw_text)
                         raise
 
