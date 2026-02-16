@@ -46,6 +46,19 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
 
 ## CODING RULES
 * **Initialization:** Explicit `ADKConfig` and `RetryPolicy`. No magic defaults.
+    * **Gemini Example:**
+      ```python
+      ADKConfig(model_name="gemini-3-flash-preview", api_key=os.environ.get("GEMINI_API_KEY"))
+      ```
+    * **Local LLM Example:**
+      ```python
+      ADKConfig(
+          model_name="openai/Qwen3-0.6B-Q4_K_M.gguf",
+          api_base="http://192.168.1.213:8080/v1",
+          api_key="no-key",
+          use_litellm=True,
+      )
+      ```
 * **PPU Logic:** Favor parallel sampling (`execute_parallel_sampling`) for reliability.
 * **Async:** All LLM and Graph operations MUST be `async`.
 * **Events:** Emit via `event_bus`. Use `rich` for CLI observability.

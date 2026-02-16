@@ -32,6 +32,8 @@ from markov_agent.engine.plugins import (
     types,
 )
 from markov_agent.engine.runtime import AdkWebServer, RunConfig
+from markov_agent.simulation.twin import BaseDigitalTwin, DigitalTwin, WorldModel
+from markov_agent.topology.evolution import TopologyOptimizer
 
 __all__ = [
     "ADKConfig",
@@ -42,6 +44,7 @@ __all__ = [
     "AfterToolCallback",
     "Agent",
     "BaseCallback",
+    "BaseDigitalTwin",
     "BasePlugin",
     "BaseTool",
     "BeforeAgentCallback",
@@ -49,11 +52,14 @@ __all__ = [
     "BeforeToolCallback",
     "CallbackContext",
     "CallbackError",
+    "DigitalTwin",
     "LlmRequest",
     "LlmResponse",
     "RetryPolicy",
     "RunConfig",
     "ToolContext",
+    "TopologyOptimizer",
+    "WorldModel",
     "model_config",
     "types",
 ]
