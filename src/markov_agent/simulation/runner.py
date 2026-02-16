@@ -4,6 +4,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from markov_agent.core.monitoring import memory_guard
 from markov_agent.core.state import BaseState
 from markov_agent.topology.graph import Graph
 
@@ -29,11 +30,19 @@ class MonteCarloRunner[StateT: BaseState](BaseModel):
     dataset: list[StateT]
     n_runs: int = 1  # Number of times to run EACH item in dataset
     success_criteria: Callable[[StateT], bool] = Field(default=lambda _: True)
+    max_concurrency: int = 10
 
     async def run_simulation(self) -> list[SimulationResult]:
+        semaphore = asyncio.Semaphore(self.max_concurrency)
+
+        async def _sem_run(state: StateT, case_id: str) -> SimulationResult:
+            async with semaphore:
+                # Check memory before starting
+                await memory_guard()
+                return await self._run_single(state, case_id)
 
         tasks = [
-            self._run_single(state.model_copy(deep=True), f"case_{i}")
+            _sem_run(state.model_copy(deep=True), f"case_{i}")
             for i, state in enumerate(self.dataset)
             for _ in range(self.n_runs)
         ]

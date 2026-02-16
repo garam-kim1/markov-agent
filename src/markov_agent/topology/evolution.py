@@ -43,7 +43,7 @@ class TopologyOptimizer:
         # 2. Identify edges to prune
         to_remove: list[Edge] = []
         for edge_obj in self.graph.edges:
-            if not edge_obj.target:
+            if not edge_obj.target or not edge_obj.source:
                 continue
 
             pair = (edge_obj.source, edge_obj.target)
@@ -125,3 +125,55 @@ class TopologyOptimizer:
                     self.graph.edges.append(new_edge)
 
         return True
+
+    def learn_from_rewards(
+        self, results: list[SimulationResult], learning_rate: float = 0.1
+    ) -> dict[tuple[str, str], float]:
+        """Update transition probabilities based on cumulative rewards.
+
+        This implements 'MDP for Evolution' by updating edge weights.
+        """
+        # 1. Calculate average reward per edge
+        edge_rewards: dict[tuple[str, str], list[float]] = {}
+
+        for res in results:
+            traj = res.trajectory
+            # reward could be in res.final_state.reward if it's a BaseState
+            reward = getattr(res.final_state, "reward", 0.0)
+            if not reward and hasattr(res.final_state, "meta"):
+                reward = res.final_state.meta.get("reward", 0.0)
+
+            for i in range(len(traj) - 1):
+                src = traj[i].get("node")
+                dst = traj[i + 1].get("node")
+                if src and dst:
+                    edge = (src, dst)
+                    if edge not in edge_rewards:
+                        edge_rewards[edge] = []
+                    edge_rewards[edge].append(reward)
+
+        avg_rewards = {edge: sum(r) / len(r) for edge, r in edge_rewards.items() if r}
+
+        # 2. Update Edge distributions
+        updates = {}
+        for edge_obj in self.graph.edges:
+            if edge_obj.target_func:
+                continue
+
+            if not edge_obj.source or not edge_obj.target:
+                continue
+
+            pair = (edge_obj.source, edge_obj.target)
+            if pair in avg_rewards:
+                reward_signal = avg_rewards[pair]
+                # Adjust weight using learning rate and reward signal
+                # New weight is calculated as old_weight * (1 + learning_rate * reward)
+                # Ensure weight doesn't go below a small epsilon
+                old_weight = getattr(edge_obj, "weight", 1.0)
+                new_weight = max(
+                    0.01, old_weight * (1.0 + learning_rate * reward_signal)
+                )
+                edge_obj.weight = new_weight
+                updates[pair] = new_weight
+
+        return updates

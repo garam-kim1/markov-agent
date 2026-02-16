@@ -21,6 +21,11 @@ class BaseState(BaseModel):
         description="Metadata tracking for the current state (e.g. confidence, probabilities).",
     )
 
+    reward: float = Field(
+        default=0.0,
+        description="Cumulative reward for the current trajectory.",
+    )
+
     def update(self, **kwargs: Any) -> Self:
         """Return a new instance of the state with updated fields.
 
@@ -54,6 +59,10 @@ class BaseState(BaseModel):
     def record_step(self, step_data: Any) -> None:
         """Append a snapshot or step data to history."""
         self.history.append(step_data)
+
+    def record_reward(self, amount: float) -> None:
+        """Add to the cumulative reward."""
+        self.reward += amount
 
     def get_markov_view(self) -> Any:
         """Return a view of the state that excludes history and meta.

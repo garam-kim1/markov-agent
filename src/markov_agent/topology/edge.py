@@ -35,6 +35,7 @@ class Edge:
         condition: Callable[[Any], bool] | None = None,
         *,
         default: bool = False,
+        weight: float = 1.0,
     ):
         self.source = source
         # Backward compatibility for Edge(source, target_func)
@@ -47,6 +48,7 @@ class Edge:
 
         self.condition = condition
         self.default = default
+        self.weight = weight
 
     def get_distribution(self, state: Any) -> TransitionDistribution:
         """Calculate the transition probability distribution."""
@@ -87,11 +89,11 @@ class Edge:
         if self.condition:
             try:
                 if self.condition(view):
-                    return {self.target: 1.0}
+                    return {self.target: self.weight}
             except Exception:
                 return {}
         elif self.default or not self.condition:
-            return {self.target: 1.0}
+            return {self.target: self.weight}
 
         return {}
 

@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Protocol, TypeVar, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
 from markov_agent.core.state import BaseState
 
-StateT = TypeVar("StateT", bound=BaseState)
-
 
 @runtime_checkable
-class DigitalTwin(Protocol[StateT]):
+class DigitalTwin[StateT: BaseState](Protocol):
     """An Active Digital Twin that enforces physical laws and business logic.
 
     In the Adaptive Systems paradigm, the Twin is the 'Shell'—the immutable
@@ -26,12 +24,12 @@ class DigitalTwin(Protocol[StateT]):
         ...
 
 
-class BaseDigitalTwin(BaseModel):
+class BaseDigitalTwin[StateT: BaseState](BaseModel):
     """Base implementation for a Digital Twin."""
 
     constraints: dict[str, Any] = Field(default_factory=dict)
 
-    async def validate_transition(self, current: BaseState, proposed: BaseState) -> bool:
+    async def validate_transition(self, current: StateT, proposed: StateT) -> bool:
         """Default validation: allow everything unless overridden."""
         return True
 
@@ -40,13 +38,13 @@ class BaseDigitalTwin(BaseModel):
         return state
 
 
-class WorldModel:
+class WorldModel[StateT: BaseState]:
     """A wrapper that allows an Agent to 'Dream' using its Digital Twin.
 
     This implements the 'Offline Simulation' phase described in the report.
     """
 
-    def __init__(self, twin: DigitalTwin):
+    def __init__(self, twin: DigitalTwin[StateT]):
         self.twin = twin
 
     async def predict(self, state: StateT, action: Any) -> StateT:

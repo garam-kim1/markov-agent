@@ -62,6 +62,7 @@ class Graph(BaseAgent):
     input_key: str = "input_text"
     strict_markov: bool = False
     default_adk_config: Any = Field(default=None, exclude=True)
+    twin: Any = Field(default=None, exclude=True)
 
     def __init__(
         self,
@@ -74,6 +75,7 @@ class Graph(BaseAgent):
         *,
         strict_markov: bool = False,
         default_adk_config: Any | None = None,
+        twin: Any | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(name=name, **kwargs)
@@ -84,6 +86,7 @@ class Graph(BaseAgent):
         self.input_key = input_key
         self.strict_markov = strict_markov
         self.default_adk_config = default_adk_config
+        self.twin = twin
 
     def node(
         self,
@@ -135,7 +138,7 @@ class Graph(BaseAgent):
         if prompt_template:
             prompt_template = textwrap.dedent(prompt_template).strip()
 
-        node_name = getattr(func, "__name__", str(func))
+        node_name = kwargs.pop("name", getattr(func, "__name__", str(func)))
 
         # Only use as state_updater if it takes (state, result)
         state_updater = None
@@ -209,6 +212,7 @@ class Graph(BaseAgent):
         condition: Callable[[Any], bool] | None = None,
         *,
         default: bool = False,
+        weight: float = 1.0,
     ) -> None:
         """Add a transition between nodes."""
         edge_target = target if isinstance(target, str) else None
@@ -223,6 +227,7 @@ class Graph(BaseAgent):
             target_func=edge_func,
             condition=condition,
             default=default,
+            weight=weight,
         )
         self.edges.append(edge)
 
@@ -271,6 +276,7 @@ class Graph(BaseAgent):
         dataset: list[Any],
         n_runs: int = 1,
         success_criteria: Callable[[Any], bool] | None = None,
+        max_concurrency: int = 10,
     ) -> list[SimulationResult]:
         """Run a Monte Carlo simulation on the graph."""
         from markov_agent.simulation.runner import MonteCarloRunner
@@ -280,6 +286,7 @@ class Graph(BaseAgent):
             dataset=dataset,
             n_runs=n_runs,
             success_criteria=success_criteria or (lambda _: True),
+            max_concurrency=max_concurrency,
         )
         return await runner.run_simulation()
 
@@ -555,12 +562,42 @@ class Graph(BaseAgent):
                 ),
             )
 
+            # Capture state before execution for validation
+            state_before = copy.deepcopy(ctx.session.state)
+
             # Execute Node
             # We call the node's ADK implementation directly
             # This allows the node to read/write to ctx.session.state
             history_before = len(ctx.session.state.get("history", []))
             async for event in current_node._run_async_impl(ctx):
                 yield event
+
+            # Digital Twin Validation (Shell Enforcement)
+            if self.twin:
+                try:
+                    # Construct state objects for validation if possible
+                    if self.state_type:
+                        current_s = self.state_type.model_validate(state_before)
+                        proposed_s = self.state_type.model_validate(ctx.session.state)
+                    else:
+                        current_s = state_before
+                        proposed_s = ctx.session.state
+
+                    is_valid = await self.twin.validate_transition(
+                        current_s, proposed_s
+                    )
+                    if not is_valid:
+                        console.log(
+                            f"[bold red]Digital Twin Violation[/bold red] at {current_node_id}! "
+                            "Reverting state changes."
+                        )
+                        # Revert state to before node execution
+                        ctx.session.state.clear()
+                        ctx.session.state.update(state_before)
+                        # Break or transition to an error node could be added here
+                        break
+                except Exception as e:
+                    console.log(f"[bold yellow]Validation Error:[/bold yellow] {e}")
 
             # Record step in history for trajectory analysis IF the node didn't record it
             # This avoids double-recording for nodes like ProbabilisticNode that
