@@ -577,15 +577,6 @@ class ADKController:
                 if output_schema:
                     try:
                         cleaned_text = raw_text.strip()
-                        # Some models might still wrap in markdown
-                        # even with structured output enforced
-                        if cleaned_text.startswith("```json"):
-                            cleaned_text = cleaned_text.replace("```json", "", 1)
-                            cleaned_text = cleaned_text.removesuffix("```")
-                        elif cleaned_text.startswith("```"):
-                            cleaned_text = cleaned_text.replace("```", "", 1)
-                            cleaned_text = cleaned_text.removesuffix("```")
-
                         # Use repair_json for more robustness
                         # We try with schema guidance first
                         try:
