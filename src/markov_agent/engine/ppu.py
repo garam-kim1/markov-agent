@@ -233,6 +233,18 @@ class ProbabilisticNode(BaseNode[StateT]):
             except Exception:
                 selection_confidence = 1.0 / len(results)
 
+        # Extract reasoning from the selected result
+        reasoning = getattr(result, "_reasoning", None) or getattr(
+            result, "reasoning", None
+        )
+        if reasoning and isinstance(reasoning, str):
+            if hasattr(state_obj, "meta"):
+                cast("Any", state_obj).meta["reasoning"] = reasoning
+            elif isinstance(state_obj, dict):
+                if "meta" not in state_obj:
+                    state_obj["meta"] = {}
+                state_obj["meta"]["reasoning"] = reasoning
+
         # 6. Update State
         if hasattr(state_obj, "record_probability") and callable(
             state_obj.record_probability
@@ -512,6 +524,13 @@ class ProbabilisticNode(BaseNode[StateT]):
 
         # Record in history
         state.record_step({"node": self.name, "output": output_payload})
+
+        # Extract reasoning if available
+        reasoning = getattr(result, "_reasoning", None) or getattr(
+            result, "reasoning", None
+        )
+        if reasoning and isinstance(reasoning, str):
+            state.meta["reasoning"] = reasoning
 
         # Smart Mapping Logic
         if isinstance(output_payload, dict):

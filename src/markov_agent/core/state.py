@@ -26,6 +26,11 @@ class BaseState(BaseModel):
         description="Cumulative reward for the current trajectory.",
     )
 
+    @property
+    def reasoning(self) -> str | None:
+        """Return the reasoning/thought process from the last LLM invocation if available."""
+        return self.meta.get("reasoning")
+
     def update(self, **kwargs: Any) -> Self:
         """Return a new instance of the state with updated fields.
 

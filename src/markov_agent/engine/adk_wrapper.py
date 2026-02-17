@@ -1,9 +1,10 @@
 import asyncio
+import contextlib
 import logging
 import os
 import uuid
 from collections.abc import AsyncGenerator, Callable
-from typing import Any, TypeVar, override
+from typing import Any, Self, TypeVar, override
 
 from google.adk.agents import Agent, LiveRequestQueue
 from google.adk.agents.readonly_context import ReadonlyContext
@@ -104,9 +105,32 @@ class MockLlm(BaseLlm):
         if asyncio.iscoroutine(result):
             result = await result
 
-        yield LlmResponse(
-            content=types.Content(role="model", parts=[types.Part(text=str(result))])
-        )
+        parts = []
+        if isinstance(result, dict) and ("text" in result or "thought" in result):
+            if "thought" in result:
+                parts.append(types.Part(text=str(result["thought"]), thought=True))
+            if "text" in result:
+                parts.append(types.Part(text=str(result["text"])))
+        else:
+            parts.append(types.Part(text=str(result)))
+
+        yield LlmResponse(content=types.Content(role="model", parts=parts))
+
+
+class ResultWithReasoning(str):
+    """A string that carries an optional reasoning/thought process."""
+
+    __slots__ = ("_reasoning",)
+    _reasoning: str | None
+
+    def __new__(cls, value: str, reasoning: str | None = None) -> Self:
+        instance = super().__new__(cls, value)
+        object.__setattr__(instance, "_reasoning", reasoning)
+        return instance
+
+    @property
+    def reasoning(self) -> str | None:
+        return self._reasoning
 
 
 class ADKController:
@@ -470,6 +494,7 @@ class ADKController:
             content = types.Content(role="user", parts=[types.Part(text=final_prompt)])
 
             final_text = ""
+            reasoning = ""
             adk_run_config = run_config.to_adk_run_config() if run_config else None
             async for event in controller.runner.run_async(
                 user_id=run_config.user_email
@@ -481,9 +506,17 @@ class ADKController:
             ):
                 if event.is_final_response():
                     if event.content and event.content.parts:
-                        final_text = "".join(
-                            p.text for p in event.content.parts if p.text
-                        )
+                        parts = event.content.parts
+                        # Separate thought parts (reasoning) from content
+                        content_parts = [
+                            p for p in parts if not getattr(p, "thought", False)
+                        ]
+                        thought_parts = [
+                            p for p in parts if getattr(p, "thought", False)
+                        ]
+
+                        final_text = "".join(p.text for p in content_parts if p.text)
+                        reasoning = "".join(p.text for p in thought_parts if p.text)
                     break
 
             # Retrieve final state
@@ -495,6 +528,12 @@ class ADKController:
                 session_id=session_id,
             )
             final_state = final_session.state if final_session else {}
+
+            # Inject reasoning into state meta if present
+            if reasoning:
+                if "meta" not in final_state:
+                    final_state["meta"] = {}
+                final_state["meta"]["reasoning"] = reasoning
 
             return final_text, final_state
 
@@ -557,6 +596,15 @@ class ADKController:
                         )
                         logger.debug("Raw output: %s", raw_text)
                         raise
+
+                # Attach reasoning to the result object
+                reasoning = final_state.get("meta", {}).get("reasoning")
+                if reasoning:
+                    if isinstance(result, BaseModel):
+                        with contextlib.suppress(Exception):
+                            object.__setattr__(result, "_reasoning", reasoning)
+                    elif isinstance(result, str):
+                        result = ResultWithReasoning(result, reasoning)
 
                 if include_state:
                     return result, final_state

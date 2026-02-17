@@ -280,7 +280,9 @@ async def test_controller_request_construction_with_runner_mock():
             # yield a mock event
             mock_event = MagicMock()
             mock_event.is_final_response.return_value = True
-            mock_event.content.parts = [MagicMock(text="Real Run Response")]
+            from google.genai import types
+
+            mock_event.content.parts = [types.Part(text="Real Run Response")]
             yield mock_event
 
         # Use side_effect so the mock records calls but executes our function
