@@ -26,7 +26,11 @@ from markov_agent.core.services import ServiceRegistry
 from markov_agent.engine.plugins import BasePlugin
 from markov_agent.engine.runtime import RunConfig
 from markov_agent.engine.telemetry_plugin import MarkovBridgePlugin
-from markov_agent.engine.token_utils import count_tokens, reduce_text_to_tokens
+from markov_agent.engine.token_utils import (
+    ReductionStrategy,
+    count_tokens,
+    reduce_text_to_tokens,
+)
 
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
@@ -44,8 +48,10 @@ class ADKConfig(BaseModel):
     presence_penalty: float | None = None
     max_tokens: int | None = None
     max_input_tokens: int | None = None
+    reduction_strategy: ReductionStrategy = ReductionStrategy.GREEDY
     reduction_prompt: str | None = None
     reduction_model_name: str | None = None
+    recency_weight: float = 2.0
     safety_settings: list[Any] = Field(default_factory=list)
     api_base: str | None = None
     api_key: str | None = None
@@ -792,16 +798,28 @@ class ADKController:
         # Allocate 60% of remaining to prompt
         prompt_limit = int(remaining_budget * 0.75)
         if prompt_tokens > prompt_limit:
-            if self.config.reduction_prompt:
+            if (
+                self.config.reduction_strategy == ReductionStrategy.LLM
+                and self.config.reduction_prompt
+            ):
                 logger.info("Using LLM for prompt reduction")
                 prompt = await self._run_reduction_llm(
                     prompt, self.config.reduction_prompt, prompt_limit
                 )
             else:
                 logger.info(
-                    "Reducing prompt from %s to %s tokens", prompt_tokens, prompt_limit
+                    "Reducing prompt from %s to %s tokens using strategy %s",
+                    prompt_tokens,
+                    prompt_limit,
+                    self.config.reduction_strategy,
                 )
-                prompt = reduce_text_to_tokens(prompt, prompt_limit, model_name)
+                prompt = reduce_text_to_tokens(
+                    prompt,
+                    prompt_limit,
+                    model_name,
+                    strategy=self.config.reduction_strategy,
+                    recency_weight=self.config.recency_weight,
+                )
             prompt_tokens = count_tokens(prompt, model_name)
 
         remaining_budget -= prompt_tokens
@@ -818,20 +836,28 @@ class ADKController:
                 # If this key alone is more than half of state budget, reduce it
                 if val_tokens > (remaining_budget // 2) and remaining_budget > 20:
                     limit = max(20, remaining_budget // 2)
-                    if self.config.reduction_prompt:
+                    if (
+                        self.config.reduction_strategy == ReductionStrategy.LLM
+                        and self.config.reduction_prompt
+                    ):
                         logger.info("Using LLM for state key '%s' reduction", k)
                         new_state[k] = await self._run_reduction_llm(
                             new_state[k], self.config.reduction_prompt, limit
                         )
                     else:
                         logger.info(
-                            "Reducing state key '%s' from %s to %s tokens",
+                            "Reducing state key '%s' from %s to %s tokens using strategy %s",
                             k,
                             val_tokens,
                             limit,
+                            self.config.reduction_strategy,
                         )
                         new_state[k] = reduce_text_to_tokens(
-                            new_state[k], limit, model_name
+                            new_state[k],
+                            limit,
+                            model_name,
+                            strategy=self.config.reduction_strategy,
+                            recency_weight=self.config.recency_weight,
                         )
                     remaining_budget -= count_tokens(new_state[k], model_name)
                 else:
@@ -874,8 +900,18 @@ class ADKController:
             result = await reduction_ctrl.generate(reduction_full_prompt)
             return str(result)
         except Exception as e:
-            logger.warning("LLM reduction failed, falling back to truncation: %s", e)
-            return reduce_text_to_tokens(text, max_tokens, str(model_to_use))
+            logger.warning(
+                "LLM reduction failed, falling back to %s strategy: %s",
+                self.config.reduction_strategy,
+                e,
+            )
+            return reduce_text_to_tokens(
+                text,
+                max_tokens,
+                str(model_to_use),
+                strategy=self.config.reduction_strategy,
+                recency_weight=self.config.recency_weight,
+            )
 
 
 def model_config(

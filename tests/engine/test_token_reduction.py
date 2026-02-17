@@ -2,6 +2,7 @@ import pytest
 
 from markov_agent.engine.adk_wrapper import ADKConfig
 from markov_agent.engine.agent import VerifiedAgent
+from markov_agent.engine.token_utils import ReductionStrategy
 
 
 @pytest.mark.asyncio
@@ -72,7 +73,10 @@ async def test_llm_based_reduction():
         return f"FINAL_RESPONSE_WITH_{prompt}"
 
     config = ADKConfig(
-        model_name="mock-model", max_input_tokens=50, reduction_prompt="REDUCE THIS"
+        model_name="mock-model",
+        max_input_tokens=50,
+        reduction_strategy=ReductionStrategy.LLM,
+        reduction_prompt="REDUCE THIS",
     )
 
     controller = ADKController(
@@ -85,3 +89,53 @@ async def test_llm_based_reduction():
 
     # The final prompt should contain the reduced version
     assert "REDUCED_BY_LLM" in result
+
+
+@pytest.mark.asyncio
+async def test_importance_sampling_reduction():
+    from markov_agent.engine.adk_wrapper import ADKController, RetryPolicy
+    from markov_agent.engine.token_utils import ReductionStrategy
+
+    received_prompt = ""
+
+    def mock_responder(prompt: str) -> str:
+        nonlocal received_prompt
+        received_prompt = prompt
+        return "ok"
+
+    config = ADKConfig(
+        model_name="mock-model",
+        max_input_tokens=50,
+        reduction_strategy=ReductionStrategy.IMPORTANCE,
+        recency_weight=5.0,
+    )
+
+    controller = ADKController(
+        config=config, retry_policy=RetryPolicy(), mock_responder=mock_responder
+    )
+
+    # A prompt with some rare words and repetitive words
+    # Rare words: 'Zylophone', 'Quasar', 'Nebula'
+    # Repetitive: 'the', 'is', 'a'
+    prompt = (
+        "the is a " * 20
+        + "Zylophone "
+        + "the is a " * 20
+        + "Quasar "
+        + "the is a " * 20
+        + "Nebula"
+    )
+
+    await controller.generate(prompt)
+
+    # Check if rare words are preserved
+    assert "Zylophone" in received_prompt
+    assert "Quasar" in received_prompt
+    assert "Nebula" in received_prompt
+
+    # Check that it's within token limit
+    from markov_agent.engine.token_utils import count_tokens
+
+    assert count_tokens(received_prompt) <= 50
+    # Unlike greedy, importance sampling shouldn't have [TRUNCATED] unless we add it
+    assert "[TRUNCATED]" not in received_prompt

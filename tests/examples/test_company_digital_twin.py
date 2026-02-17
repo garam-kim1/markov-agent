@@ -18,11 +18,14 @@ async def test_business_twin_evolution():
 
     new_state = await twin.evolve_world(state)
 
-    # Revenue = 10 * 200,000 * (60/50) * (70/70) * (50/50) * (30/30) = 2,000,000 * 1.2 = 2,400,000
-    # Net Revenue = 2,400,000 * 0.85 = 2,040,000
-    # New Budget = 1,000,000 + 2,040,000 - 50,000 = 2,990,000
-    assert new_state.budget == 2990000.0
-    assert new_state.revenue == 2400000.0
+    # 1. Market Capture = (10/100) * 5,000,000 = 500,000
+    # 2. Score = 0.5 + (0.6 + 0.7 + 0.5)/3 = 1.1
+    # 3. Revenue = 500,000 * 1.1 = 550,000
+    # 4. Debt Penalty = (20/100) * 0.5 = 0.1
+    # 5. Burn = 50,000 * 1.1 = 55,000
+    # 6. Budget = 1,000,000 + 550,000 - 55,000 = 1,495,000
+    assert new_state.budget == 1495000.0
+    assert new_state.revenue == 550000.0
     assert new_state.reputation < 70.0
     assert new_state.technical_debt > 20.0
 

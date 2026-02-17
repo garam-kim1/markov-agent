@@ -55,7 +55,7 @@ class CompanyState(BaseState):
 
     def record_log(self, message: str) -> "CompanyState":
         """Helper to keep logs manageable by keeping only recent ones."""
-        new_logs = self.logs + [message]
+        new_logs = [*self.logs, message]
         if len(new_logs) > 50:
             new_logs = new_logs[-50:]
         return self.update(logs=new_logs)
@@ -121,6 +121,7 @@ class BusinessTwin(BaseDigitalTwin[CompanyState]):
 
     async def evolve_world(self, state: CompanyState) -> CompanyState:
         """Simulate revenue generation and decay between turns."""
+
         # Normalize metrics to prevent runaway values
         def clamp(val: float, min_v: float = 0.0, max_v: float = 100.0) -> float:
             return max(min_v, min(max_v, val))
@@ -150,7 +151,9 @@ class BusinessTwin(BaseDigitalTwin[CompanyState]):
         new_reputation = clamp(state.reputation - 2.0)
         new_quality = clamp(state.product_quality - 1.0)
         new_debt = clamp(state.technical_debt + 1.5)
-        new_sentiment = clamp(state.market_sentiment + (state.innovation_index / 100.0) - 2.0)
+        new_sentiment = clamp(
+            state.market_sentiment + (state.innovation_index / 100.0) - 2.0
+        )
 
         return state.update(
             budget=new_budget,
@@ -196,20 +199,20 @@ def build_complex_corp() -> Swarm:
         output_schema=CEOOutput,
         prompt_template="""CEO STRATEGIC DASHBOARD
         Quarter: {{quarter}} | Budget: ${{budget:,.0f}} | Total Revenue: ${{revenue:,.0f}}
-        
+
         KPI METRICS (0-100 scale):
         - Market Share: {{market_share}}%
         - Quality: {{product_quality}}
         - Innovation: {{innovation_index}}
         - Tech Debt: {{technical_debt}}
         - Sentiment: {{market_sentiment}}
-        
+
         LOGS:
         {% for log in logs[-5:] %}
         - {{ log }}
         {% endfor %}
 
-        As CEO, select the next department to activate. 
+        As CEO, select the next department to activate.
         RD boosts Innovation. Marketing boosts Share/Sentiment. Engineering boosts Quality/reduces Debt.
         Ops reduces Burn. Legal reduces Risk. HR improves Talent.
         """,
@@ -230,7 +233,7 @@ def build_complex_corp() -> Swarm:
             output_schema=DeptOutput,
             prompt_template=f"""DEPARTMENT EXECUTION: {name}
             GOAL: {goal}
-            
+
             CORPORATE STATE:
             {{{{state.model_dump_json()}}}}
 
@@ -241,7 +244,9 @@ def build_complex_corp() -> Swarm:
                 **{
                     "budget": _safe_get(state, "budget") - result.cost,
                     "next_action": "CEO",
-                    "logs": [f"{name} Report: {result.report} (Cost: ${result.cost:,.0f})"],
+                    "logs": [
+                        f"{name} Report: {result.report} (Cost: ${result.cost:,.0f})"
+                    ],
                     **{
                         k: _safe_get(state, k) + v
                         for k, v in result.metrics.items()
