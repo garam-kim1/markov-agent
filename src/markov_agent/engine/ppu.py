@@ -69,6 +69,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         state_updater: Callable[[Any, Any], Any] | None = None,
         state_type: type[StateT] | None = None,
         artifact_service: BaseArtifactService | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(name, state_type=state_type)
 
@@ -87,6 +88,16 @@ class ProbabilisticNode(BaseNode[StateT]):
                 adk_config.tools = (adk_config.tools or []) + tools
             if output_key:
                 adk_config.output_key = output_key
+
+        # Handle extra kwargs for ADKConfig (like max_input_tokens)
+        if "max_input_tokens" in kwargs:
+            adk_config.max_input_tokens = kwargs.pop("max_input_tokens")
+        if "max_tokens" in kwargs:
+            adk_config.max_tokens = kwargs.pop("max_tokens")
+        if "reduction_prompt" in kwargs:
+            adk_config.reduction_prompt = kwargs.pop("reduction_prompt")
+        if "reduction_model_name" in kwargs:
+            adk_config.reduction_model_name = kwargs.pop("reduction_model_name")
 
         self.adk_config = adk_config
         self.prompt_template = prompt_template

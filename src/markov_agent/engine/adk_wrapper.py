@@ -26,6 +26,7 @@ from markov_agent.core.services import ServiceRegistry
 from markov_agent.engine.plugins import BasePlugin
 from markov_agent.engine.runtime import RunConfig
 from markov_agent.engine.telemetry_plugin import MarkovBridgePlugin
+from markov_agent.engine.token_utils import count_tokens, reduce_text_to_tokens
 
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
@@ -42,6 +43,9 @@ class ADKConfig(BaseModel):
     frequency_penalty: float | None = None
     presence_penalty: float | None = None
     max_tokens: int | None = None
+    max_input_tokens: int | None = None
+    reduction_prompt: str | None = None
+    reduction_model_name: str | None = None
     safety_settings: list[Any] = Field(default_factory=list)
     api_base: str | None = None
     api_key: str | None = None
@@ -444,6 +448,16 @@ class ADKController:
         """
         controller = self
 
+        # Handle Context Reduction if max_input_tokens is set
+        if self.config.max_input_tokens:
+            prompt, initial_state = await self._reduce_context(
+                prompt,
+                initial_state,
+                max_tokens=self.config.max_input_tokens,
+                artifact_service=artifact_service or self.artifact_service,
+                memory_service=memory_service or self.memory_service,
+            )
+
         # Handle Overrides
         if (
             artifact_service
@@ -576,7 +590,7 @@ class ADKController:
                             )
                         except Exception:
                             # Fallback to standard repair if guided fails
-                            repaired_obj = repair_json(
+                            repaired_obj = repaired_json(
                                 cleaned_text.strip(),
                                 return_objects=True,
                             )
@@ -725,6 +739,143 @@ class ADKController:
             session_id=session_id,
         )
         return session.events if session else []
+
+    async def _reduce_context(
+        self,
+        prompt: str,
+        initial_state: dict[str, Any] | None,
+        max_tokens: int,
+        artifact_service: BaseArtifactService | None = None,
+        memory_service: BaseMemoryService | None = None,
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Reduce the size of the context to fit within max_tokens."""
+        model_name = str(self.config.model_name)
+
+        instruction_text = ""
+        if self.config.instruction and isinstance(self.config.instruction, str):
+            instruction_text = self.config.instruction
+
+        # 1. Calculate current totals
+        instruction_tokens = count_tokens(instruction_text, model_name)
+        prompt_tokens = count_tokens(prompt, model_name)
+
+        state_text = ""
+        if initial_state:
+            import json
+
+            state_text = json.dumps(initial_state)
+        state_tokens = count_tokens(state_text, model_name)
+
+        total_tokens = instruction_tokens + prompt_tokens + state_tokens
+
+        if total_tokens <= max_tokens:
+            return prompt, initial_state
+
+        logger.info(
+            "Context total tokens (%s) exceeds max_tokens (%s). Reducing...",
+            total_tokens,
+            max_tokens,
+        )
+
+        # 2. Budgeting (Dynamic)
+        # We prioritize instruction, then prompt, then state
+        remaining_budget = max_tokens
+
+        # Keep up to 20% for instruction
+        inst_limit = int(max_tokens * 0.20)
+        if instruction_tokens > inst_limit:
+            # But we can warn.
+            logger.warning("System instruction is large and might exceed its budget.")
+
+        remaining_budget -= min(instruction_tokens, inst_limit)
+
+        # Allocate 60% of remaining to prompt
+        prompt_limit = int(remaining_budget * 0.75)
+        if prompt_tokens > prompt_limit:
+            if self.config.reduction_prompt:
+                logger.info("Using LLM for prompt reduction")
+                prompt = await self._run_reduction_llm(
+                    prompt, self.config.reduction_prompt, prompt_limit
+                )
+            else:
+                logger.info(
+                    "Reducing prompt from %s to %s tokens", prompt_tokens, prompt_limit
+                )
+                prompt = reduce_text_to_tokens(prompt, prompt_limit, model_name)
+            prompt_tokens = count_tokens(prompt, model_name)
+
+        remaining_budget -= prompt_tokens
+
+        # 3. Reduce State if still over
+        if initial_state and remaining_budget > 0:
+            new_state = initial_state.copy()
+            # Sort keys by value size (strings only) to reduce largest first
+            str_keys = [k for k, v in new_state.items() if isinstance(v, str)]
+            str_keys.sort(key=lambda k: len(new_state[k]), reverse=True)
+
+            for k in str_keys:
+                val_tokens = count_tokens(new_state[k], model_name)
+                # If this key alone is more than half of state budget, reduce it
+                if val_tokens > (remaining_budget // 2) and remaining_budget > 20:
+                    limit = max(20, remaining_budget // 2)
+                    if self.config.reduction_prompt:
+                        logger.info("Using LLM for state key '%s' reduction", k)
+                        new_state[k] = await self._run_reduction_llm(
+                            new_state[k], self.config.reduction_prompt, limit
+                        )
+                    else:
+                        logger.info(
+                            "Reducing state key '%s' from %s to %s tokens",
+                            k,
+                            val_tokens,
+                            limit,
+                        )
+                        new_state[k] = reduce_text_to_tokens(
+                            new_state[k], limit, model_name
+                        )
+                    remaining_budget -= count_tokens(new_state[k], model_name)
+                else:
+                    remaining_budget -= val_tokens
+
+            initial_state = new_state
+
+        return prompt, initial_state
+
+    async def _run_reduction_llm(self, text: str, prompt: str, max_tokens: int) -> str:
+        """Use an LLM to reduce text according to a prompt."""
+        # Use a cheaper model for reduction if specified, or current model
+        model_to_use = self.config.reduction_model_name or self.config.model_name
+
+        reduction_full_prompt = (
+            f"{prompt}\n\n"
+            f"TARGET TOKEN LIMIT: {max_tokens}\n"
+            f"TEXT TO REDUCE:\n{text}\n\n"
+            "Output only the reduced text, maintaining the original meaning and critical information."
+        )
+
+        # Create a transient controller for reduction to avoid recursing into _reduce_context
+        # We don't set max_input_tokens on this variant to avoid loops
+        reduction_cfg = self.config.model_copy(
+            update={
+                "model_name": model_to_use,
+                "max_input_tokens": None,
+                "reduction_prompt": None,
+            }
+        )
+        reduction_ctrl = ADKController(
+            config=reduction_cfg,
+            retry_policy=self.retry_policy,
+            mock_responder=self.mock_responder,
+            artifact_service=self.artifact_service,
+            name=f"{self.name}_reducer",
+        )
+
+        try:
+            result = await reduction_ctrl.generate(reduction_full_prompt)
+            return str(result)
+        except Exception as e:
+            logger.warning("LLM reduction failed, falling back to truncation: %s", e)
+            return reduce_text_to_tokens(text, max_tokens, str(model_to_use))
 
 
 def model_config(
