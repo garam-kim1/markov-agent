@@ -1,12 +1,17 @@
 import asyncio
-from typing import Literal
+import logging
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from markov_agent import ADKConfig, BaseDigitalTwin, ResourceGovernor
 from markov_agent.containers.swarm import Swarm
 from markov_agent.core.state import BaseState
-from markov_agent.topology.graph import Graph
+from markov_agent.engine.ppu import ProbabilisticNode
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ==============================================================================
 # 2. State Definition (Complex Corporate Metrics)
@@ -16,20 +21,21 @@ from markov_agent.topology.graph import Graph
 class CompanyState(BaseState):
     """Global state for the complex corporate swarm."""
 
-    # Financials
+    # Financials (in USD)
     budget: float = Field(default=2_000_000.0)
     revenue: float = Field(default=0.0)
-    burn_rate: float = Field(default=100_000.0)  # Fixed quarterly overhead
+    burn_rate: float = Field(default=100_000.0)
 
-    # Market & Product
-    market_share: float = Field(default=2.0)
+    # Market & Product (0-100 scale where appropriate)
+    market_share: float = Field(default=5.0)  # Percentage
     reputation: float = Field(default=70.0)
     product_quality: float = Field(default=60.0)
     technical_debt: float = Field(default=20.0)
     innovation_index: float = Field(default=30.0)
+    market_sentiment: float = Field(default=50.0)
 
     # Human Capital
-    talent_index: float = Field(default=50.0)  # 0-100
+    talent_index: float = Field(default=50.0)
     employee_happiness: float = Field(default=75.0)
 
     # External
@@ -43,10 +49,16 @@ class CompanyState(BaseState):
     is_bankrupt: bool = False
     is_finished: bool = False
 
-    department_reports: dict[str, str] = Field(default_factory=dict)
     logs: list[str] = Field(
         default_factory=list, json_schema_extra={"behavior": "append"}
     )
+
+    def record_log(self, message: str) -> "CompanyState":
+        """Helper to keep logs manageable by keeping only recent ones."""
+        new_logs = self.logs + [message]
+        if len(new_logs) > 50:
+            new_logs = new_logs[-50:]
+        return self.update(logs=new_logs)
 
 
 # ==============================================================================
@@ -59,6 +71,12 @@ adk_config = ADKConfig(
     api_key="no-key",
     use_litellm=True,
     temperature=0.7,
+    max_input_tokens=9000,
+    reduction_prompt=(
+        "You are a Corporate Secretary. Summarize the following company state, focus on "
+        "KPIs (Budget, Revenue, Market Share) and key department achievements. "
+        "Keep the summary strictly professional and under the token limit."
+    ),
 )
 
 # ==============================================================================
@@ -72,6 +90,9 @@ class CEOOutput(BaseModel):
     ]
     strategy: str
     rationale: str
+    budget_allocation: float = Field(
+        description="Total budget allocated for the next move."
+    )
 
 
 class DeptOutput(BaseModel):
@@ -87,52 +108,60 @@ class DeptOutput(BaseModel):
 
 
 class BusinessTwin(BaseDigitalTwin[CompanyState]):
-    """Simulates market dynamics and enforces constraints."""
+    """Simulates market dynamics and enforces physical business constraints."""
 
     async def validate_transition(
         self, current: CompanyState, proposed: CompanyState
     ) -> bool:
-        # Check for bankruptcy
-        if proposed.budget < 0:
-            print("🛑 [Twin] VETO: Immediate bankruptcy prevented. Reverting.")
+        # Check for catastrophic failure (Debt limit)
+        if proposed.budget < -1_000_000:
+            print("🛑 [Twin] VETO: Debt limit reached. Proposed action blocked.")
             return False
         return True
 
     async def evolve_world(self, state: CompanyState) -> CompanyState:
         """Simulate revenue generation and decay between turns."""
-        # Revenue depends on (Market Share * Reputation * Product Quality * Innovation)
-        base_revenue = state.market_share * 200_000
-        quality_multiplier = state.product_quality / 50
-        reputation_multiplier = state.reputation / 70
-        talent_multiplier = state.talent_index / 50
-        innovation_multiplier = state.innovation_index / 30
+        # Normalize metrics to prevent runaway values
+        def clamp(val: float, min_v: float = 0.0, max_v: float = 100.0) -> float:
+            return max(min_v, min(max_v, val))
 
-        generated_revenue = (
-            base_revenue
-            * quality_multiplier
-            * reputation_multiplier
-            * talent_multiplier
-            * innovation_multiplier
+        # 1. Market Growth Multipliers (Normalized)
+        quality_score = clamp(state.product_quality) / 100.0
+        reputation_score = clamp(state.reputation) / 100.0
+        sentiment_score = clamp(state.market_sentiment) / 100.0
+
+        # 2. Revenue Calculation (Balanced)
+        # Revenue = (Market Share * Total Market Size) * (Quality * Reputation * Sentiment)
+        total_market_value = 5_000_000.0
+        market_capture = (state.market_share / 100.0) * total_market_value
+        performance_multiplier = 0.5 + (
+            (quality_score + reputation_score + sentiment_score) / 3.0
         )
+        generated_revenue = market_capture * performance_multiplier
 
-        # Apply burn rate and taxes (15%)
-        net_revenue = generated_revenue * 0.85
-        new_budget = state.budget + net_revenue - state.burn_rate
+        # 3. Burn Rate Adjustments (Tech Debt increases burn)
+        debt_penalty = (clamp(state.technical_debt) / 100.0) * 0.5
+        actual_burn = state.burn_rate * (1 + debt_penalty)
 
-        # Natural Decay & External Pressures
-        new_reputation = max(
-            0, state.reputation - (2 + state.competitor_aggression / 20)
-        )
-        new_debt = state.technical_debt + 1.5  # Entropy
-        new_innovation = max(0, state.innovation_index - 1)
+        # 4. Financial Update
+        new_budget = state.budget + generated_revenue - actual_burn
+
+        # 5. Natural Entropy (Things get worse if not maintained)
+        new_reputation = clamp(state.reputation - 2.0)
+        new_quality = clamp(state.product_quality - 1.0)
+        new_debt = clamp(state.technical_debt + 1.5)
+        new_sentiment = clamp(state.market_sentiment + (state.innovation_index / 100.0) - 2.0)
 
         return state.update(
             budget=new_budget,
             revenue=state.revenue + generated_revenue,
             reputation=new_reputation,
+            product_quality=new_quality,
             technical_debt=new_debt,
-            innovation_index=new_innovation,
-            logs=[f"Market: Generated ${generated_revenue:,.0f} revenue."],
+            market_sentiment=new_sentiment,
+            logs=[
+                f"Market Update: Generated ${generated_revenue:,.0f} revenue with {state.market_share:.1f}% share."
+            ],
         )
 
 
@@ -142,86 +171,105 @@ class BusinessTwin(BaseDigitalTwin[CompanyState]):
 
 
 def build_complex_corp() -> Swarm:
-    # 1. Resource Protection
     governor = ResourceGovernor(memory_threshold_percent=85.0)
 
+    # Helper to handle state updates from either dict or CompanyState
+    def _safe_update(state: Any, **kwargs: Any) -> Any:
+        if hasattr(state, "update"):
+            return state.update(**kwargs)
+        # If it's a dict (fallback for some ADK runs)
+        new_state = state.copy()
+        new_state.update(kwargs)
+        return new_state
+
+    def _safe_get(state: Any, key: str) -> Any:
+        if hasattr(state, key):
+            return getattr(state, key)
+        if isinstance(state, dict):
+            return state.get(key)
+        return None
+
     # 2. CEO Node
-    ceo = Graph(name="CEO", default_adk_config=adk_config)
+    ceo = ProbabilisticNode(
+        name="CEO",
+        adk_config=adk_config,
+        output_schema=CEOOutput,
+        prompt_template="""CEO STRATEGIC DASHBOARD
+        Quarter: {{quarter}} | Budget: ${{budget:,.0f}} | Total Revenue: ${{revenue:,.0f}}
+        
+        KPI METRICS (0-100 scale):
+        - Market Share: {{market_share}}%
+        - Quality: {{product_quality}}
+        - Innovation: {{innovation_index}}
+        - Tech Debt: {{technical_debt}}
+        - Sentiment: {{market_sentiment}}
+        
+        LOGS:
+        {% for log in logs[-5:] %}
+        - {{ log }}
+        {% endfor %}
 
-    @ceo.node(name="Strategy", output_schema=CEOOutput)
-    def ceo_strategy(state: CompanyState, result: CEOOutput):
-        """CEO Strategic Decision Node.
-        Current Quarter: {{state.quarter}}
-        Budget: {{state.budget}}
-        Metrics: Share={{state.market_share}}%, Quality={{state.product_quality}}%, Innovation={{state.innovation_index}}
-        External: Aggression={{state.competitor_aggression}}, Risk={{state.regulatory_risk}}
-
-        Decide which department needs investment to ensure long-term sustainability and growth.
-        """
-        return state.update(
+        As CEO, select the next department to activate. 
+        RD boosts Innovation. Marketing boosts Share/Sentiment. Engineering boosts Quality/reduces Debt.
+        Ops reduces Burn. Legal reduces Risk. HR improves Talent.
+        """,
+        state_updater=lambda state, result: _safe_update(
+            state,
             next_action=result.next_action,
-            logs=[f"CEO Strategy: {result.strategy} (Rationale: {result.rationale})"],
-        )
-
-    ceo.entry_point = "Strategy"
+            logs=[
+                f"CEO Strategy: {result.strategy} -> {result.next_action} (Allocated: ${result.budget_allocation:,.0f})"
+            ],
+        ),
+    )
 
     # 3. Department Factory
-    def create_dept(name: str, goal: str) -> Graph:
-        g = Graph(name=name, default_adk_config=adk_config)
+    def create_dept(name: str, goal: str) -> ProbabilisticNode:
+        return ProbabilisticNode(
+            name=name,
+            adk_config=adk_config,
+            output_schema=DeptOutput,
+            prompt_template=f"""DEPARTMENT EXECUTION: {name}
+            GOAL: {goal}
+            
+            CORPORATE STATE:
+            {{{{state.model_dump_json()}}}}
 
-        @g.node(name="Execute", output_schema=DeptOutput)
-        def exec_dept(state: CompanyState, result: DeptOutput):
-            """Execute department task for {{name}}.
-            Goal: {{goal}}
-            Current Budget: {{state.budget}}
-            Current Metrics: {{state.model_dump_json()}}
+            Execute your mission. Specify the cost and impact on metrics (use small increments like 1-10).
+            """,
+            state_updater=lambda state, result: _safe_update(
+                state,
+                **{
+                    "budget": _safe_get(state, "budget") - result.cost,
+                    "next_action": "CEO",
+                    "logs": [f"{name} Report: {result.report} (Cost: ${result.cost:,.0f})"],
+                    **{
+                        k: _safe_get(state, k) + v
+                        for k, v in result.metrics.items()
+                        if _safe_get(state, k) is not None
+                    },
+                },
+            ),
+        )
 
-            Provide a report on actions taken, costs incurred, and impact on metrics.
-            """
-            updates = {
-                "budget": state.budget - result.cost,
-                "next_action": "CEO",
-                "logs": [f"{name} Report: {result.report} (Cost: ${result.cost:,.0f})"],
-            }
-            # Merge metrics
-            for k, v in result.metrics.items():
-                if hasattr(state, k):
-                    curr = getattr(state, k)
-                    updates[k] = curr + v
-
-            if result.risks_identified:
-                updates["logs"].append(
-                    f"{name} Risks: {', '.join(result.risks_identified)}"
-                )
-
-            return state.update(**updates)
-
-        g.entry_point = "Execute"
-        return g
-
-    marketing = create_dept("Marketing", "Boost reputation and market share.")
-    engineering = create_dept(
-        "Engineering", "Improve quality and reduce technical debt."
+    marketing = create_dept(
+        "Marketing", "Boost brand reputation and capture market share."
     )
-    hr = create_dept("HR", "Hire talent and improve employee happiness.")
-    ops = create_dept("Operations", "Reduce burn rate and optimize efficiency.")
-    rd = create_dept("RD", "Increase innovation index and develop new IP.")
-    legal = create_dept("Legal", "Decrease regulatory risk and handle compliance.")
+    engineering = create_dept(
+        "Engineering", "Improve core quality and pay down technical debt."
+    )
+    hr = create_dept("HR", "Optimize talent acquisition and employee happiness.")
+    ops = create_dept("Operations", "Efficiency improvements to lower burn rate.")
+    rd = create_dept("RD", "Research and development for innovation breakthroughs.")
+    legal = create_dept("Legal", "Risk mitigation and regulatory compliance.")
 
-    # 4. Assembly
     return Swarm(
         name="ComplexCorp",
-        supervisor=ceo.as_node(),
-        workers=[
-            marketing.as_node(),
-            engineering.as_node(),
-            hr.as_node(),
-            ops.as_node(),
-            rd.as_node(),
-            legal.as_node(),
-        ],
+        supervisor=ceo,
+        workers=[marketing, engineering, hr, ops, rd, legal],
         router_func=lambda s: (
-            s.next_action if s.next_action != "EndSimulation" else None
+            (s.next_action if s.next_action != "EndSimulation" else None)
+            if hasattr(s, "next_action")
+            else (s["next_action"] if s["next_action"] != "EndSimulation" else None)
         ),
         state_type=CompanyState,
         governor=governor,
@@ -230,61 +278,51 @@ def build_complex_corp() -> Swarm:
 
 
 # ==============================================================================
-# 7. Main Loop
+# 7. Main Execution
 # ==============================================================================
 
 
 async def main():
-    print("🏢 Starting Complex Corporate Simulation...")
+    print("🏢 Starting Balanced Complex Corporate Simulation...")
     swarm = build_complex_corp()
     twin = BusinessTwin()
 
     state = CompanyState(
         budget=2_000_000.0,
-        logs=["Simulation Start: Seed capital $2M"],
+        logs=["Simulation Start: Capital $2.0M"],
     )
 
-    # Simulation runs for 4 Quarters
     for q in range(1, 5):
-        print(f"\n--- Quarter {q} ---")
+        print(f"\n[Quarter {q}]")
         state = state.update(quarter=q)
 
-        # Run Swarm for 5 steps per quarter (more complex decisions)
-        for _step in range(5):
+        for step in range(3):
             try:
                 state = await swarm.run(state)
                 if state.next_action == "EndSimulation":
                     break
             except Exception as e:
-                print(f"🚨 EXECUTION ERROR: {e}")
-                # We don't want to stop the whole simulation on a single node failure
-                # but in a real case we might want to retry or handle it.
+                logger.error("Step %s execution error: %s", step + 1, e)
                 state = state.update(next_action="CEO")
-                continue
 
-        # End of Quarter Market Evolution
+        # Evolve world at end of quarter
         state = await twin.evolve_world(state)
 
-        print(f"Budget: ${state.budget:,.0f} | Revenue: ${state.revenue:,.0f}")
+        print(f"  > Budget: ${state.budget:,.0f} | Share: {state.market_share:.1f}%")
         print(
-            f"Share: {state.market_share:.1f}% | Quality: {state.product_quality:.1f} | Innovation: {state.innovation_index:.1f}"
+            f"  > Innovation: {state.innovation_index:.1f} | Debt: {state.technical_debt:.1f}"
         )
 
-        if state.budget < 0:
-            print("💸 BANKRUPTCY. Company dissolved.")
+        if state.budget < -1_000_000:
+            print("💀 INSOLVENCY. The company has collapsed.")
             break
 
-    print("\n📊 --- Final Results ---")
+    print("\n📊 --- FINAL PERFORMANCE REPORT ---")
+    print(f"Final Budget: ${state.budget:,.2f}")
     print(f"Total Revenue: ${state.revenue:,.2f}")
-    print(f"Final Market Share: {state.market_share:.2f}%")
-    print(f"Final Talent Index: {state.talent_index:.1f}")
     print(f"Final Innovation: {state.innovation_index:.1f}")
-
-    print("\n✅ Simulation Complete.")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    print(f"Final Sentiment: {state.market_sentiment:.1f}")
+    print("Simulation Complete.")
 
 
 if __name__ == "__main__":

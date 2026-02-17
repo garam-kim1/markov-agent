@@ -590,7 +590,7 @@ class ADKController:
                             )
                         except Exception:
                             # Fallback to standard repair if guided fails
-                            repaired_obj = repaired_json(
+                            repaired_obj = repair_json(
                                 cleaned_text.strip(),
                                 return_objects=True,
                             )
