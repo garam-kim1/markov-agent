@@ -138,6 +138,28 @@ class Graph(BaseAgent):
         ):
             output_schema = sig.return_annotation
 
+        # ADK's LlmAgent requires output_schema to be a subclass of BaseModel
+        if output_schema is not None:
+            from pydantic import BaseModel, ConfigDict, create_model
+
+            try:
+                if not (
+                    inspect.isclass(output_schema)
+                    and issubclass(output_schema, BaseModel)
+                ):
+                    if output_schema is dict:
+                        # Create a dynamic model that accepts any dict
+                        output_schema = create_model(
+                            "DictResponse",
+                            __base__=BaseModel,
+                            __config__=ConfigDict(extra="allow"),
+                        )
+                        setattr(output_schema, "_is_dict_proxy", True)  # noqa: B010
+                    else:
+                        output_schema = None
+            except TypeError:
+                output_schema = None
+
         prompt_template = func.__doc__ or ""
         if prompt_template:
             prompt_template = textwrap.dedent(prompt_template).strip()

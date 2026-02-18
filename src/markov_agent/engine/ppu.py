@@ -103,6 +103,7 @@ class ProbabilisticNode(BaseNode[StateT]):
             adk_config.compress_state = kwargs.pop("compress_state")
 
         self.adk_config = adk_config
+        self.mock_responder = mock_responder or adk_config.mock_responder
         self.prompt_template = prompt_template
         self.output_schema = output_schema
         self.samples = samples
@@ -131,7 +132,6 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.state_updater = state_updater
         self.prompt_engine = PromptEngine()
         self.artifact_service = artifact_service
-        self.mock_responder = mock_responder
 
         # Inject native JSON support if schema is provided
         if self.output_schema:
@@ -146,7 +146,7 @@ class ProbabilisticNode(BaseNode[StateT]):
         self.controller = ADKController(
             self.adk_config,
             self.retry_policy,
-            mock_responder=mock_responder,
+            mock_responder=self.mock_responder,
             output_schema=self.output_schema,
             artifact_service=self.artifact_service,
             name=self.name,
@@ -340,7 +340,9 @@ class ProbabilisticNode(BaseNode[StateT]):
 
         output_payload = result
         if isinstance(result, BaseModel):
-            output_payload = result.model_dump()
+            if getattr(type(result), "_is_dict_proxy", False):
+                result = result.model_dump()
+            output_payload = result if isinstance(result, dict) else result.model_dump()
 
         if self.state_updater:
             if self.state_type and isinstance(state_obj, BaseModel):
@@ -577,6 +579,11 @@ class ProbabilisticNode(BaseNode[StateT]):
             return self.prompt_template
 
     def parse_result(self, state: StateT, result: Any) -> StateT:
+        if isinstance(result, BaseModel) and getattr(
+            type(result), "_is_dict_proxy", False
+        ):
+            result = result.model_dump()
+
         if self.state_updater:
             return self.state_updater(state, result)
 

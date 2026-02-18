@@ -62,6 +62,7 @@ class ADKConfig(BaseModel):
     generation_config: dict[str, Any] | None = None
     plugins: list[BasePlugin] = Field(default_factory=list)
     callbacks: list[Any] = Field(default_factory=list)
+    mock_responder: Callable[[str], Any] | None = None
     use_litellm: bool = False
     output_key: str | None = None
     context_cache_config: Any | None = None
@@ -161,7 +162,7 @@ class ADKController:
     ) -> None:
         self.config = config
         self.retry_policy = retry_policy
-        self.mock_responder = mock_responder
+        self.mock_responder = mock_responder or config.mock_responder
         self.name = name or config.name or "agent"
 
         # Resolve Services using ServiceRegistry as fallback
@@ -828,89 +829,100 @@ class ADKController:
             state_json = json.dumps(new_state)
             state_tokens = count_tokens(state_json, model_name)
 
-            if state_tokens <= remaining_budget:
-                return prompt, new_state
-
-            # Strategy: If LLM reduction is enabled and the whole state is too big,
-            # we might want to summarize the WHOLE state once instead of key-by-key.
-            if (
-                self.config.reduction_strategy == ReductionStrategy.LLM
-                and self.config.reduction_prompt
-            ):
-                logger.info("Using LLM for holistic state reduction")
-                summary = await self._run_reduction_llm(
-                    state_json,
-                    self.config.reduction_prompt,
-                    remaining_budget,
-                )
-                # Try to parse as JSON if it looks like one, otherwise keep as summary string
-                if summary.strip().startswith("{"):
-                    with contextlib.suppress(Exception):
-                        new_state = json.loads(summary)
-                        return prompt, new_state
-
-                # Fallback: Replace state with a single 'summary' key or similar?
-                return prompt, {"summary": summary, "original_keys_truncated": True}
-
-            # Standard iterative reduction for all keys
-            keys = list(new_state.keys())
-            # Sort keys by value size to reduce largest first
-            keys.sort(key=lambda k: len(json.dumps(new_state[k])), reverse=True)
-
-            from markov_agent.engine.token_utils import (
-                reduce_dict_to_tokens,
-                reduce_list_to_tokens,
-            )
-
-            # We pre-calculate how much we need to reduce in total
-            # Use count_tokens on current new_state JSON to be accurate
-            current_state_tokens = count_tokens(json.dumps(new_state), model_name)
-            tokens_to_shed = current_state_tokens - remaining_budget
-
-            for k in keys:
-                if tokens_to_shed <= 0:
-                    break
-
-                val = new_state[k]
-                try:
-                    val_json = json.dumps(val)
-                except Exception:
-                    val_json = str(val)
-                val_tokens = count_tokens(val_json, model_name)
-
-                # If this key is large, reduce it
-                if val_tokens > 10:
-                    # Give it a target that helps us reach the overall goal
-                    # Simple heuristic: try to reduce this key by its proportion of total excess
-                    # but ensure we don't wipe it out completely unless necessary.
-                    limit = max(10, val_tokens - tokens_to_shed)
-                    old_val_tokens = val_tokens
-                    if isinstance(val, str):
-                        new_state[k] = reduce_text_to_tokens(
-                            val,
-                            limit,
-                            model_name,
-                            strategy=self.config.reduction_strategy,
+            # If we are STILL over budget, reduce state to fit the REMAINING budget
+            if state_tokens > remaining_budget:
+                # Strategy: If LLM reduction is enabled and the whole state is too big,
+                # we might want to summarize the WHOLE state once instead of key-by-key.
+                used_holistic = False
+                if (
+                    self.config.reduction_strategy == ReductionStrategy.LLM
+                    and self.config.reduction_prompt
+                ):
+                    logger.info("Using LLM for holistic state reduction")
+                    try:
+                        summary = await self._run_reduction_llm(
+                            state_json,
+                            self.config.reduction_prompt,
+                            remaining_budget,
                         )
-                    elif isinstance(val, list):
-                        new_state[k] = reduce_list_to_tokens(
-                            val,
-                            limit,
-                            model_name,
-                            strategy=self.config.reduction_strategy,
-                        )
-                    elif isinstance(val, dict):
-                        new_state[k] = reduce_dict_to_tokens(
-                            val,
-                            limit,
-                            model_name,
-                            strategy=self.config.reduction_strategy,
+                        # Try to parse as JSON if it looks like one
+                        if summary.strip().startswith("{"):
+                            with contextlib.suppress(Exception):
+                                new_state = json.loads(summary)
+                                return prompt, new_state
+
+                        # If not JSON but LLM succeeded in giving a string summary, we could use it,
+                        # but iterative reduction on original keys might be better.
+                        # For now, let's treat non-JSON as a partial failure and proceed to iterative if it's too large.
+                    except Exception as e:
+                        logger.warning(
+                            "Holistic LLM reduction failed, falling back: %s", e
                         )
 
-                    new_val_tokens = count_tokens(json.dumps(new_state[k]), model_name)
-                    tokens_to_shed -= old_val_tokens - new_val_tokens
+                # Standard iterative reduction for all keys
+                if not used_holistic:
+                    keys = list(new_state.keys())
+                    # Sort keys by value size to reduce largest first
+                    keys.sort(key=lambda k: len(json.dumps(new_state[k])), reverse=True)
 
-            initial_state = new_state
+                    from markov_agent.engine.token_utils import (
+                        reduce_dict_to_tokens,
+                        reduce_list_to_tokens,
+                    )
+
+                    # We pre-calculate how much we need to reduce in total
+                    # Use count_tokens on current new_state JSON to be accurate
+                    current_state_tokens = count_tokens(
+                        json.dumps(new_state), model_name
+                    )
+                    tokens_to_shed = current_state_tokens - remaining_budget
+
+                    for k in keys:
+                        if tokens_to_shed <= 0:
+                            break
+
+                        val = new_state[k]
+                        try:
+                            val_json = json.dumps(val)
+                        except Exception:
+                            val_json = str(val)
+                        val_tokens = count_tokens(val_json, model_name)
+
+                        # If this key is large, reduce it
+                        if val_tokens > 10:
+                            # Give it a target that helps us reach the overall goal
+                            # Simple heuristic: try to reduce this key by its proportion of total excess
+                            # but ensure we don't wipe it out completely unless necessary.
+                            limit = max(10, val_tokens - tokens_to_shed)
+                            old_val_tokens = val_tokens
+                            if isinstance(val, str):
+                                new_state[k] = reduce_text_to_tokens(
+                                    val,
+                                    limit,
+                                    model_name,
+                                    strategy=self.config.reduction_strategy,
+                                )
+                            elif isinstance(val, list):
+                                new_state[k] = reduce_list_to_tokens(
+                                    val,
+                                    limit,
+                                    model_name,
+                                    strategy=self.config.reduction_strategy,
+                                )
+                            elif isinstance(val, dict):
+                                new_state[k] = reduce_dict_to_tokens(
+                                    val,
+                                    limit,
+                                    model_name,
+                                    strategy=self.config.reduction_strategy,
+                                )
+
+                            new_val_tokens = count_tokens(
+                                json.dumps(new_state[k]), model_name
+                            )
+                            tokens_to_shed -= old_val_tokens - new_val_tokens
+
+                initial_state = new_state
 
         return prompt, initial_state
 
