@@ -112,13 +112,20 @@ def reduce_text_to_tokens(
     chars_per_token = len(text) / current_tokens
     target_chars = int(max_tokens * chars_per_token)
 
-    reduced_text = text[:target_chars] + "... [TRUNCATED]"
+    # Truncate from the end to keep the beginning (context)
+    reduced_text = text[: max(0, target_chars - 20)] + "... [TRUNCATED]"
 
     # Re-verify and adjust
+    # tiktoken can be slow, so we use a more aggressive adjustment
+    attempts = 0
     while (
-        count_tokens(reduced_text, model_name) > max_tokens and len(reduced_text) > 20
+        count_tokens(reduced_text, model_name) > max_tokens
+        and len(reduced_text) > 20
+        and attempts < 5
     ):
-        reduced_text = reduced_text[: int(len(reduced_text) * 0.9)] + "... [TRUNCATED]"
+        # Reduce by another 15% each time if still over
+        reduced_text = reduced_text[: int(len(reduced_text) * 0.85)] + "... [TRUNCATED]"
+        attempts += 1
 
     return reduced_text
 
@@ -191,33 +198,33 @@ def reduce_dict_to_tokens(
     # Budget per key
     new_data = data.copy()
     keys = list(new_data.keys())
-    # Sort keys by size
+    # Sort keys by size to reduce largest first
     keys.sort(key=lambda k: len(json.dumps(new_data[k])), reverse=True)
 
-    # Calculate overhead
-    # We estimate ~2 tokens per key/structure
-    overhead = len(keys) * 2
-    remaining_budget = max_tokens - overhead
+    # Overhead estimate: 2 tokens per key
+    remaining_budget = max_tokens - (len(keys) * 2)
 
-    # We first try to see if we can just drop the smallest keys or if we need to reduce the large ones
-    # For now, keep the simple iterative but avoid re-counting the WHOLE dict
-    for k in keys:
+    for i, k in enumerate(keys):
         val = new_data[k]
         val_json = json.dumps(val)
         val_tokens = count_tokens(val_json, model_name)
 
-        # Fair share target
-        target = max(10, remaining_budget // len(keys))
+        # Fair share for remaining keys
+        target = max(10, remaining_budget // (len(keys) - i))
 
         if val_tokens > target:
             if isinstance(val, str):
-                new_data[k] = reduce_text_to_tokens(val, target, model_name, strategy)
+                new_val = reduce_text_to_tokens(val, target, model_name, strategy)
             elif isinstance(val, list):
-                new_data[k] = reduce_list_to_tokens(val, target, model_name, strategy)
+                new_val = reduce_list_to_tokens(val, target, model_name, strategy)
             elif isinstance(val, dict):
-                new_data[k] = reduce_dict_to_tokens(val, target, model_name, strategy)
+                new_val = reduce_dict_to_tokens(val, target, model_name, strategy)
+            else:
+                new_val = val
 
-            new_val_tokens = count_tokens(json.dumps(new_data[k]), model_name)
+            new_data[k] = new_val
+            # Re-calculate tokens for the reduced value
+            new_val_tokens = count_tokens(json.dumps(new_val), model_name)
             remaining_budget -= new_val_tokens
         else:
             remaining_budget -= val_tokens

@@ -50,7 +50,7 @@ class CompanyState(BaseState):
     is_finished: bool = False
 
     logs: list[str] = Field(
-        default_factory=list, json_schema_extra={"behavior": "append"}
+        default_factory=list, json_schema_extra={"behavior": "append", "max_length": 20}
     )
 
     def record_log(self, message: str) -> "CompanyState":
@@ -72,6 +72,7 @@ adk_config = ADKConfig(
     use_litellm=True,
     temperature=0.7,
     max_input_tokens=9000,
+    compress_state=True,
     reduction_prompt=(
         "You are a Corporate Secretary. Summarize the following company state, focus on "
         "KPIs (Budget, Revenue, Market Share) and key department achievements. "

@@ -92,6 +92,59 @@ async def test_llm_based_reduction():
 
 
 @pytest.mark.asyncio
+async def test_probabilistic_node_persistent_compression():
+    import json
+
+    from google.adk.agents.invocation_context import InvocationContext
+    from google.adk.artifacts import InMemoryArtifactService
+    from google.adk.sessions import InMemorySessionService, Session
+
+    from markov_agent.core.state import BaseState
+    from markov_agent.engine.adk_wrapper import ADKConfig
+    from markov_agent.engine.ppu import ProbabilisticNode
+    from markov_agent.engine.token_utils import count_tokens
+
+    class LargeState(BaseState):
+        data: str = ""
+
+    def mock_responder(prompt: str) -> str:
+        return "{}"
+
+    # Large input tokens limit that is exceeded by the state
+    node = ProbabilisticNode(
+        name="test_node",
+        prompt_template="State: {{data}}",
+        adk_config=ADKConfig(
+            model_name="mock", max_input_tokens=200, compress_state=True
+        ),
+        mock_responder=mock_responder,
+        state_type=LargeState,
+    )
+
+    # Initial bloated state (approx 1600 tokens)
+    bloat = "Very large data string " * 200
+    session = Session(id="test", app_name="test", user_id="test", state={"data": bloat})
+    ctx = InvocationContext(
+        session=session,
+        session_service=InMemorySessionService(),
+        invocation_id="1",
+        agent=node,
+        artifact_service=InMemoryArtifactService(),
+    )
+
+    # Run the node
+    async for _ in node._run_async_impl(ctx):
+        pass
+
+    # The session state should now be reduced
+    # Use ctx.session.state which is what the node modified
+    reduced_state_json = json.dumps(ctx.session.state)
+    tokens = count_tokens(reduced_state_json)
+    assert tokens < 500
+    assert "TRUNCATED" in ctx.session.state["data"]
+
+
+@pytest.mark.asyncio
 async def test_importance_sampling_reduction():
     from markov_agent.engine.adk_wrapper import ADKController, RetryPolicy
     from markov_agent.engine.token_utils import ReductionStrategy

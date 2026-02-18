@@ -68,6 +68,7 @@ class ADKConfig(BaseModel):
     events_compaction_config: Any | None = None
     enable_logging: bool = False
     enable_tracing: bool = False
+    compress_state: bool = False
     session_service: BaseSessionService | None = None
     memory_service: BaseMemoryService | None = None
     artifact_service: BaseArtifactService | None = None
@@ -760,7 +761,10 @@ class ADKController:
         if initial_state:
             import json
 
-            state_text = json.dumps(initial_state)
+            try:
+                state_text = json.dumps(initial_state)
+            except Exception:
+                state_text = str(initial_state)
         state_tokens = count_tokens(state_text, model_name)
 
         total_tokens = instruction_tokens + prompt_tokens + state_tokens
@@ -786,8 +790,9 @@ class ADKController:
 
         remaining_budget -= min(instruction_tokens, inst_limit)
 
-        # Allocate 60% of remaining to prompt
-        prompt_limit = int(remaining_budget * 0.75)
+        # Allocate budget: ensure at least 30% for prompt if needed, but allow state to take what's left
+        prompt_limit = max(int(max_tokens * 0.3), remaining_budget - 100)
+
         if prompt_tokens > prompt_limit:
             if (
                 self.config.reduction_strategy == ReductionStrategy.LLM
@@ -858,23 +863,27 @@ class ADKController:
             )
 
             # We pre-calculate how much we need to reduce in total
-            tokens_to_shed = state_tokens - remaining_budget
+            # Use count_tokens on current new_state JSON to be accurate
+            current_state_tokens = count_tokens(json.dumps(new_state), model_name)
+            tokens_to_shed = current_state_tokens - remaining_budget
 
             for k in keys:
                 if tokens_to_shed <= 0:
                     break
 
                 val = new_state[k]
-                val_json = json.dumps(val)
+                try:
+                    val_json = json.dumps(val)
+                except Exception:
+                    val_json = str(val)
                 val_tokens = count_tokens(val_json, model_name)
 
                 # If this key is large, reduce it
-                if val_tokens > 20:
+                if val_tokens > 10:
                     # Give it a target that helps us reach the overall goal
                     # Simple heuristic: try to reduce this key by its proportion of total excess
                     # but ensure we don't wipe it out completely unless necessary.
-                    limit = max(20, val_tokens - tokens_to_shed)
-
+                    limit = max(10, val_tokens - tokens_to_shed)
                     old_val_tokens = val_tokens
                     if isinstance(val, str):
                         new_state[k] = reduce_text_to_tokens(

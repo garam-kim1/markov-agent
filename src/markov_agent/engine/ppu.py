@@ -39,6 +39,7 @@ class ProbabilisticNode(BaseNode[StateT]):
     retry_policy: Any = Field(default=None)
     mock_responder: Any = Field(default=None)
     state_updater: Any = Field(default=None)
+    compress_state: bool = Field(default=False)
     artifact_service: BaseArtifactService | None = Field(default=None)
 
     @classmethod
@@ -98,12 +99,15 @@ class ProbabilisticNode(BaseNode[StateT]):
             adk_config.reduction_prompt = kwargs.pop("reduction_prompt")
         if "reduction_model_name" in kwargs:
             adk_config.reduction_model_name = kwargs.pop("reduction_model_name")
+        if "compress_state" in kwargs:
+            adk_config.compress_state = kwargs.pop("compress_state")
 
         self.adk_config = adk_config
         self.prompt_template = prompt_template
         self.output_schema = output_schema
         self.samples = samples
         self.sampling_strategy = sampling_strategy
+        self.compress_state = self.adk_config.compress_state
 
         # Resolve Selector
         if isinstance(selector, str):
@@ -174,6 +178,53 @@ class ProbabilisticNode(BaseNode[StateT]):
         except Exception:
             logger.exception("Node '%s' failed to render prompt", self.name)
             raise
+
+        # 2.5 Handle Context Reduction if enabled
+        if self.compress_state and self.adk_config.max_input_tokens:
+            prompt, reduced_state = await self.controller._reduce_context(
+                prompt,
+                state_dict if isinstance(state_dict, dict) else {},
+                max_tokens=self.adk_config.max_input_tokens,
+                artifact_service=ctx.artifact_service,
+                memory_service=getattr(ctx, "memory_service", None),
+            )
+            if reduced_state:
+                state_dict = reduced_state
+                # Update session state with reduced version immediately
+                # We update key-by-key and also try to persist via session_service if possible
+                for k, v in state_dict.items():
+                    ctx.session.state[k] = v
+
+                # Remove keys that might have been removed during reduction
+                current_keys = list(ctx.session.state.keys())
+                for k in current_keys:
+                    if k not in state_dict:
+                        del ctx.session.state[k]
+
+                # CRITICAL: Update state_obj so later updates don't overwrite the reduction
+                if self.state_type:
+                    try:
+                        state_obj = self.state_type.model_validate(state_dict)
+                    except Exception:
+                        with contextlib.suppress(Exception):
+                            state_obj = self.state_type.construct(**state_dict)
+                else:
+                    state_obj = state_dict
+
+                # Explicitly persist back to session service
+                if hasattr(ctx, "session_service") and ctx.session_service:
+                    # Use getattr to satisfy static analysis as ADK's interface might vary
+                    update_fn = getattr(
+                        ctx.session_service, "update_session_state", None
+                    )
+                    if update_fn:
+                        with contextlib.suppress(Exception):
+                            await update_fn(
+                                app_name=ctx.session.app_name,
+                                user_id=ctx.session.user_id,
+                                session_id=ctx.session.id,
+                                state=state_dict,
+                            )
 
         # 3. Generate Varied Configs (Explore/Exploit Strategy)
         base_gen_config = self._get_base_gen_config()

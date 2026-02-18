@@ -13,6 +13,7 @@ class BaseState(BaseModel):
 
     history: list[Any] = Field(
         default_factory=list,
+        json_schema_extra={"behavior": "append", "max_length": 10},
         description="Immutable history tracking for Time Travel Debugging.",
     )
 
@@ -34,50 +35,79 @@ class BaseState(BaseModel):
     def update(self, **kwargs: Any) -> Self:
         """Return a new instance of the state with updated fields.
 
-        Supports 'behavior="append"' in Field metadata (via json_schema_extra).
+        Supports 'behavior="append"' and 'max_length=N' in Field metadata.
         If a field is marked with behavior="append", new values will be
         appended to lists or concatenated to strings instead of replacing them.
+        If max_length is provided, lists will be capped to the last N items.
         """
         updates = {}
         for key, value in kwargs.items():
             field = self.__class__.model_fields.get(key)
             behavior = None
+            max_length = None
             if field and field.json_schema_extra:
                 behavior = field.json_schema_extra.get("behavior")
+                max_length = field.json_schema_extra.get("max_length")
 
             if behavior == "append" and hasattr(self, key):
                 current_val = getattr(self, key)
                 if isinstance(current_val, list):
                     if isinstance(value, list):
-                        updates[key] = current_val + value
+                        new_val = current_val + value
                     else:
-                        updates[key] = [*current_val, value]
+                        new_val = [*current_val, value]
+
+                    if max_length and isinstance(max_length, int):
+                        new_val = new_val[-max_length:]
+                    updates[key] = new_val
                 elif isinstance(current_val, str):
-                    updates[key] = (current_val or "") + str(value)
+                    new_val = (current_val or "") + str(value)
+                    if max_length and isinstance(max_length, int):
+                        new_val = new_val[-max_length:]
+                    updates[key] = new_val
                 else:
                     updates[key] = value
             else:
                 updates[key] = value
 
         # Use model_copy for performance.
-        # We perform a deep copy to ensure the new state instance is independent,
-        # but model_copy is generally more efficient than model_dump + model_validate.
         return self.model_copy(update=updates, deep=True)
 
     def record_step(self, step_data: Any) -> None:
         """Append a snapshot or step data to history.
 
-        Respects 'max_history' if set in meta.
+        Respects 'max_history' if set in meta, or 'max_length' in field metadata.
+        Defaults to 10.
         """
         self.history.append(step_data)
 
+        # 1. Check meta override
         max_history = self.meta.get("max_history")
+
+        # 2. Check field metadata
+        if max_history is None:
+            field = self.__class__.model_fields.get("history")
+            if field and field.json_schema_extra:
+                max_history = field.json_schema_extra.get("max_length")
+
+        # 3. Default
+        if max_history is None:
+            max_history = 10
+
         if (
             max_history
             and isinstance(max_history, int)
             and len(self.history) > max_history
         ):
             self.history = self.history[-max_history:]
+
+    def compress(self, max_tokens: int, model_name: str = "gpt-3.5-turbo") -> Self:
+        """Compress the state to fit within max_tokens."""
+        from markov_agent.engine.token_utils import reduce_dict_to_tokens
+
+        state_dict = self.model_dump()
+        reduced_dict = reduce_dict_to_tokens(state_dict, max_tokens, model_name)
+        return self.__class__.model_validate(reduced_dict)
 
     def record_reward(self, amount: float) -> None:
         """Add to the cumulative reward."""
