@@ -119,3 +119,86 @@ def reduce_text_to_tokens(
         reduced_text = reduced_text[: int(len(reduced_text) * 0.9)] + "... [TRUNCATED]"
 
     return reduced_text
+
+
+def reduce_list_to_tokens(
+    items: list[Any],
+    max_tokens: int,
+    model_name: str = "gpt-3.5-turbo",
+    strategy: ReductionStrategy = ReductionStrategy.GREEDY,
+) -> list[Any]:
+    """Reduce a list of items to fit within max_tokens.
+
+    Prioritizes keeping the most recent items (end of the list).
+    """
+    if not items:
+        return []
+
+    import json
+
+    # 1. Try with all items
+    current_tokens = count_tokens(json.dumps(items), model_name)
+    if current_tokens <= max_tokens:
+        return items
+
+    # 2. Sliding window (Greedy)
+    # We keep removing from the start until it fits
+    reduced_items = list(items)
+    while len(reduced_items) > 1:
+        reduced_items.pop(0)
+        if count_tokens(json.dumps(reduced_items), model_name) <= max_tokens:
+            return reduced_items
+
+    # 3. If even 1 item is too large, truncate that item if it's a string/dict
+    if reduced_items:
+        item = reduced_items[0]
+        if isinstance(item, str):
+            return [reduce_text_to_tokens(item, max_tokens, model_name, strategy)]
+        if isinstance(item, dict):
+            return [reduce_dict_to_tokens(item, max_tokens, model_name, strategy)]
+
+    return reduced_items
+
+
+def reduce_dict_to_tokens(
+    data: dict[str, Any],
+    max_tokens: int,
+    model_name: str = "gpt-3.5-turbo",
+    strategy: ReductionStrategy = ReductionStrategy.GREEDY,
+) -> dict[str, Any]:
+    """Reduce a dictionary to fit within max_tokens by reducing its values."""
+    if not data:
+        return {}
+
+    import json
+
+    current_tokens = count_tokens(json.dumps(data), model_name)
+    if current_tokens <= max_tokens:
+        return data
+
+    # Budget per key (naive)
+    new_data = data.copy()
+    keys = list(new_data.keys())
+    # Sort keys by size of their JSON representation
+    keys.sort(key=lambda k: len(json.dumps(new_data[k])), reverse=True)
+
+    remaining_budget = max_tokens
+    # We need to account for keys and JSON structure overhead (~2 tokens per key)
+    remaining_budget -= len(keys) * 2
+
+    for k in keys:
+        val = new_data[k]
+        # Target for this key is a portion of remaining budget
+        # Very simple: give it a fair share or less if it fits
+        target = max(10, remaining_budget // len(keys))
+
+        if isinstance(val, str):
+            new_data[k] = reduce_text_to_tokens(val, target, model_name, strategy)
+        elif isinstance(val, list):
+            new_data[k] = reduce_list_to_tokens(val, target, model_name, strategy)
+        elif isinstance(val, dict):
+            new_data[k] = reduce_dict_to_tokens(val, target, model_name, strategy)
+
+        remaining_budget -= count_tokens(json.dumps(new_data[k]), model_name)
+
+    return new_data

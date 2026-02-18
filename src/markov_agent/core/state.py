@@ -65,8 +65,19 @@ class BaseState(BaseModel):
         return self.model_copy(update=updates, deep=True)
 
     def record_step(self, step_data: Any) -> None:
-        """Append a snapshot or step data to history."""
+        """Append a snapshot or step data to history.
+
+        Respects 'max_history' if set in meta.
+        """
         self.history.append(step_data)
+
+        max_history = self.meta.get("max_history")
+        if (
+            max_history
+            and isinstance(max_history, int)
+            and len(self.history) > max_history
+        ):
+            self.history = self.history[-max_history:]
 
     def record_reward(self, amount: float) -> None:
         """Add to the cumulative reward."""

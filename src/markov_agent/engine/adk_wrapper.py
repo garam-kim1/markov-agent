@@ -818,41 +818,85 @@ class ADKController:
         # 3. Reduce State if still over
         if initial_state and remaining_budget > 0:
             new_state = initial_state.copy()
-            # Sort keys by value size (strings only) to reduce largest first
-            str_keys = [k for k, v in new_state.items() if isinstance(v, str)]
-            str_keys.sort(key=lambda k: len(new_state[k]), reverse=True)
 
-            for k in str_keys:
-                val_tokens = count_tokens(new_state[k], model_name)
-                # If this key alone is more than half of state budget, reduce it
-                if val_tokens > (remaining_budget // 2) and remaining_budget > 20:
-                    limit = max(20, remaining_budget // 2)
+            # Strategy: If LLM reduction is enabled and the whole state is too big,
+            # we might want to summarize the WHOLE state once instead of key-by-key.
+            if (
+                self.config.reduction_strategy == ReductionStrategy.LLM
+                and self.config.reduction_prompt
+                and count_tokens(json.dumps(new_state), model_name) > remaining_budget
+            ):
+                logger.info("Using LLM for holistic state reduction")
+                summary = await self._run_reduction_llm(
+                    json.dumps(new_state),
+                    self.config.reduction_prompt,
+                    remaining_budget,
+                )
+                # Try to parse as JSON if it looks like one, otherwise keep as summary string
+                if summary.strip().startswith("{"):
+                    with contextlib.suppress(Exception):
+                        import json
+
+                        new_state = json.loads(summary)
+                        return prompt, new_state
+
+                # Fallback: Replace state with a single 'summary' key or similar?
+                # For compatibility with ADK, we might want to keep the keys but empty/reduced.
+                # But a simple way is just returning a dict with the summary.
+                return prompt, {"summary": summary, "original_keys_truncated": True}
+
+            # Standard iterative reduction for all keys
+            keys = list(new_state.keys())
+            # Sort keys by value size to reduce largest first
+            keys.sort(key=lambda k: len(json.dumps(new_state[k])), reverse=True)
+
+            from markov_agent.engine.token_utils import (
+                reduce_dict_to_tokens,
+                reduce_list_to_tokens,
+            )
+
+            for k in keys:
+                current_state_tokens = count_tokens(json.dumps(new_state), model_name)
+                if current_state_tokens <= remaining_budget:
+                    break
+
+                val = new_state[k]
+                val_tokens = count_tokens(json.dumps(val), model_name)
+
+                # If this key is large, reduce it
+                if val_tokens > 20:
+                    limit = max(20, remaining_budget // len(keys))
                     if (
                         self.config.reduction_strategy == ReductionStrategy.LLM
                         and self.config.reduction_prompt
                     ):
                         logger.info("Using LLM for state key '%s' reduction", k)
                         new_state[k] = await self._run_reduction_llm(
-                            new_state[k], self.config.reduction_prompt, limit
-                        )
-                    else:
-                        logger.info(
-                            "Reducing state key '%s' from %s to %s tokens using strategy %s",
-                            k,
-                            val_tokens,
+                            json.dumps(val) if not isinstance(val, str) else val,
+                            self.config.reduction_prompt,
                             limit,
-                            self.config.reduction_strategy,
                         )
+                    elif isinstance(val, str):
                         new_state[k] = reduce_text_to_tokens(
-                            new_state[k],
+                            val,
                             limit,
                             model_name,
                             strategy=self.config.reduction_strategy,
-                            recency_weight=self.config.recency_weight,
                         )
-                    remaining_budget -= count_tokens(new_state[k], model_name)
-                else:
-                    remaining_budget -= val_tokens
+                    elif isinstance(val, list):
+                        new_state[k] = reduce_list_to_tokens(
+                            val,
+                            limit,
+                            model_name,
+                            strategy=self.config.reduction_strategy,
+                        )
+                    elif isinstance(val, dict):
+                        new_state[k] = reduce_dict_to_tokens(
+                            val,
+                            limit,
+                            model_name,
+                            strategy=self.config.reduction_strategy,
+                        )
 
             initial_state = new_state
 
