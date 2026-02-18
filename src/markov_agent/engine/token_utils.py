@@ -1,11 +1,21 @@
 import logging
 from enum import StrEnum
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
 import tiktoken
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=10)
+def get_encoding(model_name: str) -> tiktoken.Encoding:
+    """Get tiktoken encoding with caching."""
+    try:
+        return tiktoken.encoding_for_model(model_name)
+    except KeyError:
+        return tiktoken.get_encoding("cl100k_base")
 
 
 class ReductionStrategy(StrEnum):
@@ -19,11 +29,7 @@ class ReductionStrategy(StrEnum):
 def count_tokens(text: str, model_name: str = "gpt-3.5-turbo") -> int:
     """Count the number of tokens in a string using tiktoken."""
     try:
-        try:
-            encoding = tiktoken.encoding_for_model(model_name)
-        except KeyError:
-            encoding = tiktoken.get_encoding("cl100k_base")
-
+        encoding = get_encoding(model_name)
         return len(encoding.encode(text))
     except Exception as e:
         logger.warning(
@@ -44,11 +50,7 @@ def importance_sample_tokens(
     tokens are dropped, while rare tokens and recent tokens are preserved.
     """
     try:
-        try:
-            encoding = tiktoken.encoding_for_model(model_name)
-        except KeyError:
-            encoding = tiktoken.get_encoding("cl100k_base")
-
+        encoding = get_encoding(model_name)
         tokens = encoding.encode(text)
         if len(tokens) <= max_tokens:
             return text
@@ -137,25 +139,35 @@ def reduce_list_to_tokens(
     import json
 
     # 1. Try with all items
-    current_tokens = count_tokens(json.dumps(items), model_name)
+    full_json = json.dumps(items)
+    current_tokens = count_tokens(full_json, model_name)
     if current_tokens <= max_tokens:
         return items
 
-    # 2. Sliding window (Greedy)
-    # We keep removing from the start until it fits
-    reduced_items = list(items)
+    # 2. Heuristic-based reduction (Fast)
+    # Estimate how many items we can keep
+    avg_tokens_per_item = current_tokens / len(items)
+    # Leave 10% safety margin for JSON structure
+    estimated_keep = int((max_tokens * 0.9) / avg_tokens_per_item)
+
+    reduced_items = items[-max(1, estimated_keep) :]
+
+    # 3. Fine-tuning (Still linear-ish but fewer iterations)
     while len(reduced_items) > 1:
-        reduced_items.pop(0)
         if count_tokens(json.dumps(reduced_items), model_name) <= max_tokens:
             return reduced_items
+        # Remove 10% of remaining items at a time if still way over, or 1 if close
+        to_remove = max(1, len(reduced_items) // 10)
+        reduced_items = reduced_items[to_remove:]
 
-    # 3. If even 1 item is too large, truncate that item if it's a string/dict
+    # 4. If even 1 item is too large, truncate that item
     if reduced_items:
         item = reduced_items[0]
-        if isinstance(item, str):
-            return [reduce_text_to_tokens(item, max_tokens, model_name, strategy)]
-        if isinstance(item, dict):
-            return [reduce_dict_to_tokens(item, max_tokens, model_name, strategy)]
+        if count_tokens(json.dumps(item), model_name) > max_tokens:
+            if isinstance(item, str):
+                return [reduce_text_to_tokens(item, max_tokens, model_name, strategy)]
+            if isinstance(item, dict):
+                return [reduce_dict_to_tokens(item, max_tokens, model_name, strategy)]
 
     return reduced_items
 
@@ -176,29 +188,38 @@ def reduce_dict_to_tokens(
     if current_tokens <= max_tokens:
         return data
 
-    # Budget per key (naive)
+    # Budget per key
     new_data = data.copy()
     keys = list(new_data.keys())
-    # Sort keys by size of their JSON representation
+    # Sort keys by size
     keys.sort(key=lambda k: len(json.dumps(new_data[k])), reverse=True)
 
-    remaining_budget = max_tokens
-    # We need to account for keys and JSON structure overhead (~2 tokens per key)
-    remaining_budget -= len(keys) * 2
+    # Calculate overhead
+    # We estimate ~2 tokens per key/structure
+    overhead = len(keys) * 2
+    remaining_budget = max_tokens - overhead
 
+    # We first try to see if we can just drop the smallest keys or if we need to reduce the large ones
+    # For now, keep the simple iterative but avoid re-counting the WHOLE dict
     for k in keys:
         val = new_data[k]
-        # Target for this key is a portion of remaining budget
-        # Very simple: give it a fair share or less if it fits
+        val_json = json.dumps(val)
+        val_tokens = count_tokens(val_json, model_name)
+
+        # Fair share target
         target = max(10, remaining_budget // len(keys))
 
-        if isinstance(val, str):
-            new_data[k] = reduce_text_to_tokens(val, target, model_name, strategy)
-        elif isinstance(val, list):
-            new_data[k] = reduce_list_to_tokens(val, target, model_name, strategy)
-        elif isinstance(val, dict):
-            new_data[k] = reduce_dict_to_tokens(val, target, model_name, strategy)
+        if val_tokens > target:
+            if isinstance(val, str):
+                new_data[k] = reduce_text_to_tokens(val, target, model_name, strategy)
+            elif isinstance(val, list):
+                new_data[k] = reduce_list_to_tokens(val, target, model_name, strategy)
+            elif isinstance(val, dict):
+                new_data[k] = reduce_dict_to_tokens(val, target, model_name, strategy)
 
-        remaining_budget -= count_tokens(json.dumps(new_data[k]), model_name)
+            new_val_tokens = count_tokens(json.dumps(new_data[k]), model_name)
+            remaining_budget -= new_val_tokens
+        else:
+            remaining_budget -= val_tokens
 
     return new_data

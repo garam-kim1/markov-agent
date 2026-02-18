@@ -235,7 +235,7 @@ def build_complex_corp() -> Swarm:
             GOAL: {goal}
 
             CORPORATE STATE:
-            {{{{state.model_dump_json()}}}}
+            {{{{state.to_json()}}}}
 
             Execute your mission. Specify the cost and impact on metrics (use small increments like 1-10).
             """,

@@ -106,6 +106,28 @@ class BaseState(BaseModel):
 
         return MarkovView(data)
 
+    def to_dict(
+        self, *, exclude_history: bool = True, exclude_meta: bool = True
+    ) -> dict[str, Any]:
+        """Convert state to a dictionary, optionally excluding history and meta."""
+        exclude = set()
+        if exclude_history:
+            exclude.add("history")
+        if exclude_meta:
+            exclude.add("meta")
+        return self.model_dump(exclude=exclude)
+
+    def to_json(
+        self, *, exclude_history: bool = True, exclude_meta: bool = True, **kwargs: Any
+    ) -> str:
+        """Convert state to a JSON string, optionally excluding history and meta."""
+        exclude = set()
+        if exclude_history:
+            exclude.add("history")
+        if exclude_meta:
+            exclude.add("meta")
+        return self.model_dump_json(exclude=exclude, **kwargs)
+
     def record_probability(
         self,
         source: str,

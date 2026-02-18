@@ -817,32 +817,34 @@ class ADKController:
 
         # 3. Reduce State if still over
         if initial_state and remaining_budget > 0:
+            import json
+
             new_state = initial_state.copy()
+            state_json = json.dumps(new_state)
+            state_tokens = count_tokens(state_json, model_name)
+
+            if state_tokens <= remaining_budget:
+                return prompt, new_state
 
             # Strategy: If LLM reduction is enabled and the whole state is too big,
             # we might want to summarize the WHOLE state once instead of key-by-key.
             if (
                 self.config.reduction_strategy == ReductionStrategy.LLM
                 and self.config.reduction_prompt
-                and count_tokens(json.dumps(new_state), model_name) > remaining_budget
             ):
                 logger.info("Using LLM for holistic state reduction")
                 summary = await self._run_reduction_llm(
-                    json.dumps(new_state),
+                    state_json,
                     self.config.reduction_prompt,
                     remaining_budget,
                 )
                 # Try to parse as JSON if it looks like one, otherwise keep as summary string
                 if summary.strip().startswith("{"):
                     with contextlib.suppress(Exception):
-                        import json
-
                         new_state = json.loads(summary)
                         return prompt, new_state
 
                 # Fallback: Replace state with a single 'summary' key or similar?
-                # For compatibility with ADK, we might want to keep the keys but empty/reduced.
-                # But a simple way is just returning a dict with the summary.
                 return prompt, {"summary": summary, "original_keys_truncated": True}
 
             # Standard iterative reduction for all keys
@@ -855,28 +857,26 @@ class ADKController:
                 reduce_list_to_tokens,
             )
 
+            # We pre-calculate how much we need to reduce in total
+            tokens_to_shed = state_tokens - remaining_budget
+
             for k in keys:
-                current_state_tokens = count_tokens(json.dumps(new_state), model_name)
-                if current_state_tokens <= remaining_budget:
+                if tokens_to_shed <= 0:
                     break
 
                 val = new_state[k]
-                val_tokens = count_tokens(json.dumps(val), model_name)
+                val_json = json.dumps(val)
+                val_tokens = count_tokens(val_json, model_name)
 
                 # If this key is large, reduce it
                 if val_tokens > 20:
-                    limit = max(20, remaining_budget // len(keys))
-                    if (
-                        self.config.reduction_strategy == ReductionStrategy.LLM
-                        and self.config.reduction_prompt
-                    ):
-                        logger.info("Using LLM for state key '%s' reduction", k)
-                        new_state[k] = await self._run_reduction_llm(
-                            json.dumps(val) if not isinstance(val, str) else val,
-                            self.config.reduction_prompt,
-                            limit,
-                        )
-                    elif isinstance(val, str):
+                    # Give it a target that helps us reach the overall goal
+                    # Simple heuristic: try to reduce this key by its proportion of total excess
+                    # but ensure we don't wipe it out completely unless necessary.
+                    limit = max(20, val_tokens - tokens_to_shed)
+
+                    old_val_tokens = val_tokens
+                    if isinstance(val, str):
                         new_state[k] = reduce_text_to_tokens(
                             val,
                             limit,
@@ -897,6 +897,9 @@ class ADKController:
                             model_name,
                             strategy=self.config.reduction_strategy,
                         )
+
+                    new_val_tokens = count_tokens(json.dumps(new_state[k]), model_name)
+                    tokens_to_shed -= old_val_tokens - new_val_tokens
 
             initial_state = new_state
 
