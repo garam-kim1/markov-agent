@@ -4,23 +4,34 @@
 1. **MCP Client**: ADK agent consumes tools from an MCP server.
 2. **MCP Server**: ADK exposes its tools to other MCP clients.
 
-## Implementation (FastMCP)
-ADK uses `FastMCP` for high-level Pythonic server management.
-- **Server Setup**:
-```python
-from fastmcp import FastMCP
-mcp = FastMCP("ADK_Server")
+## Implementation (mcp SDK)
+ADK uses the official `mcp` SDK for Pythonic server management.
 
-@mcp.tool()
-async def my_adk_tool(arg: str):
-    # ADK logic here
-    return {"result": arg}
+### Server Setup (mcp)
+```python
+import asyncio
+from mcp.server import Server
+from mcp.types import Tool, TextContent
+
+server = Server("ADK_Server")
+
+@server.list_tools()
+async def handle_list_tools() -> list[Tool]:
+    return [
+        Tool(
+            name="my_adk_tool",
+            description="An ADK tool exposed via MCP",
+            inputSchema={
+                "type": "object",
+                "properties": {"arg": {"type": "string"}},
+                "required": ["arg"]
+            }
+        )
+    ]
 ```
 
 ## Consumption Pattern
-Integrate MCP tool providers into the `LlmAgent` tools list. ADK handles the protocol mapping.
+Integrate MCP tool providers into the `LlmAgent` tools list. ADK handles the protocol mapping via `mcp.client`.
 
-## Best Practices
-- Decorate functions with `@mcp.tool()`.
-- Use `FastMCP` for Cloud Run deployment.
-- Leverage `mcp-toolbox` for database/API integrations.
+## Markov Agent Integration
+MCP servers can be used to provide real-time data to `ProbabilisticNode` or as external state updates in `FunctionalNode`.

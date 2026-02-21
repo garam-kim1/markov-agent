@@ -10,6 +10,7 @@ Agents are modular execution units. Use the specialized references below to impl
 
 ## Logic Flow
 1. **Analyze Complexity**:
+   - For **FSM-based topology** (Markovian routing) -> Use the `markov-topology` skill.
    - For dynamic reasoning/tool use -> `LlmAgent`.
    - For fixed order/loop/parallel execution -> `WorkflowAgent`.
    - For non-standard branching -> `CustomAgent`.

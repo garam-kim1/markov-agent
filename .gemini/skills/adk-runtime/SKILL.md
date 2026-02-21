@@ -9,9 +9,10 @@ description: Expert in ADK agent runtime configuration, execution modes, and ser
 The runtime powers the execution of agents. ADK provides interactive and non-interactive ways to run agents.
 
 ## Running Agents
-1. **Dev UI (`adk web`)**: Browser-based interface for interaction and debugging.
-2. **Command Line (`adk run`)**: Terminal-based interaction.
-3. **API Server (`adk api_server`)**: Expose agents through a RESTful API.
+1. **Graph Runner (`await graph.run`)**: Used for FSM/Markovian topologies.
+2. **Dev UI (`adk web`)**: Browser-based interface for interaction and debugging.
+3. **Command Line (`adk run`)**: Terminal-based interaction.
+4. **API Server (`adk api_server`)**: Expose agents through a RESTful API.
 
 ## Technical Concepts
 - **Event Loop**: Understand the yield/pause/resume cycle.
