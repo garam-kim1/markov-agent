@@ -3,21 +3,21 @@ name: adk-safety
 description: Expert in ADK safety, security, and guardrails for AI agents in Python. Use for implementing identity/auth, in-tool guardrails, and Gemini safety filters.
 ---
 
-# ADK Safety Architect
+# ADK Safety Architect (Python Edition)
 
 ## Philosophy & Architecture
 Safety in ADK involves established boundaries for actions and content. Sources of risk include vague instructions, hallucinations, and adversarial injections.
 
 ## Multi-Layered Defense
 1. **Identity & Auth**:
-   - **Agent-Auth**: Tool uses a service account identity.
-   - **User-Auth**: Tool uses the controlling user's identity (OAuth).
+   - **Tool-Auth**: Validate permissions via `ToolContext`.
+   - **Service-Auth**: Use Google Cloud Service Accounts with Least Privilege.
 2. **Guardrails**:
-   - **In-tool Guardrails**: Defensive design using `ToolContext` to enforce policies (e.g., table access).
+   - **In-tool Guardrails**: Defensive design to enforce policies (e.g., table access).
    - **Gemini Safety Features**: Content filters and system instructions.
-   - **Callbacks/Plugins**: Validate I/O before or after execution.
-3. **Sandboxed Code Execution**: Hermetic environments for model-generated code.
-4. **Evaluation**: Trajectory analysis and hallucinations checks (`adk-evaluate`).
+   - **Callbacks**: Dynamic validation of inputs/outputs.
+3. **Sandboxed Code Execution**: Hermetic environments (`AgentEngineSandboxCodeExecutor`) for model-generated code.
+4. **Input/Output Safety**: Pydantic validation and HTML escaping.
 
 ## Best Practices
 - **Always escape model-generated content in UIs** to prevent XSS.

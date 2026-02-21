@@ -3,10 +3,10 @@ name: adk-agents
 description: Expert in ADK agent architectures. Use to design and implement LlmAgents (reasoning), WorkflowAgents (deterministic), or CustomAgents (complex branching) in Python.
 ---
 
-# ADK Agent Architect
+# ADK Agent Architect (Python Edition)
 
 ## Philosophy
-Agents are modular execution units. Use the specialized references below to implement the specific architecture required for the task.
+Agents are modular execution units. Use the specialized references below to implement the specific architecture required for the task. **All implementations must be Python 3.12+ compatible.**
 
 ## Logic Flow
 1. **Analyze Complexity**:
@@ -24,3 +24,4 @@ Agents are modular execution units. Use the specialized references below to impl
 - Explicit `InvocationContext` handling.
 - Use of Jinja2 `{var}` templates in instructions.
 - Strict async implementation using `AsyncGenerator[Event, None]`.
+- **Typing**: Use `typing.Annotated`, `pydantic.BaseModel` for schemas.

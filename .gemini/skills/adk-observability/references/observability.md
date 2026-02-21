@@ -1,29 +1,76 @@
 # ADK Observability & Logging Spec (Python)
 
-## Trace Logic
-Enable measurement of an agent's internal reasoning, tool calls, and model outputs.
+## 1. Logging Strategy
+ADK uses Python's standard `logging` module.
 
-## Core Tools
-1. **Dev UI (`adk web`)**: Trace tab for detailed interactive inspection.
-   - **Event**: Raw JSON payload.
-   - **Request/Response**: Direct Model I/O.
-   - **Graph**: Visual logic flow.
-2. **Logging Plugin**: Detailed JSON logs at each callback point.
+### Configuration
+- **CLI**: `adk run agent.py --log_level=DEBUG`
+- **Programmatic**:
+  ```python
+  import logging
+  logging.basicConfig(level=logging.DEBUG)
+  ```
 
-## Advanced Integrations
-- **BigQuery Agent Analytics**: Long-term log storage and SQL-based analysis.
-- **Observability Libraries**: AgentOps, Phoenix, Weave, MLflow (via ADK Integrations).
-
-## Pattern
+### Structured Logging (Cloud)
+To emit JSON logs compatible with Google Cloud Logging:
 ```python
-# In Runner config
+from google.cloud.logging.handlers import CloudLoggingHandler
+import google.cloud.logging
+
+client = google.cloud.logging.Client()
+handler = CloudLoggingHandler(client)
+logging.getLogger().addHandler(handler)
+```
+
+## 2. Plugins for Debugging
+
+### `LoggingPlugin`
+Prints formatted execution details to the console.
+```python
+from google.adk.plugins import LoggingPlugin
+
 runner = Runner(
-    agent=root_agent,
-    plugins=[LoggingPlugin()] # Built-in plugin
+    agent=my_agent,
+    plugins=[LoggingPlugin()]
 )
 ```
 
-## Success Criteria
-- Reasoning traces correctly captured.
-- Token usage monitored via structured logs.
-- Performance trends identified using BigQuery.
+### `DebugLoggingPlugin`
+Captures exhaustive interaction data (LLM prompts, tool inputs, session state) to a YAML file.
+```python
+from google.adk.plugins import DebugLoggingPlugin
+
+runner = Runner(
+    agent=my_agent,
+    plugins=[DebugLoggingPlugin(output_path="debug_trace.yaml")]
+)
+```
+
+## 3. Tracing (OpenTelemetry)
+ADK supports OpenTelemetry (OTEL) for distributed tracing.
+
+### Monocle Integration
+Monocle provides automatic instrumentation for ADK agents.
+```bash
+pip install monocle3
+```
+```python
+from monocle3 import Monocle
+Monocle.instrument()
+```
+
+### Trace View (Local)
+Use the ADK Dev UI to visualize traces locally.
+```bash
+adk web .
+```
+Navigate to the "Trace" tab to see:
+- **Timeline**: Agent execution flow.
+- **Spans**: Duration of tools and LLM calls.
+- **Payloads**: Inspect full request/response bodies.
+
+## 4. BigQuery Analytics
+For production, export logs to BigQuery for SQL-based analysis of:
+- Token usage trends.
+- Latency distribution.
+- Tool error rates.

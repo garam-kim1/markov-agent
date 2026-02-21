@@ -1,29 +1,54 @@
 # ADK Callbacks & Plugins Spec (Python)
 
-## Plugin Architecture (Global)
-Plugins extend `BasePlugin`. Registered in `Runner(plugins=[...])`.
-- **Hooks**: `before_run`, `after_run`, `before_agent`, `after_agent`, `before_model`, `after_model`, `before_tool`, `after_tool`, `on_model_error`, `on_tool_error`, `on_event`.
-- **Precedence**: Plugin hooks run BEFORE agent-level callbacks.
+## 1. Distinction: Plugin vs. Callback
+| Feature | **Plugin** | **Callback** |
+| :--- | :--- | :--- |
+| **Scope** | Global (Runner-level) | Local (Agent/Tool-level) |
+| **Registration** | `Runner(plugins=[...])` | `Agent(..., before_agent_callback=...)` |
+| **Use Case** | Logging, Metrics, Global Security | Validation, State Logic, Agent Hand-off |
+| **Precedence** | Runs **BEFORE** callbacks | Runs **AFTER** plugins |
 
-## Callback Architecture (Local)
-Assigned to specific agent instances at creation.
-- **Hooks**: `before_agent`, `after_agent`, `before_model`, `after_model`, `before_tool`, `after_tool`.
+## 2. Available Hooks
+Both Plugins and Callbacks use the same hook signatures.
 
-## Return Logic (Interception)
-- `return None`: Proceed as normal.
-- `return types.Content` (Agent Hook): Skip agent, use this as final output.
-- `return LlmResponse` (Model Hook): Skip LLM call, use this response.
-- `return dict` (Tool Hook): Skip tool call, use this as result.
+| Hook Name | Trigger Point | Return to Intercept |
+| :--- | :--- | :--- |
+| `before_agent` | Before agent logic starts | `types.Content` (Final Response) |
+| `after_agent` | After agent finishes | `types.Content` (Modify Output) |
+| `before_model` | Before LLM API call | `LlmResponse` (Mock/Cache) |
+| `after_model` | After LLM response | `LlmResponse` (Modify Generation) |
+| `before_tool` | Before tool execution | `dict` (Mock Result/Block) |
+| `after_tool` | After tool execution | `dict` (Modify Tool Output) |
+| `on_event` | On any system event | `None` (Observability only) |
 
-## Context Types
-- `InvocationContext`: Full session/service access.
-- `CallbackContext`: `(invocation_id, state, agent, services)`.
-- `ToolContext`: Adds `function_call_id`.
+## 3. Implementation Pattern (Callback)
+Callbacks are simple functions.
 
-## Pattern: Guardrail
 ```python
-async def model_guardrail(callback_context, llm_request):
-    if "restricted" in llm_request.prompt:
-        return LlmResponse(content="Access Denied")
-    return None
+def my_before_tool_callback(callback_context, tool, args, tool_context):
+    print(f"Tool {tool.name} called with {args}")
+    
+    # Example: Block execution based on logic
+    if args.get("dry_run") is True:
+        return {"status": "dry_run_success"}
+    
+    return None # Continue execution
 ```
+
+## 4. Implementation Pattern (Plugin)
+Plugins inherit from `BasePlugin`.
+
+```python
+from google.adk.plugins import BasePlugin
+
+class PIIFilterPlugin(BasePlugin):
+    def before_model(self, callback_context, llm_request):
+        # Redact sensitive info from prompt
+        llm_request.prompt = redact_pii(llm_request.prompt)
+        return None
+```
+
+## 5. Context Objects
+- **`InvocationContext`**: Full access to `session`, `user_id`, `state`.
+- **`CallbackContext`**: Lightweight wrapper passed to hooks.
+- **`ToolContext`**: Specific to tool execution, includes `call_id`.

@@ -1,21 +1,44 @@
 # ADK Deployment Spec (Python)
 
-## Vertex AI Agent Engine (Recommended)
-Managed auto-scaling for ADK. No API server logic required.
-- **Commands**: `adk deploy` (CLI).
-- **Environment**: Runtime provides ADK libraries. Declare custom deps in `requirements.txt`.
-- **Identity**: Requires Service Account with Vertex AI permissions.
+## 1. Vertex AI Agent Engine
+Fully managed, auto-scaling runtime for ADK agents.
 
-## Cloud Run (Custom/Container)
-- **Scaffold**: FastAPI entry point + Dockerfile.
-- **Scale**: Auto-scales to zero.
-- **Deployment**: `gcloud run deploy`.
+### Prerequisites
+- Google Cloud Project with Billing enabled.
+- APIs: `Vertex AI API`, `Cloud Storage API`.
+- Service Account with `Vertex AI User` role.
 
-## GKE (High-Control)
-- **Pattern**: Sidecar architecture with Open Models (vLLM/Ollama).
-- **Orchestration**: Managed Kubernetes (GKE).
+### Deployment CLI
+Deploys the current directory as an agent service.
+```bash
+uv run adk deploy --project_id=my-gcp-project --location=us-central1
+```
 
-## Checklist
-1. Declare dependencies in `pyproject.toml` or `requirements.txt`.
-2. Configure `Runner` with persistent `SessionService` (SQL/VertexAi).
-3. Set `GOOGLE_APPLICATION_CREDENTIALS` for local testing against cloud.
+### Configuration
+Ensure `agent.py` exposes a `root_agent` variable.
+```python
+# agent.py
+from google.adk import LlmAgent
+
+root_agent = LlmAgent(...)
+```
+
+## 2. Cloud Run (Containerized)
+Serverless container deployment. Best for custom runtime requirements.
+
+### Command
+Builds a Docker image and deploys to Cloud Run.
+```bash
+uv run adk deploy cloud_run \
+    --project_id=my-gcp-project \
+    --region=us-central1 \
+    --service_name=my-agent-service
+```
+
+### Artifact Registry
+Images are stored in Google Artifact Registry. Ensure `Artifact Registry API` is enabled.
+
+## 3. Deployment Checklist
+1. **Dependencies**: `requirements.txt` or `pyproject.toml` must exist.
+2. **Secrets**: Use Secret Manager for API keys (`GEMINI_API_KEY`).
+3. **Identity**: Assign a Service Account to the Cloud Run service for GCP resource access.

@@ -3,7 +3,7 @@ name: adk-deploy
 description: Expert in ADK agent deployment to Vertex AI and Cloud Run. Use for productionizing agents, configuring managed infrastructure, and CLI deployment.
 ---
 
-# ADK Deployment Architect
+# ADK Deployment Architect (Python Edition)
 
 ## Philosophy
 Deployment moves your agent from local development to a scalable environment. ADK prioritizes managed services.
@@ -12,7 +12,6 @@ Deployment moves your agent from local development to a scalable environment. AD
 1. **Target Identification**:
    - For managed auto-scaling -> **Vertex AI Agent Engine**.
    - For custom containers -> **Cloud Run**.
-   - For high-control K8s -> **GKE**.
 2. **Context Loading**:
    - Load `references/deploy.md` for CLI commands and architecture diagrams.
 3. **Execution**:
@@ -23,3 +22,4 @@ Deployment moves your agent from local development to a scalable environment. AD
 - Valid `requirements.txt` or `pyproject.toml` generation.
 - Correct Service Account configuration.
 - Successful container build commands.
+- Deployment of a `root_agent` variable in `agent.py`.

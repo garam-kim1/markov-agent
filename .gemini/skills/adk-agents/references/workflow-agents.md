@@ -1,51 +1,69 @@
-# Workflow Agents
+# Workflow Agents (Python)
 
-<div class="language-support-tag">
-  <span class="lst-supported">Supported in ADK</span><span class="lst-python">Python</span><span class="lst-typescript">TypeScript</span><span class="lst-go">Go</span><span class="lst-java">Java</span>
-</div>
+Workflow agents orchestrate execution flow deterministically. They do *not* use an LLM to decide the next step; the logic is hard-coded by the agent type.
 
-This section introduces "*workflow agents*" - **specialized agents that control the execution flow of its sub-agents**.
+## 1. `SequentialAgent`
+Executes a list of agents in strict order. Passes state between them via `session.state`.
 
-Workflow agents are specialized components in ADK designed purely for **orchestrating the execution flow of sub-agents**. Their primary role is to manage *how* and *when* other agents run, defining the control flow of a process.
+```python
+from google.adk.agents import SequentialAgent
 
-Unlike [LLM Agents](../llm-agents.md), which use Large Language Models for dynamic reasoning and decision-making, Workflow Agents operate based on **predefined logic**. They determine the execution sequence according to their type (e.g., sequential, parallel, loop) without consulting an LLM for the orchestration itself. This results in **deterministic and predictable execution patterns**.
+flow = SequentialAgent(
+    name="research_flow",
+    agents=[research_agent, writer_agent, editor_agent]
+)
+```
 
-ADK provides three core workflow agent types, each implementing a distinct execution pattern:
+## 2. `ParallelAgent`
+Executes multiple agents concurrently. Useful for aggregating data from multiple sources.
+- **`max_workers`**: Control concurrency level.
+- **Merge Strategy**: Results are stored in `session.state` based on each sub-agent's `output_key`.
 
-<div class="grid cards" markdown>
+```python
+from google.adk.agents import ParallelAgent
 
-- :material-console-line: **Sequential Agents**
+parallel_research = ParallelAgent(
+    name="parallel_research",
+    agents=[web_searcher, database_query, internal_docs],
+    max_workers=3
+)
+```
 
-    ---
+## 3. `LoopAgent`
+Repeats a sub-agent (or a sequence) until a condition is met.
+- **`loop_condition`**: A function `(ctx) -> bool`. Returns `True` to continue looping.
+- **`max_iterations`**: Safety limit.
 
-    Executes sub-agents one after another, in **sequence**.
+```python
+def check_quality(ctx):
+    # Continue looping if quality score is low
+    score = ctx.session.state.get("quality_score", 0)
+    return score < 0.8
 
-    [:octicons-arrow-right-24: Learn more](sequential-agents.md)
+optimizer = LoopAgent(
+    name="optimizer_loop",
+    agent=refinement_agent,  # The agent to repeat
+    condition=check_quality,
+    max_iterations=5
+)
+```
 
-- :material-console-line: **Loop Agents**
+## 4. `SwitchAgent` (Routing)
+Routes execution to *one* of several agents based on a condition function.
+- **`router`**: A function `(ctx) -> str`. Returns the `name` of the next agent.
 
-    ---
+```python
+def route_request(ctx):
+    topic = ctx.session.state.get("topic")
+    if topic == "code":
+        return "coding_agent"
+    elif topic == "search":
+        return "search_agent"
+    return "chat_agent"
 
-    **Repeatedly** executes its sub-agents until a specific termination condition is met.
-
-    [:octicons-arrow-right-24: Learn more](loop-agents.md)
-
-- :material-console-line: **Parallel Agents**
-
-    ---
-
-    Executes multiple sub-agents in **parallel**.
-
-    [:octicons-arrow-right-24: Learn more](parallel-agents.md)
-
-</div>
-
-## Why Use Workflow Agents?
-
-Workflow agents are essential when you need explicit control over how a series of tasks or agents are executed. They provide:
-
-* **Predictability:** The flow of execution is guaranteed based on the agent type and configuration.
-* **Reliability:** Ensures tasks run in the required order or pattern consistently.
-* **Structure:** Allows you to build complex processes by composing agents within clear control structures.
-
-While the workflow agent manages the control flow deterministically, the sub-agents it orchestrates can themselves be any type of agent, including intelligent LLM Agent instances. This allows you to combine structured process control with flexible, LLM-powered task execution.
+router = SwitchAgent(
+    name="main_router",
+    router=route_request,
+    agents=[coding_agent, search_agent, chat_agent]
+)
+```

@@ -3,24 +3,23 @@ name: adk-runtime
 description: Expert in ADK agent runtime configuration, execution modes, and server operations in Python. Use for configuring the Dev UI, CLI runs, and RESTful API servers.
 ---
 
-# ADK Runtime Specialist
+# ADK Runtime Architect (Python Edition)
 
-## Philosophy & Architecture
-The runtime powers the execution of agents. ADK provides interactive and non-interactive ways to run agents.
+## Philosophy
+The Runtime is the engine that drives agent execution. It manages the `Session`, `Event` loop, and `RunConfig`.
 
-## Running Agents
-1. **Graph Runner (`await graph.run`)**: Used for FSM/Markovian topologies.
-2. **Dev UI (`adk web`)**: Browser-based interface for interaction and debugging.
-3. **Command Line (`adk run`)**: Terminal-based interaction.
-4. **API Server (`adk api_server`)**: Expose agents through a RESTful API.
+## Logic Flow
+1. **Select Mode**:
+   - **CLI**: `Runner.run_async()` loop.
+   - **Service**: `FastAPIServer` or `adk api_server`.
+   - **Interactive**: `run_live()` (Websockets/Bidi).
+2. **Configure**: Use `RunConfig` to control behavior.
+3. **Execution**: Implement the loop to handle `Event` objects.
 
-## Technical Concepts
-- **Event Loop**: Understand the yield/pause/resume cycle.
-- **Session Resumption**: Learn how to resume execution from a previous state.
-- **`RunConfig`**: Global configuration for runtime behavior.
+## References
+- Read `references/runtime.md` for deep details on `Runner`, `RunConfig`, and `Event`.
 
-## Success Criteria
-- Valid configuration of `RunConfig`.
-- Successful launching of the API server.
-- Proper handling of the event stream from the `Runner`.
-- Read `references/runtime.md` for CLI command details.
+## Standards
+- Always use `async` runners.
+- Handle `event.is_final_response()` to detect completion.
+- Use `InMemorySessionService` for dev, implementation-specific for prod.
