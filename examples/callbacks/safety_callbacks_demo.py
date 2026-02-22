@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
-from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
+from markov_agent import ADKConfig, ADKController, RetryPolicy
 from markov_agent.engine.callbacks import (
     AfterModelCallback,
     BeforeAgentCallback,

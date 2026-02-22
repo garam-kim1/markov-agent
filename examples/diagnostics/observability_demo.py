@@ -7,7 +7,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
 
-from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
+from markov_agent import ADKConfig, ADKController, RetryPolicy
 
 
 class MockLLM(BaseLlm):

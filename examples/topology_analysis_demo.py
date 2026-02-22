@@ -3,11 +3,7 @@ import asyncio
 import rich
 from rich.table import Table
 
-from markov_agent.core.state import BaseState
-from markov_agent.topology.analysis import TopologyAnalyzer
-from markov_agent.topology.edge import Edge
-from markov_agent.topology.graph import Graph
-from markov_agent.topology.node import BaseNode
+from markov_agent import BaseNode, BaseState, Edge, Graph, TopologyAnalyzer
 
 
 class ResearchState(BaseState):

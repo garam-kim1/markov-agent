@@ -3,9 +3,8 @@ from typing import Any
 
 from pydantic import Field
 
+from markov_agent import ADKConfig, BaseState, Graph
 from markov_agent.containers.self_correction import CritiqueResult
-from markov_agent.core.state import BaseState
-from markov_agent.topology.graph import Graph
 
 
 class CodingState(BaseState):
@@ -45,8 +44,6 @@ async def run_tests(state: CodingState) -> dict[str, Any]:
 
 
 def create_coding_agent() -> Graph:
-    from markov_agent.engine.adk_wrapper import ADKConfig
-
     def mock_dev(prompt):
         if "Linter" in prompt or "Feedback" in prompt:
             return "import logging\ndef get_42():\n    logging.info('returning 42')\n    return 42"

@@ -4,7 +4,7 @@ from typing import Any, cast
 
 from google.adk.agents.callback_context import CallbackContext
 
-from markov_agent.engine.adk_wrapper import ADKConfig, ADKController, RetryPolicy
+from markov_agent import ADKConfig, ADKController, RetryPolicy
 from markov_agent.engine.callbacks import BeforeModelCallback
 
 
