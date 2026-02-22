@@ -18,6 +18,8 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
 from google.adk.tools import load_memory as load_memory_tool
+from google.adk.tools.google_search_tool import GoogleSearchTool
+from google.api_core import exceptions as google_exceptions
 from google.genai import types
 from json_repair import repair_json
 from pydantic import BaseModel, ConfigDict, Field
@@ -74,6 +76,8 @@ class ADKConfig(BaseModel):
     memory_service: BaseMemoryService | None = None
     artifact_service: BaseArtifactService | None = None
     enable_memory: bool = False
+    enable_grounding: bool = False
+    enable_code_execution: bool = False
 
 
 class RetryPolicy(BaseModel):
@@ -308,6 +312,9 @@ class ADKController:
         if self.config.enable_memory:
             tools.append(load_memory_tool)
 
+        if self.config.enable_grounding:
+            tools.append(GoogleSearchTool())
+
         self.agent = Agent(
             name=self.name,
             model=model_instance,
@@ -318,6 +325,16 @@ class ADKController:
             output_schema=output_schema,
             output_key=self.config.output_key,
         )
+
+        if self.config.enable_code_execution:
+            # Inject Code Execution tool post-init to bypass LlmAgent validation
+            # which might not support mixing server-side tools in constructor
+            if self.agent.generate_content_config.tools is None:
+                self.agent.generate_content_config.tools = []
+
+            # Use ToolCodeExecution for server-side execution
+            ce_tool = types.Tool(code_execution=types.ToolCodeExecution())
+            self.agent.generate_content_config.tools.append(ce_tool)
 
         if self.config.enable_tracing:
             from markov_agent.engine.observability import configure_local_telemetry
@@ -622,6 +639,24 @@ class ADKController:
                 if include_state:
                     return result, final_state
                 return result
+
+            except (
+                google_exceptions.ResourceExhausted,
+                google_exceptions.ServiceUnavailable,
+                google_exceptions.InternalServerError,
+                google_exceptions.TooManyRequests,
+            ) as e:
+                last_error = e
+                attempt += 1
+                logger.warning(
+                    "Generation attempt %s failed with transient error: %s: %s",
+                    attempt,
+                    type(e).__name__,
+                    e,
+                )
+                if attempt < controller.retry_policy.max_attempts:
+                    await asyncio.sleep(current_delay)
+                    current_delay *= controller.retry_policy.backoff_factor
 
             except Exception as e:
                 last_error = e

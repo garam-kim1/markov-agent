@@ -70,6 +70,9 @@ class ProbabilisticNode(BaseNode[StateT]):
         state_updater: Callable[[Any, Any], Any] | None = None,
         state_type: type[StateT] | None = None,
         artifact_service: BaseArtifactService | None = None,
+        *,
+        enable_grounding: bool = False,
+        enable_code_execution: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(name, state_type=state_type)
@@ -78,9 +81,19 @@ class ProbabilisticNode(BaseNode[StateT]):
             if model_name is None:
                 model_name = "gemini-3-flash-preview"
             adk_config = ADKConfig(
-                model_name=model_name, tools=tools or [], output_key=output_key
+                model_name=model_name,
+                tools=tools or [],
+                output_key=output_key,
+                enable_grounding=enable_grounding,
+                enable_code_execution=enable_code_execution,
             )
-        elif model_name or tools or output_key:
+        elif (
+            model_name
+            or tools
+            or output_key
+            or enable_grounding
+            or enable_code_execution
+        ):
             # Override if both provided
             adk_config = adk_config.model_copy(deep=True)
             if model_name:
@@ -89,6 +102,10 @@ class ProbabilisticNode(BaseNode[StateT]):
                 adk_config.tools = (adk_config.tools or []) + tools
             if output_key:
                 adk_config.output_key = output_key
+            if enable_grounding:
+                adk_config.enable_grounding = enable_grounding
+            if enable_code_execution:
+                adk_config.enable_code_execution = enable_code_execution
 
         # Handle extra kwargs for ADKConfig (like max_input_tokens)
         if "max_input_tokens" in kwargs:
