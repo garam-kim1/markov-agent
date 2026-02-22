@@ -9,7 +9,7 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
 * **Lint/Format:** `ruff` (Strict compliance).
 * **Static Analysis:** `ty` (pyright via `uvx ty`).
 * **Test:** `pytest` (Async-heavy).
-* **Core:** `google-adk`, `pydantic` v2, `asyncio`, `tenacity`, `jinja2`, `litellm`, `numpy`, `pandas`, `sqlalchemy`, `mcp`.
+* **Core:** `google-adk`, `pydantic` v2, `asyncio`, `tenacity`, `jinja2`, `litellm`, `numpy`, `pandas`, `sqlalchemy`, `mcp`, `rich`.
 * **Verify Cmd:** `uvx ty check && uv run ruff check --fix && uv run ruff format && uv run pytest`.
 
 ## ARCHITECTURE (TOPOLOGY)
@@ -49,9 +49,16 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
     * `mcp.py`: Model Context Protocol support.
     * `search.py`, `database.py`, `agent_tool.py`: Standard tool implementations.
 * **`simulation/`**: Reliability Engineering
+    * `dashboard.py`: Interactive CLI dashboard for real-time observation.
     * `runner.py`: Monte Carlo simulation for topology verification.
     * `metrics.py`, `analysis.py`: Reliability, accuracy, and latency tracking.
     * `scenario.py`, `twin.py`: Digital twin and evaluation scenarios.
+
+## CORE EXPORTS
+* **Topology:** `Graph`, `ProbabilisticNode`, `TopologyOptimizer`.
+* **Runtime:** `ADKConfig`, `ADKController`, `Agent`, `AdkWebServer`.
+* **State:** `BaseState`.
+* **Simulation:** `DigitalTwin`, `WorldModel`.
 
 ## CODING RULES
 * **Initialization:** Explicit `ADKConfig` and `RetryPolicy` preferred.
@@ -69,6 +76,8 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
           use_litellm=True,
       )
       ```
+* **Imports:** Use `markov_agent` top-level imports (`Graph`, `BaseState`, `ADKConfig`).
+* **Dashboard:** Use `graph.run_with_dashboard(state)` for interactive debugging.
 * **PPU Logic:** Favor parallel sampling (`execute_parallel_sampling`) for reliability.
 * **Async:** All LLM and Graph operations MUST be `async`.
 * **Events:** Emit via `event_bus`. Use `rich` for CLI observability.
@@ -84,3 +93,5 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
 ## RELIABILITY MATH
 * $P(Success) = 1 - (1 - p)^k$ where $k$ is sample count.
 * $H = -\sum p_i \log_2 p_i$ (Entropy). High $H \implies$ Graph needs refinement or clarification.
+* $D_{KL}(P || Q) = \sum p_i \log(p_i / q_i)$ (KL Divergence). Measures drift from reference policy.
+* $JSD(P || Q) = \frac{1}{2} D_{KL}(P || M) + \frac{1}{2} D_{KL}(Q || M)$ where $M = \frac{1}{2}(P+Q)$. Symmetric metric.

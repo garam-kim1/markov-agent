@@ -166,9 +166,9 @@ class Graph(BaseAgent):
 
         node_name = kwargs.pop("name", getattr(func, "__name__", str(func)))
 
-        # Only use as state_updater if it takes (state, result)
-        state_updater = None
-        if len(params) == 2:
+        # Prioritize explicit state_updater, fallback to func if it matches signature
+        state_updater = kwargs.pop("state_updater", None)
+        if state_updater is None and len(params) == 2:
             state_updater = func
 
         # Create the PPU node
@@ -799,6 +799,22 @@ class Graph(BaseAgent):
         # Update the original state object with results from session
         # Use model_validate to ensure all nested types are correctly reconstructed
         return type(state).model_validate(session.state)
+
+    async def run_with_dashboard(
+        self,
+        state: StateT,
+        refresh_rate: int = 4,
+        delay: float = 0.5,
+    ) -> StateT:
+        """Run the graph with an interactive terminal dashboard.
+
+        Provides a rich UI with live state updates, logs, and graph visualization.
+        Ideal for debugging and observing agent behavior.
+        """
+        from markov_agent.simulation.dashboard import DashboardRunner
+
+        runner = DashboardRunner(self, state, refresh_rate, delay)
+        return await runner.run()
 
     async def run_beam(
         self,
