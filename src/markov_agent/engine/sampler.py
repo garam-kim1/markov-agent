@@ -125,8 +125,8 @@ async def execute_parallel_sampling[T](
     if selector_func:
         res = selector_func(valid_results)
         if asyncio.iscoroutine(res):
-            return await res
-        return res
+            return cast("T", await res)
+        return cast("T", res)
 
     # Default: return the first valid result (highest confidence / first completed)
     return valid_results[0]

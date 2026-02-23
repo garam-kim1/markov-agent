@@ -1,7 +1,7 @@
 import asyncio
 import json
 import uuid
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.sessions import Session
@@ -120,7 +120,7 @@ class DashboardRunner:
             node = self.graph.nodes[self.current_node]
             node_info.append(f"Type: {type(node).__name__}\\n", style="dim")
             if hasattr(node, "prompt_template") and node.prompt_template:
-                preview = node.prompt_template[:100].replace("\\n", " ") + "..."
+                preview = str(node.prompt_template)[:100].replace("\\n", " ") + "..."
                 node_info.append(f"Prompt: {preview}\\n", style="italic dim")
 
         layout["graph"].update(
@@ -216,4 +216,4 @@ class DashboardRunner:
             await asyncio.sleep(2.0)
 
         # Reconstruct typed state
-        return type(self.state).model_validate(session.state)
+        return cast("StateT", type(self.state).model_validate(session.state))

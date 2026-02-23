@@ -1,7 +1,7 @@
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from markov_agent.core.probability import LogProb, calculate_entropy
 
@@ -52,8 +52,8 @@ class Edge:
 
     def get_distribution(self, state: Any) -> TransitionDistribution:
         """Calculate the transition probability distribution."""
-        # Check if state is a MarkovView or similar
-        view = state.get_markov_view() if hasattr(state, "get_markov_view") else state
+        # Trust the caller to provide the correct view (Graph handles strict_markov)
+        view = state
 
         if self.target_func:
             return self._get_distribution_from_func(view)
@@ -64,7 +64,12 @@ class Edge:
         return {}
 
     def _get_distribution_from_func(self, view: Any) -> TransitionDistribution:
-        result = self.target_func(view) if self.target_func else None
+        func = self.target_func
+        if not func:
+            return {}
+
+        func = cast("RouterFunction", func)
+        result = func(view)
 
         if result is None:
             return {}

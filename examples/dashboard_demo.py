@@ -100,6 +100,7 @@ def decide_action(state: GameState) -> ActionOutput:
     - Shop: Buy Potion (costs 50g).
     - Boss: ONLY if you have Potion and Health > 80.
     """
+    raise NotImplementedError
 
 
 # 4. Topology

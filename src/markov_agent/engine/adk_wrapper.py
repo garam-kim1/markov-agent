@@ -329,12 +329,20 @@ class ADKController:
         if self.config.enable_code_execution:
             # Inject Code Execution tool post-init to bypass LlmAgent validation
             # which might not support mixing server-side tools in constructor
-            if self.agent.generate_content_config.tools is None:
+            if self.agent.generate_content_config is None:
+                self.agent.generate_content_config = types.GenerateContentConfig(
+                    tools=[]
+                )
+            elif self.agent.generate_content_config.tools is None:
                 self.agent.generate_content_config.tools = []
+
+            # Ensure type safety for tools list
+            tools_list = self.agent.generate_content_config.tools
+            assert isinstance(tools_list, list)
 
             # Use ToolCodeExecution for server-side execution
             ce_tool = types.Tool(code_execution=types.ToolCodeExecution())
-            self.agent.generate_content_config.tools.append(ce_tool)
+            tools_list.append(ce_tool)
 
         if self.config.enable_tracing:
             from markov_agent.engine.observability import configure_local_telemetry

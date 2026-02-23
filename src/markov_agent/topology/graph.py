@@ -234,7 +234,7 @@ class Graph(BaseAgent):
     def add_transition(
         self,
         source: str,
-        target: str | Callable[[Any], str | dict[str, float] | None],
+        target: str | Callable[[Any], str | dict[str, float] | None] | None,
         condition: Callable[[Any], bool] | None = None,
         *,
         default: bool = False,
@@ -505,6 +505,53 @@ class Graph(BaseAgent):
             self.add_transition(
                 source, target_else, condition=lambda s: not condition(s)
             )
+
+    def router(
+        self,
+        routes: dict[str, str],
+        name: str = "router",
+        **kwargs: Any,
+    ) -> BaseNode:
+        """Add a Semantic Router node.
+
+        Uses an LLM to analyze the state and choose the next node from the
+        provided options based on their natural language descriptions.
+
+        Args:
+            routes: A dictionary of {target_node_name: description}.
+            name: The name of the router node.
+            **kwargs: Additional arguments for RouterNode (e.g. adk_config).
+
+        """
+        from markov_agent.topology.router import RouterNode
+
+        node = RouterNode(
+            name=name,
+            routes=routes,
+            state_type=self.state_type,
+            **kwargs,
+        )
+        self.add_node(node)
+
+        # Helper to capture closure variables correctly
+        def make_condition(target: str, router_name: str) -> Callable[[Any], bool]:
+            return lambda s: (
+                getattr(s, "meta", {})
+                .get("routing", {})
+                .get(router_name, {})
+                .get("target")
+                == target
+            )
+
+        # Automatically add conditional edges
+        for target_node in routes:
+            self.add_transition(
+                source=name,
+                target=target_node,
+                condition=make_condition(target_node, name),
+            )
+
+        return node
 
     def to_mermaid(self) -> str:
         """Export the graph topology as a Mermaid.js flowchart."""
