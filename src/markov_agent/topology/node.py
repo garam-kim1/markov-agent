@@ -113,14 +113,15 @@ class BaseNode[StateT](BaseAgent, ABC):
         # 3. Update Session State
         if new_state:
             # Merge updates back
-            st: Any = new_state
             session_state = cast("dict[Any, Any]", ctx.session.state)
-            if hasattr(st, "model_dump"):
-                session_state.update(cast("Any", st.model_dump)())
-            elif isinstance(st, dict):
-                session_state.update(st)
-            elif hasattr(st, "__dict__"):
-                session_state.update(st.__dict__)
+            if isinstance(new_state, BaseState):
+                session_state.update(new_state.model_dump())
+            elif hasattr(new_state, "model_dump"):
+                session_state.update(cast("Any", new_state).model_dump())
+            elif isinstance(new_state, dict):
+                session_state.update(new_state)
+            elif hasattr(new_state, "__dict__"):
+                session_state.update(new_state.__dict__)
 
         # Default behavior: generic event
         yield Event(author=self.name, actions=EventActions())
@@ -164,7 +165,9 @@ class FunctionalNode[StateT](BaseNode[StateT]):
                 return cast("StateT", update_func(**cast("dict[str, Any]", result)))
 
             # Fallback for dict-based states
-            if hasattr(state, "model_dump"):
+            if isinstance(state, BaseState):
+                state_dict = state.model_dump()
+            elif hasattr(state, "model_dump"):
                 state_dict = cast("Any", state).model_dump()
             else:
                 state_dict = dict(cast("Any", state))

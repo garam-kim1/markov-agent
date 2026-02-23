@@ -317,26 +317,32 @@ class ProbabilisticNode(BaseNode[StateT]):
             result, "reasoning", None
         )
         if reasoning and isinstance(reasoning, str):
-            if hasattr(state_obj, "meta"):
-                cast("Any", state_obj).meta["reasoning"] = reasoning
+            if isinstance(state_obj, BaseState):
+                state_obj.meta["reasoning"] = reasoning
             elif isinstance(state_obj, dict):
                 if "meta" not in state_obj:
                     state_obj["meta"] = {}
                 state_obj["meta"]["reasoning"] = reasoning
 
         # 6. Update State
-        if hasattr(state_obj, "record_probability") and callable(
-            state_obj.record_probability
-        ):
+        if isinstance(state_obj, BaseState):
             # This records the confidence of the PPU in its own selection
-            cast("Any", state_obj).record_probability(
+            state_obj.record_probability(
                 source=f"{self.name}_ppu",
                 probability=selection_confidence,
                 distribution=distribution,
             )
             # Sync back
-            if hasattr(state_obj, "meta"):
-                ctx.session.state["meta"] = cast("Any", state_obj).meta
+            ctx.session.state["meta"] = state_obj.meta
+        elif hasattr(state_obj, "record_probability") and callable(
+            state_obj.record_probability
+        ):
+            # Fallback for duck-typing (e.g. mocks or other state-like objects)
+            cast("Any", state_obj).record_probability(
+                source=f"{self.name}_ppu",
+                probability=selection_confidence,
+                distribution=distribution,
+            )
 
         if self.adk_config.output_key and isinstance(result, (str, BaseModel)):
             val = result if isinstance(result, str) else result.model_dump_json()
