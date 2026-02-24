@@ -13,10 +13,10 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
 * **Verify Cmd:** `uvx ty check && uv run ruff check --fix && uv run ruff format && uv run pytest`.
 
 ## ARCHITECTURE (TOPOLOGY)
-* **S (State):** `BaseState`. Pydantic model with immutable `history` and `meta` (confidence/entropy).
+* **S (State):** `BaseState`. Pydantic model with immutable `history` and `meta` (confidence/entropy). Use `AppendList` and `AppendString` for state fields that accumulate data.
 * **G (Graph):** `Graph`. ADK-compatible FSM runner. Handles node transitions and Mermaid exports.
 * **T (Node):** `BaseNode` -> `ProbabilisticNode` (PPU), `RouterNode` (Semantic Router), or `FunctionalNode`. $S_t \to S_{t+1}$.
-* **E (Edge):** `Edge`. Router logic $f(S) \to (next\_id, p)$. Supports condition-based or probabilistic routing.
+* **E (Edge):** `Edge`. Router logic $f(S) \to (next\_id, p)$. Supports condition-based or probabilistic routing. Use `Switch` for fluent conditional branching with the `>>` operator.
 
 ## DIRECTORY MAP (`src/markov_agent/`)
 * **`core/`**: Foundation
@@ -56,9 +56,9 @@ PPU-based FSM wrapper for `google-adk`. Paradigm: Deterministic Topology (Graph)
     * `scenario.py`, `twin.py`: Digital twin and evaluation scenarios.
 
 ## CORE EXPORTS
-* **Topology:** `Graph`, `ProbabilisticNode`, `RouterNode`, `TopologyOptimizer`.
+* **Topology:** `Graph`, `ProbabilisticNode`, `RouterNode`, `TopologyOptimizer`, `Switch`.
 * **Runtime:** `ADKConfig`, `ADKController`, `Agent`, `AdkWebServer`.
-* **State:** `BaseState`.
+* **State:** `BaseState`, `AppendList`, `AppendString`.
 * **Simulation:** `DigitalTwin`, `WorldModel`.
 
 ## CODING RULES
