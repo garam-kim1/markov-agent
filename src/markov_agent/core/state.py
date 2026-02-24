@@ -1,8 +1,12 @@
-from typing import Any, Self
+from typing import Annotated, Any, Self, TypeVar
 
 from pydantic import BaseModel, Field
 
 from markov_agent.core.probability import LogProb
+
+T = TypeVar("T")
+AppendList = Annotated[list[T], Field(json_schema_extra={"behavior": "append"})]
+AppendString = Annotated[str, Field(json_schema_extra={"behavior": "append"})]
 
 
 class BaseState(BaseModel):

@@ -46,7 +46,23 @@ class BaseNode[StateT](BaseAgent, ABC):
 
     def __rshift__(self, other: Any) -> Any:
         """Support operator overloading for flow definition."""
-        from markov_agent.topology.edge import Edge, Flow
+        from markov_agent.topology.edge import Edge, Flow, Switch
+
+        if isinstance(other, Switch):
+            edges = []
+            for condition, target in other.cases.items():
+                target_name = target.name if hasattr(target, "name") else target
+                edges.append(
+                    Edge(source=self.name, target=target_name, condition=condition)
+                )
+            if other.default:
+                target_name = (
+                    other.default.name
+                    if hasattr(other.default, "name")
+                    else other.default
+                )
+                edges.append(Edge(source=self.name, target=target_name, default=True))
+            return Flow(edges, last_node=None)  # Switch terminates the fluent chain
 
         if isinstance(other, (BaseNode, str)):
             target_name = other.name if hasattr(other, "name") else other

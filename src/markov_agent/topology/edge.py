@@ -163,7 +163,12 @@ class Flow(list):
 
     def __rshift__(self, other: Any) -> "Flow":
         """Link nodes or edges into a flow using the >> operator."""
+        from markov_agent.topology.edge import Switch
         from markov_agent.topology.node import BaseNode
+
+        if self.last_node is None:
+            msg = "Cannot connect to a flow that has already been terminated (e.g. by a Switch)."
+            raise TypeError(msg)
 
         # If last_node was an Edge and we are giving it a target
         if (
@@ -180,6 +185,25 @@ class Flow(list):
             else str(self.last_node)
         )
 
+        if isinstance(other, Switch):
+            if not source_name:
+                msg = "Cannot connect Switch to an incomplete flow."
+                raise ValueError(msg)
+            edges = []
+            for condition, target in other.cases.items():
+                target_name = target.name if hasattr(target, "name") else target
+                edges.append(
+                    Edge(source=source_name, target=target_name, condition=condition)
+                )
+            if other.default:
+                target_name = (
+                    other.default.name
+                    if hasattr(other.default, "name")
+                    else other.default
+                )
+                edges.append(Edge(source=source_name, target=target_name, default=True))
+            return Flow([*list(self), *edges], last_node=None)
+
         if isinstance(other, (BaseNode, str)):
             target_name = other.name if hasattr(other, "name") else other
             new_edge = Edge(source=source_name, target=target_name)
@@ -195,3 +219,21 @@ class Flow(list):
 
 class ProbabilisticEdge(Edge):
     """Explicitly named class for probabilistic edges, though Edge now supports both."""
+
+
+class Switch:
+    """A fluent branching mechanism for the >> operator.
+
+    Example:
+        g.connect(start_node >> Switch({
+            lambda s: s.score > 0.8: success_node,
+            lambda s: s.score < 0.2: retry_node
+        }, default=fallback_node))
+
+    """
+
+    def __init__(
+        self, cases: dict[Callable[[Any], bool], Any], default: Any = None
+    ) -> None:
+        self.cases = cases
+        self.default = default

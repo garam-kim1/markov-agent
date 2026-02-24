@@ -1,5 +1,5 @@
 from markov_agent.core.logging import setup_llm_logging
-from markov_agent.core.state import BaseState
+from markov_agent.core.state import AppendList, AppendString, BaseState
 from markov_agent.engine.adk_wrapper import (
     ADKConfig,
     ADKController,
@@ -23,7 +23,7 @@ from markov_agent.reliability import ReliabilityEngineer, ReliabilityScorecard
 from markov_agent.simulation.runner import MonteCarloRunner
 from markov_agent.simulation.twin import BaseDigitalTwin
 from markov_agent.topology.analysis import TopologyAnalyzer
-from markov_agent.topology.edge import Edge
+from markov_agent.topology.edge import Edge, Switch
 from markov_agent.topology.evolution import TopologyOptimizer
 from markov_agent.topology.graph import Graph
 from markov_agent.topology.node import BaseNode
@@ -34,6 +34,8 @@ __all__ = [
     "ADKController",
     "AdkWebServer",
     "Agent",
+    "AppendList",
+    "AppendString",
     "BaseDigitalTwin",
     "BaseNode",
     "BasePlugin",
@@ -53,6 +55,7 @@ __all__ = [
     "RouterNode",
     "RoutingDecision",
     "RunConfig",
+    "Switch",
     "ToolContext",
     "TopologyAnalyzer",
     "TopologyOptimizer",
