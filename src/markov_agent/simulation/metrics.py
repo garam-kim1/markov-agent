@@ -43,24 +43,13 @@ def calculate_pass_at_k_estimator(n: int, c: int, k: int) -> float:
     if n - c < k:
         return 1.0
 
-    def comb(n: int, k: int) -> int:
-        if k < 0 or k > n:
-            return 0
-        if k in (0, n):
-            return 1
-        if k > n // 2:
-            k = n - k
+    import math
 
-        numerator = 1
-        for i in range(k):
-            numerator = numerator * (n - i) // (i + 1)
-        return numerator
-
-    total_combinations = comb(n, k)
+    total_combinations = math.comb(n, k)
     if total_combinations == 0:
         return 0.0
 
-    failed_combinations = comb(n - c, k)
+    failed_combinations = math.comb(n - c, k)
     return 1.0 - (failed_combinations / total_combinations)
 
 
@@ -74,24 +63,13 @@ def calculate_pass_pow_k_estimator(n: int, c: int, k: int) -> float:
     if c < k:
         return 0.0
 
-    def comb(n: int, k: int) -> int:
-        if k < 0 or k > n:
-            return 0
-        if k in (0, n):
-            return 1
-        if k > n // 2:
-            k = n - k
+    import math
 
-        numerator = 1
-        for i in range(k):
-            numerator = numerator * (n - i) // (i + 1)
-        return numerator
-
-    total_combinations = comb(n, k)
+    total_combinations = math.comb(n, k)
     if total_combinations == 0:
         return 0.0
 
-    success_combinations = comb(c, k)
+    success_combinations = math.comb(c, k)
     return success_combinations / total_combinations
 
 

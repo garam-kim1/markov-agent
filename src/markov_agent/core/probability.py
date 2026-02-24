@@ -105,7 +105,7 @@ def kl_divergence(
     """Calculate Kullback-Leibler divergence D_KL(P || Q).
 
     Measures how much policy P differs from reference policy Q.
-    Formula: D_KL(P || Q) = sum(p_i * log(p_i / q_i))
+    Formula: D_KL(P || Q) = sum(p_i * log2(p_i / q_i))
     """
     keys = set(p.keys()) | set(q.keys())
     div = 0.0
@@ -116,13 +116,11 @@ def kl_divergence(
         pk_smooth = max(pk, epsilon)
         qk_smooth = max(qk, epsilon)
         if pk > 0:
-            div += pk * math.log(pk_smooth / qk_smooth)
+            div += pk * math.log2(pk_smooth / qk_smooth)
     return div
 
 
-def jensen_shannon_divergence(
-    p: dict[Any, float], q: dict[Any, float], epsilon: float = 1e-10
-) -> float:
+def jensen_shannon_divergence(p: dict[Any, float], q: dict[Any, float]) -> float:
     """Calculate Jensen-Shannon divergence (symmetric bounded metric).
 
     Formula: JSD(P || Q) = 0.5 * D_KL(P || M) + 0.5 * D_KL(Q || M)
@@ -130,4 +128,7 @@ def jensen_shannon_divergence(
     """
     keys = set(p.keys()) | set(q.keys())
     m = {k: 0.5 * (p.get(k, 0.0) + q.get(k, 0.0)) for k in keys}
-    return 0.5 * kl_divergence(p, m, epsilon) + 0.5 * kl_divergence(q, m, epsilon)
+    # No epsilon needed because M is guaranteed to be non-zero if P or Q are non-zero
+    return 0.5 * kl_divergence(p, m, epsilon=0.0) + 0.5 * kl_divergence(
+        q, m, epsilon=0.0
+    )

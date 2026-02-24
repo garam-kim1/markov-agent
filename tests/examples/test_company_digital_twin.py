@@ -10,8 +10,8 @@ from examples.company_digital_twin import (
 async def test_company_graph_structure():
     graph = build_graph()
     assert graph.name == "CorpCommand"
-    # CEO + 6 Depts = 7 Nodes
-    assert len(graph.nodes) == 7
+    # Board + CEO + 6 Depts = 8 Nodes
+    assert len(graph.nodes) == 8
     assert graph.entry_point == "CEO"
 
 
