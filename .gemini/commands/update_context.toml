@@ -1,14 +1,73 @@
-description = "Regenerate GEMINI.md to provide an optimized, token-efficient context for LLM agents."
-prompt = """
-Update `GEMINI.md` to serve as a high-density technical context for LLM agents.
+description = "Capable of auditing, validating, and generating high-density project context documentation. Capabilities include structural analysis, library philosophy extraction, API pattern recognition, progressive disclosure strategy, self-verification enforcement, and configuration compliance checking."
 
-1. **Preserve Persistent Knowledge**: Read the existing `GEMINI.md`. Identify and RETAIN sections containing non-obvious technical decisions, "gotchas", historical context, or "tribal knowledge" that cannot be easily inferred from a fresh scan of the current codebase.
-2. **Project Essence**: 1-2 sentences on core philosophy (Markov Agents, Stochastic PPUs).
-3. **Tech Stack**: Strict constraints (Python 3.12+, uv, ruff, pytest, ty, pydantic v2, google-adk).
-4. **Architecture**: FSM/Topology paradigm (State, Graph, Node/PPU, Edge).
-5. **Directory Map**: Deep-scan `src/markov_agent/`. For each module, list key files and 3-5 word explanations of their role.
-6. **Coding Rules**: Mandatory patterns (ADKConfig, explicit constructors, async, event-driven) and FORBIDDEN (print, magic strings, sync LLM).
-7. **Token Efficiency**: Use abbreviations and concise technical language. Avoid over-aggressive compression that sacrifices clarity on critical details. No conversational filler.
+prompt = '''
+# Project Context Verifier
 
-Goal: Provide a complete, compact operational manual that balances density with the retention of vital project-specific insights.
-"""
+## Philosophy & Objectives
+This skill is designed to maintain the "Source of Truth" (`GEMINI.md`) for the project. It acts as a synchronization engine between the actual codebase state, the library's core philosophy, the official documentation, test suites, and the context document provided to the AI.
+
+Because the consuming AI agent (Gemini) can read the file system dynamically, this document must act as a **Top-Level Memory Router**. It serves as the index for the project's "memory".
+
+The ultimate goal is to provide a **comprehensive map** of the codebase. The agent must be able to scan this document and immediately identify:
+1.  **Where** a specific feature or logic is implemented.
+2.  **What** specifically is contained in that file (key classes, functions, or responsibilities).
+
+Do not strip away vital "what does this do" information for the sake of extreme brevity. A slightly longer, descriptive map is better than a vague one.
+
+## Workflow
+
+### Phase 1: Discovery & Audit
+Before generating any output, you must inspect the current environment to establish ground truth based on the **WHAT, WHY, and HOW** framework.
+
+1.  **WHAT (The Map & Stack)**:
+    * Map the `src/` directory to understand where core mechanics live.
+    * Map the `docs/` directory to assess documentation coverage and structure.
+    * Read `pyproject.toml` and other config files to determine the strictly enforced tech stack.
+2.  **WHY (The Core Philosophy)**:
+    * Analyze primary entry points and base classes to extract the library's core purpose.
+3.  **HOW (The Workflow & Verification)**:
+    * Map the `tests/` and `examples/` directories to locate the executable "ground truth".
+    * Determine the exact commands required to run tests, lint, format, and typecheck. 
+4.  **Knowledge Retention & Routing Check**:
+    * If a `GEMINI.md` currently exists, read it first.
+    * Extract "non-obvious" insights (gotchas, specific architectural constraints).
+
+### Phase 2: Synthesis (The Update)
+Generate or update the `GEMINI.md` file. The output must adhere to the following **Quality Standards**:
+
+* **Detailed Memory Map**: The directory structure is the most critical section. For every significant file, provide a clear, functional description.
+    * *Bad:* `auth.py: Auth logic.`
+    * *Good:* `auth.py: Implements JWT issuance, validation, and user session caching via Redis.`
+* **Progressive Disclosure**: Delegate task-specific rules to sub-documents (e.g., `docs/algorithms.md`) but describe *what* those documents contain so the agent knows to read them.
+* **Verification First**: Explicitly encode testing and verification strategies.
+* **Accuracy**: The listed tech stack must match project configuration files exactly.
+
+## Output Template Structure
+The final `GEMINI.md` must follow this logic structure (fill with actual codebase content):
+
+1.  **Project Identity (WHAT & WHY)**: 
+    * A concise summary of the project's goal and core philosophy.
+    * The strictly enforced tech stack (e.g., Python 3.12+, `uv`, `ruff`).
+2.  **Verification & Commands (HOW)**: Provide absolute, executable commands. *Instruct Gemini to ALWAYS use these to verify its work before concluding a task.*
+    * *Test:* `uv run pytest tests/`
+    * *Lint/Format:* `uv run ruff check . --fix && uv run ruff format .`
+    * *Typecheck:* `uvx ty check`
+3.  **Directory Map (The Memory Index)**:
+    * A detailed tree mapping key domains to their file paths.
+    * **CRITICAL**: For each file, include a brief but specific summary of its contents (key classes, logic).
+    * Group files logically (e.g., Core, Topology, Engine).
+4.  **API Routing & Paradigms**:
+    * Key algorithm signatures and the core paradigms of the library.
+    * **Pointers**: Explicit file paths to the best standard usage examples in `tests/` and `examples/`.
+5.  **Development Rules & Code Style**:
+    * Stack constraints, naming conventions, and formatting preferences.
+6.  **Critical Context (Gotchas)**:
+    * The "non-obvious" knowledge, project-specific quirks, or files that should never be modified directly.
+    * *Mandatory*: Every gotcha must reference the specific file or module it pertains to.
+
+## Constraints
+* **Forbidden**: Do not hallucinate dependencies not present in config files.
+* **Forbidden**: Do not remove "gotchas" or warnings from the previous `GEMINI.md` unless disproven by code analysis.
+* **Mandatory**: Format the Directory Map so it is easy to scan. Use indentation and grouping.
+'''
+
