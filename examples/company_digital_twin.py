@@ -92,6 +92,9 @@ class CompanyState(BaseState):
     # Board Feedback (System 2)
     board_warning: str = ""
 
+    # Final Analysis
+    final_report: dict | None = None
+
     def log(self, message: str) -> "CompanyState":
         """Add a log entry."""
         new_logs = [*self.logs, message]
@@ -126,6 +129,21 @@ class DeptOutput(BaseModel):
     plan: str = Field(description="The action plan.")
     expected_cost: float
     focus_area: str = Field(description="Primary metric to improve.")
+
+
+class ReportOutput(BaseModel):
+    executive_summary: str = Field(
+        description="High-level summary of the company's final state."
+    )
+    detailed_reasoning: str = Field(
+        description="Detailed explanation of why the company concluded in this final state based on the events and actions taken."
+    )
+    key_metrics_analysis: str = Field(
+        description="Analysis of the final KPIs (budget, market share, reputation, etc.)."
+    )
+    future_outlook: str = Field(
+        description="Predictions for the company's future if it continues on this trajectory."
+    )
 
 
 # ==============================================================================
@@ -319,6 +337,39 @@ def create_dept_node(name: str, mission: str) -> ProbabilisticNode:
     )
 
 
+def create_report_node() -> ProbabilisticNode:
+    return ProbabilisticNode(
+        name="ReportAgent",
+        adk_config=adk_config,
+        output_schema=ReportOutput,
+        state_type=CompanyState,
+        prompt_template="""FINAL CORPORATE REPORT
+
+        You are the Lead Analyst for the company. The simulation has ended.
+
+        Final KPIs:
+        - Budget: ${{budget:,.0f}}
+        - Revenue: ${{revenue:,.0f}}
+        - Burn Rate: ${{burn_rate:,.0f}}
+        - Market Share: {{market_share|round(1)}}%
+        - Quality: {{product_quality|round(1)}}
+        - Innovation: {{innovation_index|round(1)}}
+        - Tech Debt: {{technical_debt|round(1)}}
+        - Sentiment: {{market_sentiment|round(1)}}
+        - Reputation: {{reputation|round(1)}}
+        - Employee Happiness: {{employee_happiness|round(1)}}
+
+        Recent Logs:
+        {% for log in logs[-20:] %}
+        - {{log}}
+        {% endfor %}
+
+        Analyze the final state of the company. Provide a comprehensive report detailing WHY the company ended up in this state, considering the events and actions taken.
+        """,
+        state_updater=lambda s, r: s.update(final_report=r.model_dump()),
+    )
+
+
 # ==============================================================================
 # 6. Simulation Engine
 # ==============================================================================
@@ -459,7 +510,7 @@ async def main():
                 if state.budget < -500_000:
                     state = state.log("💀 BANKRUPTCY DECLARED.")
                     live.update(create_dashboard(state))
-                    return
+                    break
 
                 try:
                     # Run the governance loop
@@ -470,6 +521,9 @@ async def main():
                 live.update(create_dashboard(state))
                 await asyncio.sleep(1.0)
 
+            if state.budget < -500_000:
+                break
+
             state = state.log(f"End of Q{q}. Market evolving...")
             state = state.update(
                 technical_debt=state.technical_debt + 2.0,
@@ -479,6 +533,23 @@ async def main():
     console.print("[bold green]Simulation Complete![/bold green]")
     console.print(f"Final Budget: ${state.budget:,.2f}")
     console.print(f"Market Share: {state.market_share:.1f}%")
+
+    console.print("\n[bold blue]Generating Final Report...[/bold blue]")
+    report_node = create_report_node()
+    state = await report_node.execute(state)
+
+    if state.final_report:
+        report = state.final_report
+        console.print(
+            Panel(
+                f"[bold]Executive Summary:[/bold]\n{report['executive_summary']}\n\n"
+                f"[bold]Detailed Reasoning:[/bold]\n{report['detailed_reasoning']}\n\n"
+                f"[bold]Key Metrics Analysis:[/bold]\n{report['key_metrics_analysis']}\n\n"
+                f"[bold]Future Outlook:[/bold]\n{report['future_outlook']}",
+                title="[bold blue]Final Corporate Report[/bold blue]",
+                expand=False,
+            )
+        )
 
 
 if __name__ == "__main__":
