@@ -135,11 +135,17 @@ class ReportOutput(BaseModel):
     executive_summary: str = Field(
         description="High-level summary of the company's final state."
     )
+    initial_conditions: str = Field(
+        description="Summary of the initial conditions the company started with."
+    )
+    thinking_process: str = Field(
+        description="Step-by-step reasoning of how the strategy evolved throughout the simulation."
+    )
     detailed_reasoning: str = Field(
         description="Detailed explanation of why the company concluded in this final state based on the events and actions taken."
     )
     key_metrics_analysis: str = Field(
-        description="Analysis of the final KPIs (budget, market share, reputation, etc.)."
+        description="Analysis of the final KPIs (budget, market share, reputation, etc.) compared to their initial values."
     )
     future_outlook: str = Field(
         description="Predictions for the company's future if it continues on this trajectory."
@@ -347,6 +353,17 @@ def create_report_node() -> ProbabilisticNode:
 
         You are the Lead Analyst for the company. The simulation has ended.
 
+        Initial KPIs (Baseline):
+        - Budget: $2,000,000
+        - Burn Rate: $100,000
+        - Market Share: 5.0%
+        - Quality: 60.0
+        - Innovation: 30.0
+        - Tech Debt: 20.0
+        - Sentiment: 50.0
+        - Reputation: 70.0
+        - Employee Happiness: 75.0
+
         Final KPIs:
         - Budget: ${{budget:,.0f}}
         - Revenue: ${{revenue:,.0f}}
@@ -359,12 +376,12 @@ def create_report_node() -> ProbabilisticNode:
         - Reputation: {{reputation|round(1)}}
         - Employee Happiness: {{employee_happiness|round(1)}}
 
-        Recent Logs:
+        Recent Logs (Last 20 Actions & Events):
         {% for log in logs[-20:] %}
         - {{log}}
         {% endfor %}
 
-        Analyze the final state of the company. Provide a comprehensive report detailing WHY the company ended up in this state, considering the events and actions taken.
+        Analyze the final state of the company against its initial baseline. Provide a comprehensive report detailing the initial conditions, the strategic thinking process that led to the final state, and a detailed reasoning of why the company ended up here based on the events and actions taken.
         """,
         state_updater=lambda s, r: s.update(final_report=r.model_dump()),
     )
@@ -543,6 +560,8 @@ async def main():
         console.print(
             Panel(
                 f"[bold]Executive Summary:[/bold]\n{report['executive_summary']}\n\n"
+                f"[bold]Initial Conditions:[/bold]\n{report.get('initial_conditions', 'N/A')}\n\n"
+                f"[bold]Thinking Process:[/bold]\n{report.get('thinking_process', 'N/A')}\n\n"
                 f"[bold]Detailed Reasoning:[/bold]\n{report['detailed_reasoning']}\n\n"
                 f"[bold]Key Metrics Analysis:[/bold]\n{report['key_metrics_analysis']}\n\n"
                 f"[bold]Future Outlook:[/bold]\n{report['future_outlook']}",
