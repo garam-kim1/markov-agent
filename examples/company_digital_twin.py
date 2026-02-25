@@ -92,6 +92,10 @@ class CompanyState(BaseState):
     # Board Feedback (System 2)
     board_warning: str = ""
 
+    # Flow Tracking
+    agent_flow: list[str] = Field(default_factory=list)
+    total_interactions: int = 0
+
     # Final Analysis
     final_report: dict | None = None
 
@@ -100,7 +104,16 @@ class CompanyState(BaseState):
         new_logs = [*self.logs, message]
         if len(new_logs) > 20:
             new_logs = new_logs[-20:]
-        return self.update(logs=new_logs)
+            
+        # Track flow and interactions (approximate agent name by splitting on colon)
+        agent = message.split(":")[0] if ":" in message else "System"
+        new_flow = [*self.agent_flow, agent]
+        
+        return self.update(
+            logs=new_logs,
+            agent_flow=new_flow,
+            total_interactions=self.total_interactions + 1
+        )
 
 
 # ==============================================================================
@@ -140,6 +153,9 @@ class ReportOutput(BaseModel):
     )
     thinking_process: str = Field(
         description="Step-by-step reasoning of how the strategy evolved throughout the simulation."
+    )
+    agent_flow_analysis: str = Field(
+        description="Analysis of how the agents interacted, their workflow sequence, and total number of steps/interactions taken."
     )
     detailed_reasoning: str = Field(
         description="Detailed explanation of why the company concluded in this final state based on the events and actions taken."
@@ -376,12 +392,16 @@ def create_report_node() -> ProbabilisticNode:
         - Reputation: {{reputation|round(1)}}
         - Employee Happiness: {{employee_happiness|round(1)}}
 
+        Agent Flow Statistics:
+        - Total Simulation Steps/Interactions: {{total_interactions}}
+        - Agent Interaction Sequence: {{agent_flow|join(' -> ')}}
+
         Recent Logs (Last 20 Actions & Events):
         {% for log in logs[-20:] %}
         - {{log}}
         {% endfor %}
 
-        Analyze the final state of the company against its initial baseline. Provide a comprehensive report detailing the initial conditions, the strategic thinking process that led to the final state, and a detailed reasoning of why the company ended up here based on the events and actions taken.
+        Analyze the final state of the company against its initial baseline. Provide a comprehensive report detailing the initial conditions, the strategic thinking process that led to the final state, an analysis of the agent flow (how the agents interacted throughout the simulation), and a detailed reasoning of why the company ended up here based on the events and actions taken.
         """,
         state_updater=lambda s, r: s.update(final_report=r.model_dump()),
     )
@@ -561,6 +581,7 @@ async def main():
             Panel(
                 f"[bold]Executive Summary:[/bold]\n{report['executive_summary']}\n\n"
                 f"[bold]Initial Conditions:[/bold]\n{report.get('initial_conditions', 'N/A')}\n\n"
+                f"[bold]Agent Flow Analysis:[/bold]\n{report.get('agent_flow_analysis', 'N/A')}\n\n"
                 f"[bold]Thinking Process:[/bold]\n{report.get('thinking_process', 'N/A')}\n\n"
                 f"[bold]Detailed Reasoning:[/bold]\n{report['detailed_reasoning']}\n\n"
                 f"[bold]Key Metrics Analysis:[/bold]\n{report['key_metrics_analysis']}\n\n"
