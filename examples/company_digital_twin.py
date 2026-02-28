@@ -104,15 +104,15 @@ class CompanyState(BaseState):
         new_logs = [*self.logs, message]
         if len(new_logs) > 20:
             new_logs = new_logs[-20:]
-            
+
         # Track flow and interactions (approximate agent name by splitting on colon)
-        agent = message.split(":")[0] if ":" in message else "System"
+        agent = message.split(":", maxsplit=1)[0] if ":" in message else "System"
         new_flow = [*self.agent_flow, agent]
-        
+
         return self.update(
             logs=new_logs,
             agent_flow=new_flow,
-            total_interactions=self.total_interactions + 1
+            total_interactions=self.total_interactions + 1,
         )
 
 
