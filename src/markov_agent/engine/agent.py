@@ -21,6 +21,10 @@ class Agent(ProbabilisticNode):
         tools: list[Any] | None = None,
         **kwargs: Any,
     ) -> None:
+        # Handle instruction as an alias for system_prompt
+        instruction = kwargs.pop("instruction", None)
+        actual_instruction = system_prompt or instruction
+
         # Handle string model name or ADKConfig
         if isinstance(model, str):
             adk_config = ADKConfig(model_name=model)
@@ -30,9 +34,9 @@ class Agent(ProbabilisticNode):
             # Default model if none provided
             adk_config = ADKConfig(model_name="gemini-1.5-flash")
 
-        # Map 'system_prompt' to 'adk_config.instruction'
-        if system_prompt:
-            adk_config.instruction = system_prompt
+        # Map 'system_prompt' (or 'instruction') to 'adk_config.instruction'
+        if actual_instruction:
+            adk_config.instruction = actual_instruction
 
         if tools:
             adk_config.tools = tools
