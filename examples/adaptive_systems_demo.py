@@ -65,7 +65,7 @@ async def run_demo():
         "Try again?": '{"decision": "YES", "amount": 50}',  # Will succeed
     }
 
-    adk_config = ADKConfig(model_name="mock-model")
+    adk_config = ADKConfig(model_name="gemini-3-flash-preview")
 
     # Setup mock responder
     def responder(p):

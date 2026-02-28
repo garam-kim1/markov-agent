@@ -49,6 +49,7 @@ class Edge:
         self.condition = condition
         self.default = default
         self.weight = weight
+        self._nodes = {}
 
     def get_distribution(self, state: Any) -> TransitionDistribution:
         """Calculate the transition probability distribution."""
@@ -146,6 +147,7 @@ class Edge:
 
         if isinstance(other, BaseNode):
             self.target = other.name
+            self._nodes[other.name] = other
         elif isinstance(other, str):
             self.target = other
         else:
@@ -157,9 +159,20 @@ class Edge:
 class Flow(list):
     """A collection of edges with a pointer to the last node for chaining."""
 
-    def __init__(self, edges: list[Edge] | None = None, last_node: Any = None) -> None:
+    def __init__(
+        self,
+        edges: list[Edge] | None = None,
+        last_node: Any = None,
+        nodes: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(edges or [])
         self.last_node = last_node
+        self._nodes = nodes or {}
+        if hasattr(last_node, "name"):
+            self._nodes[last_node.name] = last_node
+        for e in self:
+            if hasattr(e, "_nodes"):
+                self._nodes.update(e._nodes)
 
     def __rshift__(self, other: Any) -> "Flow":
         """Link nodes or edges into a flow using the >> operator."""
@@ -177,7 +190,10 @@ class Flow(list):
             and isinstance(other, (BaseNode, str))
         ):
             self.last_node.target = other.name if hasattr(other, "name") else other
-            return Flow(list(self), last_node=other)
+            if hasattr(other, "name"):
+                self._nodes[other.name] = other
+                self.last_node._nodes[other.name] = other
+            return Flow(list(self), last_node=other, nodes=self._nodes)
 
         source_name = (
             self.last_node.name
@@ -192,26 +208,37 @@ class Flow(list):
             edges = []
             for condition, target in other.cases.items():
                 target_name = target.name if hasattr(target, "name") else target
-                edges.append(
-                    Edge(source=source_name, target=target_name, condition=condition)
-                )
+                edge = Edge(source=source_name, target=target_name, condition=condition)
+                if hasattr(target, "name"):
+                    self._nodes[target.name] = target
+                    edge._nodes[target.name] = target
+                edges.append(edge)
             if other.default:
                 target_name = (
                     other.default.name
                     if hasattr(other.default, "name")
                     else other.default
                 )
-                edges.append(Edge(source=source_name, target=target_name, default=True))
-            return Flow([*list(self), *edges], last_node=None)
+                edge = Edge(source=source_name, target=target_name, default=True)
+                if hasattr(other.default, "name"):
+                    self._nodes[other.default.name] = other.default
+                    edge._nodes[other.default.name] = other.default
+                edges.append(edge)
+            return Flow([*list(self), *edges], last_node=None, nodes=self._nodes)
 
         if isinstance(other, (BaseNode, str)):
             target_name = other.name if hasattr(other, "name") else other
             new_edge = Edge(source=source_name, target=target_name)
-            return Flow([*list(self), new_edge], last_node=other)
+            if hasattr(other, "name"):
+                self._nodes[other.name] = other
+                new_edge._nodes[other.name] = other
+            return Flow([*list(self), new_edge], last_node=other, nodes=self._nodes)
 
         if isinstance(other, Edge):
             other.source = source_name
-            return Flow([*list(self), other], last_node=other)
+            if hasattr(other, "_nodes"):
+                self._nodes.update(other._nodes)
+            return Flow([*list(self), other], last_node=other, nodes=self._nodes)
 
         msg = f"Cannot link {source_name} with {type(other)}"
         raise TypeError(msg)

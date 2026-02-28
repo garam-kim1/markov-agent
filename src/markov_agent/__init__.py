@@ -19,11 +19,12 @@ from markov_agent.engine.plugins import (
 )
 from markov_agent.engine.ppu import ProbabilisticNode
 from markov_agent.engine.runtime import AdkWebServer, RunConfig
+from markov_agent.engine.workflow import Workflow
 from markov_agent.reliability import ReliabilityEngineer, ReliabilityScorecard
 from markov_agent.simulation.runner import MonteCarloRunner
 from markov_agent.simulation.twin import BaseDigitalTwin
 from markov_agent.topology.analysis import TopologyAnalyzer
-from markov_agent.topology.edge import Edge, Switch
+from markov_agent.topology.edge import Edge, Flow, Switch
 from markov_agent.topology.evolution import TopologyOptimizer
 from markov_agent.topology.graph import Graph
 from markov_agent.topology.node import BaseNode
@@ -44,6 +45,7 @@ __all__ = [
     "CallbackContext",
     "Edge",
     "FileLoggingPlugin",
+    "Flow",
     "Graph",
     "LlmRequest",
     "LlmResponse",
@@ -59,6 +61,7 @@ __all__ = [
     "ToolContext",
     "TopologyAnalyzer",
     "TopologyOptimizer",
+    "Workflow",
     "model_config",
     "setup_llm_logging",
     "types",

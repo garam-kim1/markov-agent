@@ -52,29 +52,44 @@ class BaseNode[StateT](BaseAgent, ABC):
             edges = []
             for condition, target in other.cases.items():
                 target_name = target.name if hasattr(target, "name") else target
-                edges.append(
-                    Edge(source=self.name, target=target_name, condition=condition)
-                )
+                edge = Edge(source=self.name, target=target_name, condition=condition)
+                edge._nodes[self.name] = self
+                if hasattr(target, "name"):
+                    edge._nodes[target.name] = target
+                edges.append(edge)
             if other.default:
                 target_name = (
                     other.default.name
                     if hasattr(other.default, "name")
                     else other.default
                 )
-                edges.append(Edge(source=self.name, target=target_name, default=True))
-            return Flow(edges, last_node=None)  # Switch terminates the fluent chain
+                edge = Edge(source=self.name, target=target_name, default=True)
+                edge._nodes[self.name] = self
+                if hasattr(other.default, "name"):
+                    edge._nodes[other.default.name] = other.default
+                edges.append(edge)
+            nodes_dict = {}
+            for e in edges:
+                nodes_dict.update(e._nodes)
+            return Flow(
+                edges, last_node=None, nodes=nodes_dict
+            )  # Switch terminates the fluent chain
 
         if isinstance(other, (BaseNode, str)):
             target_name = other.name if hasattr(other, "name") else other
             new_edge = Edge(source=self.name, target=target_name)
-            return Flow([new_edge], last_node=other)
+            new_edge._nodes[self.name] = self
+            if hasattr(other, "name"):
+                new_edge._nodes[other.name] = other
+            return Flow([new_edge], last_node=other, nodes=new_edge._nodes)
 
         if isinstance(other, Edge):
             other.source = self.name
+            other._nodes[self.name] = self
             # If edge has a target, we can return a Flow.
             # If it doesn't (like writer >> Edge(cond=...)), it will be completed by another >>
             if other.target:
-                return Flow([other], last_node=other.target)
+                return Flow([other], last_node=other.target, nodes=other._nodes)
             return other
 
         msg = f"Cannot link {self.name} with {type(other)}"

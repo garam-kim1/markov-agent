@@ -40,7 +40,7 @@ def weather_instruction_provider(context) -> str:
 # 1. Specialist Agent
 weather_agent = Agent(
     name="weather_worker",
-    model=model_config(name="gemini-1.5-flash"),
+    model=model_config(name="gemini-3-flash-preview"),
     system_prompt="You provide weather updates using the get_weather tool.",
 )
 weather_agent.add_tool(get_weather)
@@ -57,7 +57,7 @@ def call_weather_agent(query: str) -> str:
 # 3. Router Agent
 router_agent = Agent(
     name="router",
-    model=model_config(name="gemini-1.5-flash"),
+    model=model_config(name="gemini-3-flash-preview"),
     system_prompt=(
         "You are a receptionist. If the user asks about weather, use the "
         "call_weather_agent tool. Otherwise, answer directly and politely."
@@ -69,7 +69,7 @@ router_agent.add_tool(call_weather_agent)
 
 evaluator_agent = Agent(
     name="evaluator",
-    model=model_config(name="gemini-1.5-flash"),
+    model=model_config(name="gemini-3-flash-preview"),
     system_prompt=(
         "You are a quality control agent. Evaluate if the agent's response "
         "accurately answers the user's question. Output 'PASS' or 'FAIL' "

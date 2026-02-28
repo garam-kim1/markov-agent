@@ -258,11 +258,31 @@ class Graph(BaseAgent):
         self.edges.append(edge)
 
     def connect(self, flow: Flow | Edge | list[Edge]) -> None:
-        """Add edges from a Flow, Edge, or list of Edges to the graph."""
+        """Add edges from a Flow, Edge, or list of Edges to the graph.
+
+        Automatically registers any BaseNode instances found in the flow.
+        """
+        # Auto-register nodes if present
+        nodes_to_add = getattr(flow, "_nodes", {})
+        for node in nodes_to_add.values():
+            from markov_agent.topology.node import BaseNode
+
+            if isinstance(node, BaseNode) and node.name not in self.nodes:
+                self.add_node(node)
+
         if isinstance(flow, Edge):
             self.edges.append(flow)
         elif isinstance(flow, (list, Flow)):
             self.edges.extend(list(flow))
+            # Also check list elements for nodes if not a Flow object
+            if isinstance(flow, list) and not isinstance(flow, Flow):
+                for edge in flow:
+                    nodes_to_add = getattr(edge, "_nodes", {})
+                    for node in nodes_to_add.values():
+                        from markov_agent.topology.node import BaseNode
+
+                        if isinstance(node, BaseNode) and node.name not in self.nodes:
+                            self.add_node(node)
         else:
             msg = f"Unsupported flow type: {type(flow)}"
             raise TypeError(msg)
@@ -318,10 +338,41 @@ class Graph(BaseAgent):
         )
         return await runner.run_simulation()
 
-    def chain(self, nodes: list[str]) -> None:
-        """Chain a sequence of nodes together with linear transitions."""
-        for i in range(len(nodes) - 1):
-            self.add_transition(nodes[i], nodes[i + 1])
+    def chain(self, nodes: list[str | BaseNode | Callable]) -> None:
+        """Chain a sequence of nodes together with linear transitions.
+
+        Automatically registers any BaseNode instances or Callables found in the sequence.
+        """
+        node_names = []
+        for node in nodes:
+            from markov_agent.topology.node import BaseNode
+
+            if isinstance(node, str):
+                node_names.append(node)
+            elif isinstance(node, BaseNode):
+                if node.name not in self.nodes:
+                    self.add_node(node)
+                node_names.append(node.name)
+            elif callable(node):
+                # Auto-wrap Callable in a FunctionalNode
+                func_name = getattr(node, "__name__", f"func_{id(node)}")
+                if func_name == "<lambda>":
+                    func_name = f"lambda_{id(node)}"
+                from markov_agent.topology.node import FunctionalNode
+
+                func_node = FunctionalNode(
+                    name=func_name,
+                    func=node,
+                    state_type=self.state_type,
+                )
+                self.add_node(func_node)
+                node_names.append(func_name)
+            else:
+                msg = f"Unsupported node type in chain: {type(node)}"
+                raise TypeError(msg)
+
+        for i in range(len(node_names) - 1):
+            self.add_transition(node_names[i], node_names[i + 1])
 
     def subgraph(
         self,
